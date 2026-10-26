@@ -92,7 +92,7 @@ actions["kb-mode"] = (b, d) => { kbMode = d.v; kbChapter(R.param); };
 // ---------- Pourquoi le X, confidentialité ----------
 routes.x = () => {
   $app.innerHTML = header("Pourquoi le X ?", "", { back: S().profile ? "profile" : "onboarding" }) + `<main class="page full prose">
-    <img src="assets/vitruve.jpg" alt="Le logo Cal X Sthenos : un homme de Vitruve aux bras en croix, d'où sort un homme musclé, bras fléchis, jambes en X" style="width:100%;border-radius:18px;margin-top:12px;display:block">
+    <img src="assets/vitruve.jpg" alt="Le logo Cal X Sthenos : un homme lourd tracé au trait, bras à l'horizontale, d'où sort un athlète en figure noire grecque, bras fléchis, jambes en X, dans une frise grecque aux couleurs des macros" style="width:100%;border-radius:18px;margin-top:12px;display:block">
     <p class="mt24"><i>Kalos</i>, en grec, c'est le beau, le noble. <i>Sthenos</i>, c'est la force. Ensemble, ils ont donné la calisthénie : l'art de bâtir un corps fort.</p>
     <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Et le X : la lettre grecque Chi, la première du nom du Christ.</p>
     <p>Le logo reprend l'Homme de Vitruve de Léonard de Vinci. L'homme lourd, bras en croix, c'est la chair crucifiée : « Ceux qui sont à Jésus-Christ ont crucifié la chair » (Galates 5:24). Autour d'eux, le cercle est la roue des calories : protéines, glucides, lipides. De l'homme lourd sort un homme nouveau, fort, dont le corps dessine le X : « Si quelqu'un est en Christ, il est une nouvelle créature » (2 Corinthiens 5:17).</p>
