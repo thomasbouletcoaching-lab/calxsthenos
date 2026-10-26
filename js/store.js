@@ -19,6 +19,19 @@ const blank = () => ({
   demoTier: null,         // aperçu d'une formule
   notifSeen: 0,           // horodatage de la dernière lecture des notifications
   synced: false,          // profil envoyé au serveur
+  daily: {},              // { 'YYYY-MM-DD': { weight, steps, sleep, water, cardio:[{n,met,min}] } }
+  fast: null,             // jeûne en cours { start, goal }
+  fasts: [],              // jeûnes terminés { start, end }
+  favFoods: [],           // aliments favoris
+  myRecipes: [],          // recettes créées
+  batches: [],            // sessions de batch cooking
+  myPlan: null,           // plan alimentaire écrit par l'utilisateur
+  customPrograms: [],     // programmes créés
+  moves: {}, skips: {},   // agenda : séances déplacées, repos choisis
+  highlights: {},         // Bible : { 'livre.chap.verset': couleur }
+  bibleNotes: {},         // Bible : { 'livre.chap.verset': texte }
+  bibleAt: { b: 43, c: 3 },
+  kbRead: {},
 });
 
 let state;

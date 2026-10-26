@@ -88,13 +88,14 @@ export function scaleDish(d, kcal) {
 // ---------- Plan alimentaire du jour ----------
 const SPLIT = [["Petit-déjeuner", "matin", .25], ["Déjeuner", "repas", .35], ["Collation", "collation", .12], ["Dîner", "repas", .28]];
 export function dayPlan(t, date = today()) {
+  if (S().myPlan?.meals?.length) return S().myPlan.meals.map(m => ({ meal: m.name, time: m.time, n: m.items.map(i => i.label).join(", ") || m.name, lines: m.items.map(i => `${i.g ? i.g + " g " : ""}${i.label}`), m: m.items.reduce((a, i) => ({ kcal: a.kcal + i.kcal, p: a.p + i.p, c: a.c + i.c, f: a.f + i.f }), { kcal: 0, p: 0, c: 0, f: 0 }), poolSize: 1, mine: true }));
   const diet = S().profile?.diet || "all";
   const seed = Math.floor(new Date(date).getTime() / 864e5);
   const choice = S().planChoice?.[date] || {};
   return SPLIT.map(([meal, slot, share], i) => {
     const pool = DISHES.filter(d => d.slot === slot && d.diet.includes(diet === "all" ? "all" : diet));
     const pick = choice[meal] != null ? pool[choice[meal] % pool.length] : pool[(seed + i * 3) % pool.length];
-    return { meal, slot, ...scaleDish(pick, t.kcal * share), poolSize: pool.length };
+    return { meal, slot, time: MEAL_TIMES[meal], ...scaleDish(pick, t.kcal * share), poolSize: pool.length };
   });
 }
 export function swapDish(meal, date = today()) {
@@ -107,9 +108,15 @@ export function dayLog(date = today()) { return S().food[date] || []; }
 export function dayTotals(date = today()) {
   return dayLog(date).reduce((a, e) => ({ kcal: a.kcal + e.kcal, p: a.p + e.p, c: a.c + e.c, f: a.f + e.f }), { kcal: 0, p: 0, c: 0, f: 0 });
 }
+export const MEAL_TIMES = { "Petit-déjeuner": "08:00", "Déjeuner": "12:30", "Collation": "16:30", "Dîner": "19:30" };
 export function addEntry(e, date = today()) {
-  update(st => { (st.food[date] = st.food[date] || []).push({ id: Date.now() + Math.random(), ...e }); });
+  const now = new Date(); const t = e.time || (date === today() ? now.toTimeString().slice(0, 5) : MEAL_TIMES[e.meal] || "12:00");
+  update(st => { (st.food[date] = st.food[date] || []).push({ id: Date.now() + Math.random(), ...e, time: t }); });
 }
+export function setEntryTime(id, time, date = today()) { update(st => { const e = (st.food[date] || []).find(x => x.id === id); if (e) e.time = time; }); }
+export const isFavFood = (n) => S().favFoods.some(f => f.n === n);
+export function toggleFavFood(f) { update(st => { st.favFoods = isFavFood(f.n) ? st.favFoods.filter(x => x.n !== f.n) : [f, ...st.favFoods]; }); }
+export function lastMealTime(date = today()) { const l = dayLog(date); return l.length ? l.map(e => e.time || "00:00").sort().at(-1) : null; }
 export function removeEntry(id, date = today()) { update(st => { st.food[date] = (st.food[date] || []).filter(e => e.id !== id); }); }
 export function entryFromFood(f, g, meal) {
   const k = g / 100;

@@ -39,12 +39,17 @@ export async function touch(stats) {
 
 // Messagerie
 export async function thread(memberId = uid) {
-  const { data, error } = await sb.from("messages").select("id,user_id,sender,body,created_at,read_at").eq("user_id", memberId).order("created_at", { ascending: true }).limit(300);
+  const { data, error } = await sb.from("messages").select("id,user_id,sender,body,created_at,read_at,reactions").eq("user_id", memberId).order("created_at", { ascending: true }).limit(300);
   if (error) throw error; return data;
 }
 export async function send(body, memberId = uid) {
   const { error } = await sb.from("messages").insert({ user_id: memberId, sender: uid, body });
   if (error) throw error;
+}
+// Réaction : { [userId]: emoji } (une réaction par personne, la retoucher l'enlève)
+export async function react(id, emoji, current = {}) {
+  const r = { ...(current || {}) }; if (r[uid] === emoji) delete r[uid]; else r[uid] = emoji;
+  const { error } = await sb.from("messages").update({ reactions: r }).eq("id", id); if (error) throw error; return r;
 }
 export async function markRead(memberId, fromOther) {
   await sb.from("messages").update({ read_at: new Date().toISOString() }).eq("user_id", memberId).neq("sender", uid).is("read_at", null);

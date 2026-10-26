@@ -1,29 +1,29 @@
 // La Parole — Louis Segond 1910 (domaine public). Chaque texte est à relire sur une Bible avant publication.
 // tags des versets : jour, repos, fin, dur, repas
 export const VERSES = [
-  { id: "v-1tm4-8", ref: "1 Timothée 4:8", t: "Exerce-toi à la piété ; car l'exercice corporel est utile à peu de chose, tandis que la piété est utile à tout, ayant la promesse de la vie présente et de celle qui est à venir.", tags: ["jour", "fin"] },
+  { id: "v-1tm4-8", ref: "1 Timothée 4:8", t: "Exerce-toi à la piété; car l'exercice corporel est utile à peu de chose, tandis que la piété est utile à tout, ayant la promesse de la vie présente et de celle qui est à venir.", tags: ["jour", "fin"] },
   { id: "v-ph4-13", ref: "Philippiens 4:13", t: "Je puis tout par celui qui me fortifie.", tags: ["jour", "repos", "fin"] },
   { id: "v-ne8-10", ref: "Néhémie 8:10", t: "La joie de l'Éternel sera votre force.", tags: ["jour", "repos"] },
-  { id: "v-ps18-33", ref: "Psaume 18:33", t: "C'est Dieu qui me ceint de force, et qui me conduit dans la voie droite.", tags: ["jour", "repos", "fin"] },
-  { id: "v-es40-31", ref: "Ésaïe 40:31", t: "Mais ceux qui se confient en l'Éternel renouvellent leur force. Ils prennent le vol comme les aigles ; ils courent, et ne se lassent point, ils marchent, et ne se fatiguent point.", tags: ["jour", "fin"] },
-  { id: "v-ga6-9", ref: "Galates 6:9", t: "Ne nous lassons pas de faire le bien ; car nous moissonnerons au temps convenable, si nous ne nous relâchons pas.", tags: ["jour", "fin", "dur"] },
-  { id: "v-he12-11", ref: "Hébreux 12:11", t: "Il est vrai que tout châtiment semble d'abord un sujet de tristesse, et non de joie ; mais il produit plus tard pour ceux qui ont été ainsi exercés un fruit paisible de justice.", tags: ["jour", "fin"] },
-  { id: "v-1co6-19", ref: "1 Corinthiens 6:19-20", t: "Ne savez-vous pas que votre corps est le temple du Saint-Esprit qui est en vous, que vous avez reçu de Dieu, et que vous ne vous appartenez point à vous-mêmes ? Car vous avez été rachetés à un grand prix. Glorifiez donc Dieu dans votre corps et dans votre esprit, qui appartiennent à Dieu.", tags: ["jour", "dur"] },
+  { id: "v-ps18-33", ref: "Psaume 18:33", t: "C'est Dieu qui me ceint de force, Et qui me conduit dans la voie droite.", tags: ["jour", "repos", "fin"] },
+  { id: "v-es40-31", ref: "Ésaïe 40:31", t: "Mais ceux qui se confient en l'Éternel renouvellent leur force. Ils prennent le vol comme les aigles; Ils courent, et ne se lassent point, Ils marchent, et ne se fatiguent point.", tags: ["jour", "fin"] },
+  { id: "v-ga6-9", ref: "Galates 6:9", t: "Ne nous lassons pas de faire le bien; car nous moissonnerons au temps convenable, si nous ne nous relâchons pas.", tags: ["jour", "fin", "dur"] },
+  { id: "v-he12-11", ref: "Hébreux 12:11", t: "Il est vrai que tout châtiment semble d'abord un sujet de tristesse, et non de joie; mais il produit plus tard pour ceux qui ont été ainsi exercés un fruit paisible de justice.", tags: ["jour", "fin"] },
+  { id: "v-1co6-19", ref: "1 Corinthiens 6:19-20", t: "Ne savez-vous pas que votre corps est le temple du Saint-Esprit qui est en vous, que vous avez reçu de Dieu, et que vous ne vous appartenez point à vous-mêmes? Car vous avez été rachetés à un grand prix. Glorifiez donc Dieu dans votre corps et dans votre esprit, qui appartiennent à Dieu.", tags: ["jour", "dur"] },
   { id: "v-1co10-31", ref: "1 Corinthiens 10:31", t: "Soit donc que vous mangiez, soit que vous buviez, soit que vous fassiez quelque autre chose, faites tout pour la gloire de Dieu.", tags: ["jour", "repas"] },
-  { id: "v-col3-23", ref: "Colossiens 3:23", t: "Tout ce que vous faites, faites-le de bon cœur, comme pour le Seigneur et non pour des hommes.", tags: ["jour", "repos", "fin"] },
-  { id: "v-ps139-14", ref: "Psaume 139:14", t: "Je te loue de ce que je suis une créature si merveilleuse. Tes œuvres sont admirables, et mon âme le reconnaît bien.", tags: ["jour", "dur"] },
+  { id: "v-col3-23", ref: "Colossiens 3:23", t: "Tout ce que vous faites, faites-le de bon cœur, comme pour le Seigneur et non pour des hommes,", tags: ["jour", "repos", "fin"] },
+  { id: "v-ps139-14", ref: "Psaume 139:14", t: "Je te loue de ce que je suis une créature si merveilleuse. Tes œuvres sont admirables, Et mon âme le reconnaît bien.", tags: ["jour", "dur"] },
   { id: "v-2co12-9", ref: "2 Corinthiens 12:9", t: "Ma grâce te suffit, car ma puissance s'accomplit dans la faiblesse.", tags: ["repos", "dur"] },
-  { id: "v-jos1-9", ref: "Josué 1:9", t: "Ne t'ai-je pas donné cet ordre : Fortifie-toi et prends courage ? Ne t'effraie point et ne t'épouvante point, car l'Éternel, ton Dieu, est avec toi dans tout ce que tu entreprendras.", tags: ["jour", "fin"] },
+  { id: "v-jos1-9", ref: "Josué 1:9", t: "Ne t'ai-je pas donné cet ordre: Fortifie-toi et prends courage? Ne t'effraie point et ne t'épouvante point, car l'Éternel, ton Dieu, est avec toi dans tout ce que tu entreprendras.", tags: ["jour", "fin"] },
   { id: "v-2tm1-7", ref: "2 Timothée 1:7", t: "Car ce n'est pas un esprit de timidité que Dieu nous a donné, mais un esprit de force, d'amour et de sagesse.", tags: ["jour", "repos"] },
-  { id: "v-lm3-22", ref: "Lamentations 3:22-23", t: "Les bontés de l'Éternel ne sont pas épuisées, ses compassions ne sont pas à leur terme ; elles se renouvellent chaque matin. Oh ! que ta fidélité est grande !", tags: ["jour", "dur"] },
+  { id: "v-lm3-22", ref: "Lamentations 3:22-23", t: "Les bontés de l'Éternel ne sont pas épuisées, Ses compassions ne sont pas à leur terme; Elles se renouvellent chaque matin. Oh! Que ta fidélité est grande!", tags: ["jour", "dur"] },
   { id: "v-pr24-16", ref: "Proverbes 24:16", t: "Car sept fois le juste tombe, et il se relève.", tags: ["repos", "dur"] },
   { id: "v-mt11-28", ref: "Matthieu 11:28", t: "Venez à moi, vous tous qui êtes fatigués et chargés, et je vous donnerai du repos.", tags: ["dur"] },
-  { id: "v-es41-10", ref: "Ésaïe 41:10", t: "Ne crains rien, car je suis avec toi ; ne promène pas des regards inquiets, car je suis ton Dieu ; je te fortifie, je viens à ton secours.", tags: ["jour", "dur"] },
-  { id: "v-1co9-24", ref: "1 Corinthiens 9:24", t: "Ne savez-vous pas que ceux qui courent dans le stade courent tous, mais qu'un seul remporte le prix ? Courez de manière à le remporter.", tags: ["fin", "repos"] },
+  { id: "v-es41-10", ref: "Ésaïe 41:10", t: "Ne crains rien, car je suis avec toi; Ne promène pas des regards inquiets, car je suis ton Dieu; Je te fortifie, je viens à ton secours.", tags: ["jour", "dur"] },
+  { id: "v-1co9-24", ref: "1 Corinthiens 9:24", t: "Ne savez-vous pas que ceux qui courent dans le stade courent tous, mais qu'un seul remporte le prix? Courez de manière à le remporter.", tags: ["fin", "repos"] },
   { id: "v-mt4-4", ref: "Matthieu 4:4", t: "L'homme ne vivra pas de pain seulement, mais de toute parole qui sort de la bouche de Dieu.", tags: ["repas"] },
   { id: "v-jn3-16", ref: "Jean 3:16", t: "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.", tags: ["jour"] },
   { id: "v-ph1-6", ref: "Philippiens 1:6", t: "Je suis persuadé que celui qui a commencé en vous cette bonne œuvre la rendra parfaite pour le jour de Jésus-Christ.", tags: ["jour", "dur"] },
-  { id: "v-ps46-2", ref: "Psaume 46:2", t: "Dieu est pour nous un refuge et un appui, un secours qui ne manque jamais dans la détresse.", tags: ["dur"] },
+  { id: "v-ps46-2", ref: "Psaume 46:2", t: "Dieu est pour nous un refuge et un appui, Un secours qui ne manque jamais dans la détresse.", tags: ["dur"] },
 ];
 
 // Affirmations : vérités dites à la première personne, appuyées sur la Parole (référence discrète).
@@ -73,13 +73,13 @@ export const AFFIRMATIONS = [
 export const ETERNAL = [
   { id: "jesus", n: "Qui est Jésus ?", lead: "Plus qu'un sage ou un exemple.",
     body: ["Jésus de Nazareth a vécu en Galilée il y a environ deux mille ans. Il a guéri, enseigné, accueilli ceux que tout le monde rejetait.", "Il a dit qu'il était le Fils de Dieu, venu non pour être servi, mais pour servir et donner sa vie. Il est mort sur une croix, puis il est ressuscité.", "Le X au cœur de CalXsthenos, c'est la lettre grecque Chi, la première de son nom : Christ."],
-    verses: [{ ref: "Jean 14:6", t: "Jésus lui dit : Je suis le chemin, la vérité, et la vie. Nul ne vient au Père que par moi." }, { ref: "Marc 10:45", t: "Car le Fils de l'homme est venu, non pour être servi, mais pour servir et donner sa vie comme la rançon de plusieurs." }] },
+    verses: [{ ref: "Jean 14:6", t: "Jésus lui dit: Je suis le chemin, la vérité, et la vie. Nul ne vient au Père que par moi." }, { ref: "Marc 10:45", t: "Car le Fils de l'homme est venu, non pour être servi, mais pour servir et donner sa vie comme la rançon de plusieurs." }] },
   { id: "naissance", n: "Naître de nouveau", lead: "Un nouveau départ que l'on ne se donne pas soi-même.",
     body: ["Un homme respecté, Nicodème, est venu voir Jésus de nuit. Jésus lui a répondu qu'il fallait naître de nouveau, naître d'en haut.", "On peut transformer son corps par l'effort. La nouvelle naissance, elle, ne se gagne pas : elle se reçoit, par la foi.", "C'est le changement le plus profond qu'un être humain puisse vivre."],
-    verses: [{ ref: "Jean 3:3", t: "Jésus lui répondit : En vérité, en vérité, je te le dis, si un homme ne naît de nouveau, il ne peut voir le royaume de Dieu." }, { ref: "2 Corinthiens 5:17", t: "Si quelqu'un est en Christ, il est une nouvelle créature. Les choses anciennes sont passées ; voici, toutes choses sont devenues nouvelles." }] },
+    verses: [{ ref: "Jean 3:3", t: "Jésus lui répondit: En vérité, en vérité, je te le dis, si un homme ne naît de nouveau, il ne peut voir le royaume de Dieu." }, { ref: "2 Corinthiens 5:17", t: "Si quelqu'un est en Christ, il est une nouvelle créature. Les choses anciennes sont passées; voici, toutes choses sont devenues nouvelles." }] },
   { id: "eternite", n: "La vie éternelle", lead: "Le corps est utile pour un temps. Il y a plus.",
     body: ["Un jour, nos records n'auront plus d'importance. Notre corps vieillira. C'est pour cela que l'entraînement le plus important ne se fait pas en salle.", "La Bible promet une vie qui ne s'arrête pas, offerte gratuitement à quiconque met sa confiance en Jésus.", "Si tu veux en parler, sans pression, écris-moi. Je serai heureux d'échanger avec toi."],
-    verses: [{ ref: "Jean 3:16", t: "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle." }, { ref: "Romains 6:23", t: "Car le salaire du péché, c'est la mort ; mais le don gratuit de Dieu, c'est la vie éternelle en Jésus-Christ notre Seigneur." }] },
+    verses: [{ ref: "Jean 3:16", t: "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle." }, { ref: "Romains 6:23", t: "Car le salaire du péché, c'est la mort; mais le don gratuit de Dieu, c'est la vie éternelle en Jésus-Christ notre Seigneur." }] },
 ];
 
 const dayIndex = (d = new Date()) => Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5) + d.getFullYear() * 7;

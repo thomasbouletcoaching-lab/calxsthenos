@@ -1,0 +1,354 @@
+// Nutrition : journal (heures des repas), favoris, repas enregistrés, plan écrit, recettes, batch cooking,
+// jeûne, dépense calorique (MB, NEAT, EAT, TEF, TDEE), corps (poids, projection, mensurations, photos).
+import { S, update, today, addPhoto, listPhotos, deletePhoto } from "../store.js";
+import * as N from "../nutrition.js";
+import * as RC from "../recipes.js";
+import * as EN from "../energy.js";
+import { $app, esc, num, fr, buzz, toast, routes, R, actions, forms, changes, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, hbars, ring, gradDef, premium, rank, fmtDate, addDays, hhmm, rerender } from "../core.js";
+import { caloriesCard } from "./home.js";
+import { pushStats } from "../sync.js";
+
+let tab = "journal", day = null;
+const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"]];
+const D = () => day || today();
+const FREE_RECIPES = 10;
+const recipeOpen = (r) => premium() || r.mine || RC.RECIPES.indexOf(r) < FREE_RECIPES;
+const myRecipes = () => (S().myRecipes || []).map(r => ({ ...r, mine: true, m: RC.macros(r.ing, r.portions) }));
+const allRecipes = () => [...myRecipes(), ...RC.RECIPES];
+
+routes.food = async () => {
+  await N.loadModels();
+  if (R.param && TABS.some(t => t[0] === R.param)) tab = R.param;
+  const t = N.targets();
+  let body;
+  if (tab === "journal") body = journalBody(t);
+  else if (tab === "plan") body = planBody(t);
+  else if (tab === "recettes") body = recipesBody();
+  else if (tab === "batch") body = batchBody();
+  else if (tab === "jeune") body = fastBody();
+  else if (tab === "depense") body = burnBody();
+  else body = await bodyBody();
+  $app.innerHTML = header("Nutrition", t ? `${fr(t.kcal)} kcal · ${t.prot} g de protéines` : "") + `<main class="page">${chips(TABS, tab, "food-tab")}${body}</main>${tabbar("food")}`;
+  if (tab === "recettes") bindRecipeSearch();
+};
+actions["food-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); routes.food(); };
+actions["food-day"] = (b, d) => { const n = addDays(D(), +d.v); day = n >= today() ? null : n; rerender(); };
+
+// ---------- Journal ----------
+function journalBody(t) {
+  const d = D(), log = N.dayLog(d), water = S().daily[d]?.water || 0;
+  const fs = EN.fastState();
+  return `<div class="row between mt12"><button class="icon-btn" data-a="food-day" data-v="-1" aria-label="Jour précédent">${I.back}</button><b class="h3" style="text-transform:capitalize">${d === today() ? "Aujourd'hui" : fmtDate(d)}</b><button class="icon-btn" data-a="food-day" data-v="1" aria-label="Jour suivant" style="transform:scaleX(-1);${d === today() ? "visibility:hidden" : ""}">${I.back}</button></div>
+    <div class="card mt8">${caloriesCard(d)}</div>
+    <div class="card"><div class="rt" style="border:0;padding:0"><span class="em">💧</span><div class="grow"><b>Eau</b><div class="small muted">${fr(water * .25, 2)} L · 1 verre = 25 cl</div></div><div class="water"><button data-a="water" data-v="-1" data-d="${d}" aria-label="Retirer un verre">−</button><b>${water}</b><button data-a="water" data-v="1" data-d="${d}" aria-label="Ajouter un verre">+</button></div></div></div>
+    ${fs ? `<button class="card tap" data-a="food-tab" data-v="jeune" style="display:flex;gap:12px;align-items:center"><span style="font-size:26px">${fs.stage[1]}</span><span class="grow"><b>Jeûne en cours · ${Math.floor(fs.hours)} h</b><br><span class="small muted">${esc(fs.stage[2])}</span></span>${I.chev}</button>` : ""}
+    ${N.MEALS.map(m => {
+      const es = log.filter(e => e.meal === m).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+      const k = es.reduce((a, e) => a + e.kcal, 0);
+      return `<div class="card mt12"><div class="row between"><div><b class="h3">${{ "Petit-déjeuner": "🥣", "Déjeuner": "🍛", "Collation": "🍎", "Dîner": "🍲" }[m]} ${m}</b>${es.length ? `<div class="xs muted">${es[0].time || ""} · ${fr(k)} kcal · ${fr(es.reduce((a, e) => a + e.p, 0))} g prot.</div>` : ""}</div><button class="btn btn-red btn-xs" data-a="add-food" data-m="${m}">+ Ajouter</button></div>
+        ${es.length ? `<div class="list mt8">${es.map(e => `<div class="li" style="gap:8px"><input type="time" class="inp" style="width:98px;font-size:14px;padding:4px" value="${e.time || ""}" data-c="ftime" data-id="${e.id}" data-d="${d}" aria-label="Heure du repas"><span class="grow small">${esc(e.label)}<br><span class="xs muted">${e.g ? e.g + " g · " : ""}${e.kcal} kcal · P ${fr(e.p)} · G ${fr(e.c)} · L ${fr(e.f)}</span></span><button class="icon-btn" data-a="del-food" data-id="${e.id}" data-d="${d}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>
+          <button class="link xs mt8" data-a="save-meal" data-m="${m}" data-d="${d}">⭐ Enregistrer ce repas pour le refaire</button>` : ""}</div>`;
+    }).join("")}
+    <p class="xs muted mt12">Les heures servent à suivre tes fenêtres de repas et ton jeûne. Valeurs nutritionnelles : table Ciqual (Anses) et Open Food Facts.</p>`;
+}
+changes.ftime = (el) => { N.setEntryTime(+el.dataset.id, el.value, el.dataset.d); toast("Heure enregistrée"); };
+actions["del-food"] = (b, d) => { N.removeEntry(+d.id, d.d); rerender(); };
+actions["save-meal"] = (b, d) => {
+  const es = N.dayLog(d.d).filter(e => e.meal === d.m);
+  const n = prompt("Nom de ce repas", es.map(e => e.label.split(",")[0]).slice(0, 2).join(" + ")); if (!n) return;
+  const tot = es.reduce((a, e) => ({ kcal: a.kcal + e.kcal, p: a.p + e.p, c: a.c + e.c, f: a.f + e.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+  update(st => st.dishes = [{ n, ...tot, items: es.map(({ label, g, kcal, p, c, f }) => ({ label, g, kcal, p, c, f })) }, ...st.dishes.filter(x => x.n !== n)].slice(0, 40));
+  toast("Repas enregistré : il est dans « Mes repas »");
+};
+
+// Ajouter un aliment : recherche, favoris, récents, mes repas, recettes, scan
+let afs = { meal: "Déjeuner", tab: "search", date: null };
+async function addFoodSheet(meal) {
+  afs.meal = meal; afs.date = D();
+  sheet(`<h2 class="h2">${esc(meal)}</h2><div class="mt8">${seg([["search", "Chercher"], ["fav", "Favoris"], ["recent", "Récents"], ["dishes", "Mes repas"], ["rec", "Recettes"]], afs.tab, "afs-tab")}</div><div id="afsb" class="mt12"></div>`, (w) => drawAfs(w));
+}
+function drawAfs(w = document.getElementById("sheet")) {
+  const box = w.querySelector("#afsb"), m = esc(afs.meal);
+  w.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.v === afs.tab));
+  const foodLi = (f, src, i) => `<div class="li"><button class="grow" style="text-align:left" data-a="pick-food" data-src="${src}" data-i="${i}"><span class="small">${esc(f.n)}</span><br><span class="xs muted">${f.kcal} kcal · ${fr(f.p, 1)} g prot. / 100 g</span></button><button class="icon-btn" data-a="fav-food" data-src="${src}" data-i="${i}" aria-label="Favori" style="color:${N.isFavFood(f.n) ? "var(--gold)" : "var(--soft)"}">${N.isFavFood(f.n) ? "★" : "☆"}</button></div>`;
+  if (afs.tab === "search") {
+    box.innerHTML = `<div class="search">${I.search}<input id="fq" placeholder="riz, poulet, skyr…" autocomplete="off" enterkeyhint="search"></div>
+      ${"BarcodeDetector" in window ? `<button class="btn btn-line btn-sm mt8" data-a="scan" style="width:100%">${I.scan.replace("<svg", '<svg width="20"')} Scanner un code-barres</button>` : ""}<div id="fr" class="mt12"><p class="empty small">Tape le nom d'un aliment.</p></div>`;
+    const inp = box.querySelector("#fq"), out = box.querySelector("#fr"); let ready = false, deb;
+    const run = () => { const q = inp.value.trim(); if (!q) { out.innerHTML = `<p class="empty small">Tape le nom d'un aliment.</p>`; return; } if (!ready) { out.innerHTML = `<p class="empty small">Chargement des aliments…</p>`; return; } const r = N.searchFoods(q); window.__fr = r; out.innerHTML = r.length ? `<div class="list">${r.map((f, i) => foodLi(f, "search", i)).join("")}</div>` : `<p class="empty small">Rien pour « ${esc(q)} ». Essaie un mot plus simple.</p>`; };
+    inp.addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(run, 140); });
+    N.loadCiqual().then(() => { ready = true; if (inp.value.trim()) run(); });
+    setTimeout(() => inp.focus(), 50);
+  } else if (afs.tab === "fav") {
+    const l = S().favFoods; box.innerHTML = l.length ? `<div class="list">${l.map((f, i) => foodLi(f, "fav", i)).join("")}</div>` : `<p class="empty small">Touche ☆ à côté d'un aliment pour le retrouver ici.</p>`;
+  } else if (afs.tab === "recent") {
+    const l = S().recentFoods; box.innerHTML = l.length ? `<div class="list">${l.map((f, i) => foodLi(f, "recent", i)).join("")}</div>` : `<p class="empty small">Tes derniers aliments apparaîtront ici.</p>`;
+  } else if (afs.tab === "dishes") {
+    const l = S().dishes; box.innerHTML = l.length ? `<div class="list">${l.map((d, i) => `<div class="li"><button class="grow" style="text-align:left" data-a="eat-dish" data-i="${i}"><b class="small">${esc(d.n)}</b><br><span class="xs muted">${fr(d.kcal)} kcal · ${fr(d.p)} g prot.${d.items ? ` · ${d.items.length} aliments` : ""}</span></button><button class="icon-btn" data-a="del-dish" data-i="${i}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>` : `<p class="empty small">Dans ton journal, touche « Enregistrer ce repas » : tu pourras le refaire en un geste.</p>`;
+  } else {
+    const l = allRecipes().filter(recipeOpen); box.innerHTML = `<div class="list">${l.map(r => `<button class="li" data-a="eat-recipe" data-id="${r.id}"><span class="em">${r.e}</span><span class="grow"><b class="small">${esc(r.n)}</b><br><span class="xs muted">1 portion · ${r.m.kcal} kcal · ${r.m.p} g prot.</span></span>${I.plus.replace("<svg", '<svg width="20"')}</button>`).join("")}</div>${premium() ? "" : `<p class="xs muted mt8">${RC.RECIPES.length - FREE_RECIPES} recettes de plus avec Premium.</p>`}`;
+  }
+}
+actions["add-food"] = (b, d) => addFoodSheet(d.m);
+actions["afs-tab"] = (b, d) => { afs.tab = d.v; drawAfs(); };
+const srcList = (src) => src === "search" ? window.__fr : src === "fav" ? S().favFoods : S().recentFoods;
+actions["fav-food"] = (b, d) => { const f = srcList(d.src)[+d.i]; N.toggleFavFood({ n: f.n, kcal: f.kcal, p: f.p, c: f.c, f: f.f }); const on = N.isFavFood(f.n); b.textContent = on ? "★" : "☆"; b.style.color = on ? "var(--gold)" : "var(--soft)"; toast(on ? "Ajouté aux favoris" : "Retiré des favoris"); };
+actions["pick-food"] = (b, d) => gramsSheet(srcList(d.src)[+d.i], (e) => { N.addEntry(e, afs.date); toast("Ajouté"); rerender(); });
+actions["eat-dish"] = (b, d) => { const di = S().dishes[+d.i]; N.addEntry({ meal: afs.meal, label: di.n, g: null, kcal: Math.round(di.kcal), p: di.p, c: di.c, f: di.f }, afs.date); closeSheet(); toast("Repas ajouté"); rerender(); };
+actions["del-dish"] = (b, d) => { if (!confirm("Supprimer ce repas enregistré ?")) return; update(st => st.dishes.splice(+d.i, 1)); drawAfs(); };
+actions["eat-recipe"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); N.addEntry({ meal: afs.meal, label: `${r.n} (1 portion)`, g: null, ...r.m }, afs.date); closeSheet(); toast("Ajouté"); rerender(); };
+function gramsSheet(food, onAdd, meal = afs.meal) {
+  let g = 100;
+  const draw = (w) => { const e = N.entryFromFood(food, g, meal); w.querySelector("#gv").innerHTML = `<span class="num" style="font-size:34px">${e.kcal}</span><span class="small muted"> kcal · ${fr(e.p)} g prot. · ${fr(e.c)} g gluc. · ${fr(e.f)} g lip.</span>`; };
+  sheet(`<h2 class="h2">${esc(food.n)}</h2><div id="gv" class="mt12"></div>
+    <label class="field mt12"><span>Quantité (g ou ml)</span><input id="gq" inputmode="decimal" value="100"></label>
+    <div class="chips wrap mt12">${[30, 50, 100, 150, 200, 250, 300].map(x => `<button class="chip ${x === 100 ? "on" : ""}" data-g="${x}">${x} g</button>`).join("")}</div>
+    <label class="field mt12"><span>Heure</span><input id="gt" type="time" value="${afs.date === today() ? hhmm() : N.MEAL_TIMES[meal]}"></label>
+    <button class="btn btn-red mt16" id="gadd">Ajouter à ${esc(meal.toLowerCase())}</button>`, (w) => {
+    draw(w); const inp = w.querySelector("#gq");
+    inp.addEventListener("input", () => { g = num(inp.value) || 0; w.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", +c.dataset.g === g)); draw(w); });
+    w.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => { g = +c.dataset.g; inp.value = g; w.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c)); draw(w); }));
+    w.querySelector("#gadd").addEventListener("click", () => { if (!g) return; const e = N.entryFromFood(food, g, meal); e.time = w.querySelector("#gt").value; N.rememberFood(food); buzz(); closeSheet(); onAdd(e); });
+  });
+}
+actions.scan = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    sheet(`<h2 class="h2">Scanner</h2><video id="cam" playsinline autoplay muted style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video><p class="small muted mt8">Place le code-barres dans le cadre.</p>`, async (w) => {
+      const v = w.querySelector("#cam"); v.srcObject = stream;
+      const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+      let alive = true; const stop = () => { alive = false; stream.getTracks().forEach(t => t.stop()); };
+      w.addEventListener("click", e => { if (e.target === w) stop(); });
+      while (alive && document.body.contains(v)) {
+        try { const c = await det.detect(v); if (c[0]) { stop(); const f = await N.lookupBarcode(c[0].rawValue); if (f) gramsSheet(f, (e) => { N.addEntry(e, afs.date); toast("Ajouté"); rerender(); }); else { closeSheet(); toast("Produit introuvable : cherche-le par son nom."); } return; } } catch { }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      stop();
+    });
+  } catch { toast("Caméra indisponible : cherche l'aliment par son nom."); }
+};
+
+// ---------- Plan alimentaire écrit ----------
+function planBody(t) {
+  if (!t) return "";
+  const plan = N.dayPlan(t), mine = !!S().myPlan?.meals?.length;
+  const tot = plan.reduce((a, x) => ({ kcal: a.kcal + x.m.kcal, p: a.p + x.m.p }), { kcal: 0, p: 0 });
+  const cards = plan.map((x, i) => {
+    const open = premium() || i === 0;
+    return `<div class="card mt12 ${open ? "" : "locked"}" style="position:relative${open ? "" : ";min-height:150px"}"><div class="row between"><div class="lbl">🕐 ${esc(x.time || "")} · ${esc(x.meal)}</div><span class="xs muted">${fr(x.m.kcal)} kcal · ${fr(x.m.p)} g P</span></div>
+      <h3 class="h3 mt4">${esc(x.n)}</h3><ul class="small" style="padding-left:18px;margin:8px 0">${x.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
+      <div class="row" style="gap:8px"><button class="btn btn-red btn-xs" data-a="eat-plan" data-i="${i}">✓ J'ai mangé ça</button>${!mine && x.poolSize > 1 ? `<button class="btn btn-ghost btn-xs" data-a="swap-dish" data-m="${esc(x.meal)}">🔄 Autre plat</button>` : ""}</div>
+      ${open ? "" : lockVeil("Premium", "Ton plan complet, écrit en vrais plats, ajusté à tes calories.")}</div>`;
+  }).join("");
+  return `<div class="card grad mt12"><div class="lbl">📋 ${mine ? "Mon plan alimentaire" : "Plan proposé pour toi"}</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
+    ${cards}
+    <div class="row mt16" style="gap:8px">${premium() ? `<button class="btn btn-line btn-sm grow" data-a="plan-edit">✏️ ${mine ? "Modifier mon plan" : "Écrire mon propre plan"}</button>${mine ? `<button class="btn btn-ghost btn-sm grow" data-a="plan-auto">Revenir au plan proposé</button>` : ""}` : `<button class="btn btn-line btn-sm grow" data-a="go" data-r="offers">🔒 Écrire mon plan (Premium)</button>`}</div>
+    <p class="xs muted mt12">Quantités pesées cuites. Le plan est un repère : ce que tu manges vraiment se note dans le journal.</p>`;
+}
+actions["eat-plan"] = (b, d) => { const x = N.dayPlan(N.targets())[+d.i]; N.addEntry({ meal: N.MEALS.includes(x.meal) ? x.meal : "Déjeuner", label: x.n, g: null, kcal: x.m.kcal, p: x.m.p, c: x.m.c, f: x.m.f, time: x.time }); buzz(); toast(`${x.meal} noté dans le journal`); };
+actions["swap-dish"] = (b, d) => { N.swapDish(d.m); rerender(); };
+actions["plan-auto"] = () => { if (!confirm("Revenir au plan proposé ? Ton plan écrit sera effacé.")) return; update(st => st.myPlan = null); rerender(); };
+actions["plan-edit"] = () => {
+  if (!S().myPlan?.meals?.length) {
+    const auto = N.dayPlan(N.targets());
+    update(st => st.myPlan = { meals: auto.map(x => ({ name: x.meal, time: x.time, items: [{ label: x.n, g: null, ...x.m }] })) });
+  }
+  planEditor();
+};
+function planEditor() {
+  const P = S().myPlan, t = N.targets();
+  const tot = P.meals.reduce((a, m) => a + m.items.reduce((x, i) => x + i.kcal, 0), 0);
+  sheet(`<h2 class="h1">Mon plan</h2><p class="small muted">${fr(tot)} kcal pour un objectif de ${fr(t.kcal)} kcal.</p>
+    ${P.meals.map((m, mi) => `<div class="card mt12"><div class="row" style="gap:8px"><input class="inp grow" style="text-align:left;font-weight:700" value="${esc(m.name)}" data-c="pl-name" data-m="${mi}" aria-label="Nom du repas"><input class="inp" type="time" style="width:96px" value="${m.time}" data-c="pl-time" data-m="${mi}" aria-label="Heure"></div>
+      ${m.items.map((it, ii) => `<div class="row between small mt8"><span class="grow">${it.g ? it.g + " g " : ""}${esc(it.label)} <span class="xs muted">${it.kcal} kcal</span></span><button class="icon-btn" data-a="pl-idel" data-m="${mi}" data-i="${ii}" aria-label="Retirer">${I.close}</button></div>`).join("")}
+      <div class="row mt8" style="gap:6px"><button class="btn btn-ghost btn-xs" data-a="pl-add" data-m="${mi}">+ Aliment</button><button class="btn btn-ghost btn-xs" data-a="pl-addr" data-m="${mi}">+ Recette</button>${P.meals.length > 1 ? `<button class="btn btn-ghost btn-xs" data-a="pl-mdel" data-m="${mi}">Supprimer le repas</button>` : ""}</div></div>`).join("")}
+    <button class="btn btn-line btn-sm mt12" data-a="pl-madd">+ Ajouter un repas</button><button class="btn btn-red mt12" data-a="pl-done">Terminé</button>`);
+}
+changes["pl-name"] = (el) => update(st => st.myPlan.meals[+el.dataset.m].name = el.value);
+changes["pl-time"] = (el) => update(st => st.myPlan.meals[+el.dataset.m].time = el.value);
+actions["pl-idel"] = (b, d) => { update(st => st.myPlan.meals[+d.m].items.splice(+d.i, 1)); planEditor(); };
+actions["pl-mdel"] = (b, d) => { update(st => st.myPlan.meals.splice(+d.m, 1)); planEditor(); };
+actions["pl-madd"] = () => { update(st => st.myPlan.meals.push({ name: "Repas", time: "12:00", items: [] })); planEditor(); };
+actions["pl-done"] = () => { closeSheet(); rerender(); };
+actions["pl-add"] = (b, d) => {
+  sheet(`<h2 class="h2">Ajouter un aliment</h2><div class="search mt12">${I.search}<input id="pq" placeholder="Rechercher" autocomplete="off"></div><div id="pr" class="mt12"></div>`, async (w) => {
+    await N.loadCiqual(); const inp = w.querySelector("#pq"), out = w.querySelector("#pr");
+    inp.addEventListener("input", () => { const r = N.searchFoods(inp.value); window.__pf = r; out.innerHTML = `<div class="list">${r.map((f, i) => `<button class="li" data-a="pl-pick" data-m="${d.m}" data-i="${i}"><span class="grow small">${esc(f.n)}<br><span class="xs muted">${f.kcal} kcal / 100 g</span></span>${I.chev}</button>`).join("")}</div>`; });
+    inp.focus();
+  });
+};
+actions["pl-pick"] = (b, d) => { const f = window.__pf[+d.i], mi = +d.m; gramsSheet(f, (e) => { update(st => st.myPlan.meals[mi].items.push({ label: e.label, g: e.g, kcal: e.kcal, p: e.p, c: e.c, f: e.f })); planEditor(); }, S().myPlan.meals[mi].name); };
+actions["pl-addr"] = (b, d) => sheet(`<h2 class="h2">Ajouter une recette</h2><div class="list mt12">${allRecipes().filter(recipeOpen).map(r => `<button class="li" data-a="pl-rpick" data-m="${d.m}" data-id="${r.id}"><span class="em">${r.e}</span><span class="grow small">${esc(r.n)}<br><span class="xs muted">1 portion · ${r.m.kcal} kcal</span></span></button>`).join("")}</div>`);
+actions["pl-rpick"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); update(st => st.myPlan.meals[+d.m].items.push({ label: r.n + " (1 portion)", g: null, ...r.m })); planEditor(); };
+
+// ---------- Recettes ----------
+let rcat = "", rq = "";
+function recipesBody() {
+  return `<div class="search mt12">${I.search}<input id="rq" placeholder="Rechercher une recette" value="${esc(rq)}" autocomplete="off"></div>
+    <div class="mt8">${chips([["", "Toutes"], ["mine", "⭐ Mes recettes"], ["batch", "🥡 Batch"], ...RC.CATS.map(c => [c, c])], rcat, "rc-cat")}</div>
+    <button class="card tap mt8" data-a="rc-new" style="display:flex;gap:12px;align-items:center"><span style="font-size:26px">➕</span><span class="grow"><b>Créer ma recette</b><br><span class="small muted">Ingrédients, portions, étapes : les macros se calculent seules</span></span>${premium() ? I.chev : `<span class="lock">🔒</span>`}</button>
+    <div id="rlist" class="mt12">${recipeList()}</div>`;
+}
+function recipeList() {
+  const q = N.norm(rq);
+  const l = allRecipes().filter(r => (!rcat || (rcat === "mine" ? r.mine : rcat === "batch" ? r.batch : r.cat === rcat)) && (!q || N.norm(r.n).includes(q)));
+  return l.length ? `<div class="list">${l.map(r => `<button class="li" data-a="rc-open" data-id="${r.id}"><span class="em" style="font-size:24px">${r.e}</span><span class="grow"><b class="small">${esc(r.n)}</b>${r.batch ? ` <span class="tag">Batch</span>` : ""}<br><span class="xs muted">${r.min} min · ${r.portions} portion${r.portions > 1 ? "s" : ""} · ${r.m.kcal} kcal · ${r.m.p} g P / portion</span></span>${recipeOpen(r) ? I.chev : `<span class="lock">🔒</span>`}</button>`).join("")}</div><p class="xs muted mt8">${RC.RECIPES.length + myRecipes().length} recettes${premium() ? "" : ` · ${FREE_RECIPES} ouvertes en gratuit`}.</p>` : `<p class="empty small">Aucune recette.</p>`;
+}
+function bindRecipeSearch() { const i = document.getElementById("rq"); i?.addEventListener("input", () => { rq = i.value; document.getElementById("rlist").innerHTML = recipeList(); }); }
+actions["rc-cat"] = (b, d) => { rcat = d.v; rerender(); };
+actions["rc-open"] = (b, d) => {
+  const r = allRecipes().find(x => x.id === d.id); if (!recipeOpen(r)) return go("offers");
+  let por = 1;
+  const draw = (w) => {
+    const f = por / r.portions;
+    w.querySelector("#ring").innerHTML = Object.entries(r.ing).map(([k, g]) => `<li>${k === "oeuf" ? `${Math.max(1, Math.round(g * f / 55))} œuf(s)` : `${Math.round(g * f)} g ${esc(RC.ingLabel(k))}`}</li>`).join("");
+    w.querySelector("#rpor").textContent = por;
+  };
+  sheet(`<div class="row" style="gap:10px"><span style="font-size:40px">${r.e}</span><div><h2 class="h2">${esc(r.n)}</h2><p class="xs muted">${esc(r.cat)} · ${r.min} min${r.batch ? " · se conserve 3 à 4 jours" : ""}</p></div></div>
+    <div class="stat3 mt12"><div><b>${r.m.kcal}</b><span>kcal</span></div><div><b>${r.m.p} g</b><span>protéines</span></div><div><b>${r.m.c} / ${r.m.f}</b><span>gluc. / lip.</span></div></div><p class="xs muted center">par portion</p>
+    <div class="row between mt12"><b>Ingrédients</b><div class="water"><button data-a="rc-por" data-v="-1">−</button><b id="rpor">1</b><button data-a="rc-por" data-v="1">+</button></div></div>
+    <ul id="ring" class="small" style="padding-left:18px"></ul>
+    <b>Préparation</b><ol class="small" style="padding-left:18px">${r.steps.map(s => `<li style="margin-bottom:6px">${esc(s)}</li>`).join("")}</ol>
+    <div class="lbl mt12">Ajouter 1 portion au journal</div><div class="chips wrap mt8">${N.MEALS.map(m => `<button class="chip" data-a="rc-eat" data-id="${r.id}" data-m="${m}">${m}</button>`).join("")}</div>
+    <div class="row mt12" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="bt-add" data-id="${r.id}">🥡 Ajouter au batch</button>${r.mine ? `<button class="btn btn-ghost btn-sm" data-a="rc-del" data-id="${r.id}" style="color:var(--red)">Supprimer</button>` : ""}</div>`, (w) => { draw(w); w.__draw = (n) => { por = Math.max(1, por + n); draw(w); }; });
+};
+actions["rc-por"] = (b, d) => document.getElementById("sheet")?.__draw?.(+d.v);
+actions["rc-eat"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); N.addEntry({ meal: d.m, label: `${r.n} (1 portion)`, g: null, ...r.m }); closeSheet(); toast(`Ajouté au ${d.m.toLowerCase()}`); };
+actions["rc-del"] = (b, d) => { if (!confirm("Supprimer cette recette ?")) return; update(st => st.myRecipes = st.myRecipes.filter(r => r.id !== d.id)); closeSheet(); rerender(); };
+let newR = null;
+actions["rc-new"] = () => { if (!premium()) return go("offers"); newR = { n: "", cat: "Plat", e: "🍽️", portions: 2, min: 20, ing: {}, steps: "" }; recipeForm(); };
+function recipeForm() {
+  const m = RC.macros(newR.ing, newR.portions);
+  sheet(`<h2 class="h1">Ma recette</h2>
+    <label class="field mt12"><span>Nom</span><input value="${esc(newR.n)}" data-c="nr" data-k="n" maxlength="60" placeholder="Ex. Poulet coco du dimanche"></label>
+    <div class="grid3 mt8"><label class="field"><span>Catégorie</span><select data-c="nr" data-k="cat">${RC.CATS.map(c => `<option ${c === newR.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label><label class="field"><span>Portions</span><input inputmode="numeric" value="${newR.portions}" data-c="nr" data-k="portions"></label><label class="field"><span>Minutes</span><input inputmode="numeric" value="${newR.min}" data-c="nr" data-k="min"></label></div>
+    <div class="lbl mt12">Emoji</div><div class="chips wrap mt8">${["🍽️", "🍗", "🥩", "🐟", "🥚", "🍝", "🍚", "🥗", "🍲", "🥣", "🥞", "🍰"].map(e => `<button class="chip ${newR.e === e ? "on" : ""}" data-a="nr-e" data-v="${e}">${e}</button>`).join("")}</div>
+    <div class="lbl mt12">Ingrédients (poids total, pesés cuits)</div>
+    ${Object.entries(newR.ing).map(([k, g]) => `<div class="row between small mt8"><span>${g} g ${esc(RC.ingLabel(k))}</span><button class="icon-btn" data-a="nr-del" data-k="${k}" aria-label="Retirer">${I.close}</button></div>`).join("") || `<p class="xs muted">Aucun ingrédient.</p>`}
+    <div class="row mt8" style="gap:6px"><select id="nri" class="inp grow" style="text-align:left">${Object.entries(RC.ING).sort((a, b) => a[1][0].localeCompare(b[1][0], "fr")).map(([k, v]) => `<option value="${k}">${esc(v[0])}</option>`).join("")}</select><input id="nrg" class="inp" style="width:80px" inputmode="numeric" placeholder="g"><button class="btn btn-red btn-xs" data-a="nr-add">+</button></div>
+    <div class="card soft mt12 center"><b>${m.kcal} kcal</b> · ${m.p} g P · ${m.c} g G · ${m.f} g L <span class="xs muted">par portion</span></div>
+    <label class="field mt12"><span>Étapes (une par ligne)</span><textarea rows="4" data-c="nr" data-k="steps">${esc(newR.steps)}</textarea></label>
+    <button class="btn btn-red mt12" data-a="nr-save">Enregistrer la recette</button>`);
+}
+changes.nr = (el) => { const k = el.dataset.k; newR[k] = ["portions", "min"].includes(k) ? Math.max(1, Math.round(num(el.value)) || 1) : el.value; if (k === "portions") recipeForm(); };
+actions["nr-e"] = (b, d) => { newR.e = d.v; recipeForm(); };
+actions["nr-add"] = () => { const k = document.getElementById("nri").value, g = num(document.getElementById("nrg").value); if (!(g > 0)) return toast("Indique un poids en grammes"); newR.ing[k] = (newR.ing[k] || 0) + g; recipeForm(); };
+actions["nr-del"] = (b, d) => { delete newR.ing[d.k]; recipeForm(); };
+actions["nr-save"] = () => {
+  if (!newR.n.trim()) return toast("Donne un nom à ta recette");
+  if (!Object.keys(newR.ing).length) return toast("Ajoute au moins un ingrédient");
+  const r = { id: "my-" + Date.now(), n: newR.n.trim(), cat: newR.cat, e: newR.e, min: newR.min, portions: newR.portions, ing: newR.ing, steps: newR.steps.split("\n").map(s => s.trim()).filter(Boolean), batch: newR.portions >= 3 };
+  update(st => st.myRecipes = [r, ...(st.myRecipes || [])]); closeSheet(); toast("Recette enregistrée"); rcat = "mine"; rerender();
+};
+
+// ---------- Batch cooking ----------
+let cart = [];
+function batchBody() {
+  if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:260px"><h2 class="h2">🥡 Batch cooking</h2><p class="small muted">Choisis tes recettes et tes portions : l'app calcule la liste de courses par rayon, et tes portions prêtes se mangent en un geste dans le journal.</p>${lockVeil("Premium")}</div>`;
+  const stock = (S().batches || []).flatMap((b, bi) => b.items.map((it, ii) => ({ ...it, bi, ii, d: b.d }))).filter(x => x.left > 0);
+  const list = RC.shoppingList(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })));
+  const tot = cart.reduce((a, c) => a + c.portions, 0);
+  return `${stock.length ? `<h2 class="sec">🧊 Mes portions prêtes</h2><div class="list">${stock.map(x => { const r = allRecipes().find(y => y.id === x.id); return r ? `<div class="li"><span class="em">${r.e}</span><span class="grow small"><b>${esc(r.n)}</b><br><span class="xs muted">${x.left} portion${x.left > 1 ? "s" : ""} · cuisiné ${fmtDate(x.d, { weekday: "short", day: "numeric" })}</span></span><button class="btn btn-red btn-xs" data-a="bt-eat" data-b="${x.bi}" data-i="${x.ii}">Manger</button></div>` : ""; }).join("")}</div>` : ""}
+    <h2 class="sec">🛒 Préparer un batch</h2>
+    ${cart.length ? `<div class="list">${cart.map((c, i) => { const r = allRecipes().find(x => x.id === c.id); return `<div class="li"><span class="em">${r.e}</span><span class="grow small"><b>${esc(r.n)}</b><br><span class="xs muted">${r.m.kcal * c.portions} kcal au total</span></span><div class="water"><button data-a="bt-por" data-i="${i}" data-v="-1">−</button><b>${c.portions}</b><button data-a="bt-por" data-i="${i}" data-v="1">+</button></div></div>`; }).join("")}</div>
+      <div class="card mt12"><div class="lbl">🧾 Liste de courses · ${tot} portions</div>${Object.entries(list).map(([a, its]) => `<div class="mt8"><b class="small">${esc(a)}</b>${its.map(([l, q]) => `<div class="row between small"><span>☐ ${esc(l)}</span><span class="muted">${q}</span></div>`).join("")}</div>`).join("")}
+        <button class="btn btn-ghost btn-xs mt8" data-a="bt-share">Partager la liste</button></div>
+      <button class="btn btn-red mt12" data-a="bt-cook">✅ C'est cuisiné : ranger mes ${tot} portions</button>
+      <p class="xs muted mt8">Repère : 3 à 4 jours au réfrigérateur, jusqu'à 3 mois au congélateur.</p>`
+      : `<p class="small muted">Ajoute des recettes depuis l'onglet Recettes (bouton « Ajouter au batch »), ou commence par une idée :</p>`}
+    <div class="list mt12">${allRecipes().filter(r => r.batch && !cart.some(c => c.id === r.id)).slice(0, 12).map(r => `<button class="li" data-a="bt-add" data-id="${r.id}"><span class="em">${r.e}</span><span class="grow small">${esc(r.n)}<br><span class="xs muted">${r.portions} portions · ${r.m.kcal} kcal / portion</span></span>${I.plus.replace("<svg", '<svg width="20"')}</button>`).join("")}</div>`;
+}
+actions["bt-add"] = (b, d) => { if (!premium()) return go("offers"); const r = allRecipes().find(x => x.id === d.id); if (!cart.some(c => c.id === d.id)) cart.push({ id: d.id, portions: r.portions }); closeSheet(); toast("Ajouté au batch"); tab = "batch"; go("food", "batch"); };
+actions["bt-por"] = (b, d) => { const c = cart[+d.i]; c.portions += +d.v; if (c.portions <= 0) cart.splice(+d.i, 1); rerender(); };
+actions["bt-share"] = () => {
+  const list = RC.shoppingList(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })));
+  const t = "Liste de courses CalXsthenos\n\n" + Object.entries(list).map(([a, its]) => a + "\n" + its.map(([l, q]) => `- ${l} : ${q}`).join("\n")).join("\n\n");
+  if (navigator.share) navigator.share({ text: t }).catch(() => { }); else { navigator.clipboard?.writeText(t); toast("Liste copiée"); }
+};
+actions["bt-cook"] = () => { update(st => { st.batches = [{ d: today(), items: cart.map(c => ({ id: c.id, portions: c.portions, left: c.portions })) }, ...(st.batches || [])].slice(0, 20); }); cart = []; toast("Portions rangées 🧊"); rerender(); };
+actions["bt-eat"] = (b, d) => {
+  const it = S().batches[+d.b].items[+d.i], r = allRecipes().find(x => x.id === it.id);
+  const h = new Date().getHours(), meal = h < 10 ? "Petit-déjeuner" : h < 15 ? "Déjeuner" : h < 18 ? "Collation" : "Dîner";
+  N.addEntry({ meal, label: `${r.n} (batch)`, g: null, ...r.m }); update(st => st.batches[+d.b].items[+d.i].left--); toast(`Noté au ${meal.toLowerCase()}`); rerender();
+};
+
+// ---------- Jeûne ----------
+function fastBody() {
+  const fs = EN.fastState(), last = N.lastMealTime(), hist = (S().fasts || []).slice(-7).reverse();
+  const goal = fs?.goal || S().fastGoal || 16;
+  const pct = fs ? Math.min(1, fs.hours / goal) : 0;
+  return `<div class="card mt12 fast"><div class="fastring"><svg viewBox="0 0 200 200">${gradDef("fg")}${ring(pct, 200, 14, "url(#fg)")}</svg><div class="c">${fs ? `<span style="font-size:28px">${fs.stage[1]}</span><b>${Math.floor(fs.hours)}:${String(Math.floor(fs.hours % 1 * 60)).padStart(2, "0")}</b><span class="small muted">sur ${goal} h</span>` : `<span style="font-size:34px">⏳</span><b style="font-size:22px">Pas de jeûne</b><span class="small muted">en cours</span>`}</div></div>
+      ${fs ? `<p class="mt12"><b>${esc(fs.stage[2])}</b></p><p class="small muted" style="max-width:420px">${esc(fs.stage[3])}</p>${fs.next ? `<p class="xs muted">Prochaine étape dans ${fr(fs.next[0] - fs.hours, 1)} h : ${esc(fs.next[2])}</p>` : ""}
+        <p class="xs muted">Commencé ${fmtDate(S().fast.start, { weekday: "long", hour: "2-digit", minute: "2-digit" })}</p><button class="btn btn-red mt8" data-a="fast-stop">Rompre le jeûne</button>`
+      : `<div class="lbl mt12">Objectif</div><div class="chips wrap mt8" style="justify-content:center">${[12, 14, 16, 18, 20, 24].map(h => `<button class="chip ${goal === h ? "on" : ""}" data-a="fast-goal" data-v="${h}">${h} h</button>`).join("")}</div>
+        <button class="btn btn-red mt12" data-a="fast-start">Commencer maintenant</button>${last && D() === today() ? `<button class="btn btn-line btn-sm mt8" data-a="fast-start" data-t="${last}">Depuis mon dernier repas (${last})</button>` : ""}`}</div>
+    <h2 class="sec">🧬 Ce qui se passe dans ton corps</h2>
+    <div class="list">${EN.FAST_STAGES.map(s => { const on = fs && fs.stage === s; return `<div class="li" style="${on ? "box-shadow:0 0 0 2px var(--red) inset;border-radius:14px" : ""}"><span class="em" style="font-size:24px">${s[1]}</span><span class="grow"><b class="small">${s[0]} h · ${esc(s[2])}</b><br><span class="xs muted">${esc(s[3])}</span></span></div>`; }).join("")}</div>
+    <p class="xs muted mt8">Repères moyens, variables selon ton dernier repas, ton activité et ton métabolisme. Le jeûne n'est pas conseillé pendant la grossesse, en cas de diabète traité, de troubles alimentaires ou de traitement médical : demande l'avis de ton médecin.</p>
+    ${hist.length ? `<h2 class="sec">📅 Mes derniers jeûnes</h2><div class="list">${hist.map(f => { const h = (new Date(f.end) - new Date(f.start)) / 36e5; return `<div class="li"><span class="grow small">${fmtDate(f.start, { weekday: "short", day: "numeric", month: "short" })}</span><b class="num">${fr(h, 1)} h</b>${h >= (f.goal || 16) ? " ✅" : ""}</div>`; }).join("")}</div>` : ""}`;
+}
+actions["fast-goal"] = (b, d) => { update(st => st.fastGoal = +d.v); rerender(); };
+actions["fast-start"] = (b, d) => {
+  let start = new Date();
+  if (d.t) { const [h, m] = d.t.split(":"); start = new Date(); start.setHours(+h, +m, 0, 0); }
+  update(st => st.fast = { start: start.toISOString(), goal: st.fastGoal || 16 }); buzz(); toast("Jeûne commencé"); rerender();
+};
+actions["fast-stop"] = () => { update(st => { st.fasts = [...(st.fasts || []), { ...st.fast, end: new Date().toISOString() }].slice(-60); st.fast = null; }); toast("Jeûne terminé. Bon appétit !"); rerender(); };
+
+// ---------- Dépense calorique ----------
+function burnBody() {
+  const d = D(), b = EN.breakdown(d), bn = EN.burnedNow(d), cardio = S().daily[d]?.cardio || [];
+  if (!premium()) return `<div class="card mt12"><div class="lbl">🔥 Brûlées aujourd'hui</div><b class="num" style="font-size:34px">${fr(bn.now)} kcal</b><p class="small muted">à cette heure, sur environ ${fr(bn.total)} kcal prévues</p></div>
+    <div class="card mt12 locked" style="position:relative;min-height:240px"><h3 class="h3">Le calcul complet</h3><p class="small muted">Métabolisme de base, NEAT (pas et mouvements), EAT (séances et cardio), effet thermique des aliments, TDEE.</p>${lockVeil("Premium", "Le détail de ta dépense et l'ajout de ton cardio.")}</div>`;
+  const rows = [["MB", "Métabolisme de base", b.bmr, "L'énergie pour vivre au repos (Mifflin-St Jeor)."], ["NEAT", "Activité spontanée", b.neat, `Tes ${fr(b.steps)} pas et tes mouvements du quotidien.`], ["EAT", "Exercice", b.eat, `Musculation ${fr(b.lifts)} kcal · cardio ${fr(b.cardio)} kcal.`], ["TEF", "Effet thermique des aliments", b.tef, "≈ 10 % de ce que tu manges, pour digérer."]];
+  return `<div class="card grad mt12"><div class="lbl">🔥 TDEE · dépense totale du jour</div><b class="num" style="font-size:40px">${fr(b.tdee)} kcal</b><p class="small">dont ${fr(bn.now)} kcal déjà brûlées à cette heure · mangé : ${fr(b.intake)} kcal</p><p class="small"><b>${b.intake - b.tdee > 0 ? "Surplus" : "Déficit"} estimé : ${fr(Math.abs(b.intake - b.tdee))} kcal</b></p></div>
+    <div class="card mt12">${rows.map(([k, l, v, t]) => `<div class="mt8"><div class="row between"><span><b>${k}</b> · <span class="small">${l}</span></span><b class="num">${fr(v)}</b></div><div class="gauge mt4"><i style="width:${Math.round(v / b.tdee * 100)}%"></i></div><p class="xs muted" style="margin:4px 0 0">${t}</p></div>`).join("")}</div>
+    <h2 class="sec">🏃 Mon cardio du jour</h2>
+    <div class="card">${cardio.length ? cardio.map((c, i) => `<div class="row between small"><span>${esc(c.n)} · ${c.min} min</span><span><b>${EN.cardioKcal(c.met, c.min)} kcal</b> <button class="icon-btn" data-a="cardio-del" data-i="${i}" aria-label="Retirer">${I.close}</button></span></div>`).join("") : `<p class="small muted" style="margin:0">Aucun cardio noté.</p>`}
+      <form data-f="cardio" class="row mt12" style="gap:6px"><select name="t" class="inp grow" style="text-align:left">${EN.CARDIO.map(([n, m], i) => `<option value="${i}">${n}</option>`).join("")}</select><input name="min" class="inp" style="width:70px" inputmode="numeric" placeholder="min" required><button class="btn btn-red btn-xs">+</button></form></div>
+    <p class="xs muted mt8">Estimations à ±10 %. La tendance de ton poids sur 2 à 3 semaines reste le juge final : si ton poids ne bouge pas comme prévu, ajuste de 100 à 200 kcal.</p>`;
+}
+forms.cardio = (v) => { const c = EN.CARDIO[+v.t], min = Math.round(num(v.min)); if (!(min > 0 && min < 600)) return toast("Durée invalide"); update(st => { const x = st.daily[D()] = st.daily[D()] || {}; (x.cardio = x.cardio || []).push({ n: c[0], met: c[1], min }); }); toast("Cardio ajouté"); rerender(); };
+actions["cardio-del"] = (b, d) => { update(st => st.daily[D()].cardio.splice(+d.i, 1)); rerender(); };
+
+// ---------- Corps : poids, projection, mensurations, photos ----------
+const MS = [["waist", "Tour de taille"], ["hips", "Hanches"], ["chest", "Poitrine"], ["arm", "Bras"], ["thigh", "Cuisse"], ["calf", "Mollet"], ["neck", "Cou"], ["fat", "Masse grasse (%)"]];
+async function bodyBody() {
+  const ws = Object.entries(S().daily).filter(([, v]) => v.weight).sort().map(([d, v]) => ({ d, w: v.weight }));
+  const avg = ws.map((m, i) => { const win = ws.slice(Math.max(0, i - 6), i + 1); return { d: m.d, y: win.reduce((a, b) => a + b.w, 0) / win.length, l: m.d.slice(8, 10) + "/" + m.d.slice(5, 7) }; });
+  let proj = null, rate = null;
+  const recent = avg.filter(a => a.d >= addDays(today(), -28));
+  if (recent.length >= 4) {
+    const days = (new Date(recent.at(-1).d) - new Date(recent[0].d)) / 864e5;
+    if (days >= 6) { rate = (recent.at(-1).y - recent[0].y) / days * 7; proj = [2, 4, 6, 8].map(k => ({ y: recent.at(-1).y + rate * k, l: `+${k} sem.` })); }
+  }
+  const ms = S().measures.filter(m => MS.some(([k]) => m[k]));
+  const lastM = [...ms].reverse()[0], firstM = ms[0];
+  const photos = premium() ? await listPhotos() : [];
+  const goal = S().profile?.goal;
+  return `<div class="card mt12"><div class="row between"><span class="lbl">⚖️ Poids · moyenne 7 jours</span><span class="xs muted">${ws.length} pesées</span></div>
+      ${avg.length ? `<div class="num mt4" style="font-size:32px">${fr(avg.at(-1).y, 1)} kg</div>` : ""}
+      <div class="mt8">${lineChart(avg.slice(-60), { proj: premium() ? proj : null, yfmt: (v) => fr(v, 1) })}</div>
+      ${rate != null ? premium() ? `<div class="card soft mt8"><b>📉 À ce rythme</b> (${rate > 0 ? "+" : ""}${fr(rate, 2)} kg / semaine) : <b>${fr(proj.at(-1).y, 1)} kg dans 8 semaines</b>.<br><span class="xs muted">${goal === "fat" ? (rate > -.2 ? "Un peu lent : vise −0,3 à −0,7 kg par semaine (baisse de 150 kcal ou +2 000 pas)." : rate < -1 ? "Rapide : attention à ta masse musculaire, remonte de 150 kcal." : "Rythme idéal pour perdre du gras en gardant ton muscle.") : goal === "muscle" ? (rate < .1 ? "Trop lent pour prendre du muscle : ajoute 150 kcal." : rate > .5 ? "Rapide : une partie sera du gras, baisse de 100 kcal." : "Bon rythme de prise de muscle.") : "La moyenne compte, pas la pesée du jour."}</span></div>` : `<p class="small mt8">🔒 Courbe de projection « à ce rythme » avec Premium.</p>` : `<p class="xs muted mt8">La projection apparaît après une semaine de pesées.</p>`}
+      <form class="row mt12" data-f="weight" style="gap:8px"><input name="w" class="inp grow" inputmode="decimal" placeholder="Pesée du jour (kg)" required><button class="btn btn-red btn-sm" style="width:auto">Enregistrer</button></form></div>
+    <div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="lbl">📏 Mensurations (cm)</div>
+      ${lastM ? `<div class="mt8">${MS.filter(([k]) => lastM[k]).map(([k, l]) => { const f = ms.find(m => m[k]), dlt = lastM[k] - f[k]; return `<div class="row between small"><span>${l}</span><span><b>${fr(lastM[k], 1)}</b> ${f !== lastM && dlt ? `<span class="xs ${dlt < 0 ? "" : "red"}">${dlt > 0 ? "+" : ""}${fr(dlt, 1)}</span>` : ""}</span></div>`; }).join("")}<p class="xs muted">Dernière mesure : ${fmtDate(lastM.d, { day: "numeric", month: "long" })}${firstM !== lastM ? ` · écart depuis le ${fmtDate(firstM.d, { day: "numeric", month: "short" })}` : ""}</p></div>` : ""}
+      <form data-f="measures" class="mt12"><div class="grid2">${MS.map(([k, l]) => `<label class="field"><span>${l}</span><input name="${k}" inputmode="decimal" placeholder="${lastM?.[k] ?? ""}"></label>`).join("")}</div><button class="btn btn-line btn-sm mt12" style="width:100%">Enregistrer les mesures du jour</button></form>
+      ${premium() ? "" : lockVeil("Premium")}</div>
+    <div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="row between"><span class="lbl">📸 Photos de progrès</span><label class="link" style="cursor:pointer">+ Ajouter<input type="file" accept="image/*" data-c="photo" hidden></label></div>
+      <p class="xs muted">Datées et reliées à tes mesures du jour. Elles restent sur ce téléphone.</p>
+      ${photos.length ? `<div class="photo-grid mt12">${photos.map(p => { const m = S().measures.find(x => x.d === p.d) || {}; const w = S().daily[p.d]?.weight || m.weight; return `<figure><button data-a="photo" data-id="${p.id}" style="display:block;width:100%"><img alt="Photo du ${p.d}" src="${URL.createObjectURL(p.blob)}"></button><figcaption>${fmtDate(p.d, { day: "numeric", month: "short", year: "2-digit" })}${w ? ` · ${fr(w, 1)} kg` : ""}${m.waist ? ` · taille ${fr(m.waist)}` : ""}</figcaption></figure>`; }).join("")}</div>` : `<p class="empty small">Une photo par mois, même lumière, même tenue, même heure.</p>`}
+      ${premium() ? "" : lockVeil("Premium")}</div>`;
+}
+forms.weight = (v) => {
+  const w = num(v.w); if (!(w > 30 && w < 250)) return toast("Poids invalide");
+  update(st => { const x = st.daily[today()] = st.daily[today()] || {}; x.weight = w; st.profile.weight = w; const m = st.measures.find(m => m.d === today()); if (m) m.weight = w; else st.measures.push({ d: today(), weight: w }); });
+  pushStats(); toast("Pesée enregistrée"); rerender();
+};
+forms.measures = (v) => {
+  if (!premium()) return go("offers");
+  let any = false; update(st => { let m = st.measures.find(x => x.d === today()); if (!m) { m = { d: today() }; st.measures.push(m); } MS.forEach(([k]) => { const x = num(v[k]); if (x > 0) { m[k] = x; any = true; } }); });
+  toast(any ? "Mesures enregistrées" : "Aucune mesure saisie"); rerender();
+};
+changes.photo = async (el) => { if (!premium()) return go("offers"); const f = el.files?.[0]; if (!f) return; await addPhoto(f); toast("Photo ajoutée"); rerender(); };
+actions.photo = async (b, d) => { if (confirm("Supprimer cette photo ?")) { await deletePhoto(+d.id); rerender(); } };
