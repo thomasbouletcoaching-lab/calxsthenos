@@ -34,7 +34,7 @@ export const cloudNow = () => C;
 // ---------- Icônes ----------
 const svg = (d, w = 1.9) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 export const I = {
-  x: (s = 28) => `<svg viewBox="0 0 40 40" width="${s}" height="${s}" aria-hidden="true"><defs><linearGradient id="gx${s}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#B3122B"/><stop offset=".6" stop-color="#E5383B"/><stop offset="1" stop-color="#FF7A59"/></linearGradient></defs><path d="M9 9l22 22" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M9 31 31 9" stroke="url(#gx${s})" stroke-width="6" stroke-linecap="round"/></svg>`,
+  x: (s = 28) => `<svg viewBox="0 0 40 40" width="${s}" height="${s}" aria-hidden="true"><defs><linearGradient id="gx${s}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8F3510"/><stop offset=".6" stop-color="#C2541F"/><stop offset="1" stop-color="#EE8A45"/></linearGradient></defs><path d="M9 9l22 22" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M9 31 31 9" stroke="url(#gx${s})" stroke-width="6" stroke-linecap="round"/></svg>`,
   home: svg('<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>'),
   cal: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
   bar: svg('<path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/>'),
@@ -58,8 +58,8 @@ export const I = {
   scan: svg('<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9v6M11 9v6M14 9v6M17 9v6"/>'),
 };
 // Nom de marque : CAL X STHENOS, avec le X du logo
-const MINI_X = `<svg viewBox="54 52 292 320" aria-hidden="true" style="height:.74em;width:.68em;margin:0 .12em"><defs><linearGradient id="mxr" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#B3122B"/><stop offset=".55" stop-color="#E5383B"/><stop offset="1" stop-color="#FF8A65"/></linearGradient><linearGradient id="mxd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C21D35"/><stop offset="1" stop-color="#5E0815"/></linearGradient></defs><path d="M300 52H346L212 212L118 372H70L188 212Z" fill="url(#mxd)"/><path d="M54 52H100L212 212L330 372H282L188 212Z" fill="url(#mxr)"/></svg>`;
-export const logo = (size = 24) => `<span role="img" aria-label="Cal X Sthenos" style="display:inline-flex;align-items:center;font-weight:900;font-size:${size}px;letter-spacing:.02em;white-space:nowrap">CAL${MINI_X}STHENOS</span>`;
+const MINI_X = `<svg viewBox="54 52 292 320" aria-hidden="true" style="height:.74em;width:.68em;margin:0 .12em"><defs><linearGradient id="mxr" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8F3510"/><stop offset=".55" stop-color="#C2541F"/><stop offset="1" stop-color="#EE8A45"/></linearGradient><linearGradient id="mxd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9501E"/><stop offset="1" stop-color="#5C2410"/></linearGradient></defs><path d="M300 52H346L212 212L118 372H70L188 212Z" fill="url(#mxd)"/><path d="M54 52H100L212 212L330 372H282L188 212Z" fill="url(#mxr)"/></svg>`;
+export const logo = (size = 24) => `<span role="img" aria-label="Cal X Sthenos" style="display:inline-flex;align-items:center;font-family:var(--fg);font-weight:900;font-size:${size}px;letter-spacing:.08em;white-space:nowrap">CAL&nbsp;<span style="color:var(--red)">X</span>&nbsp;STHENOS</span>`;
 export const markImg = (size = 96) => `<img src="assets/logo-grec.jpg" alt="Logo Cal X Sthenos" width="${size}" height="${size}" style="border-radius:${Math.round(size * .22)}px;box-shadow:0 12px 30px rgba(42,11,19,.3)">`;
 
 // ---------- Retours visuels ----------
@@ -104,7 +104,7 @@ export function ring(pct, size, stroke, color, track = "var(--line)") {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, p = Math.max(0, Math.min(1, pct || 0));
   return `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${track}" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" opacity="${p > .004 ? 1 : 0}"/>`;
 }
-export const gradDef = (id) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF7A59"/><stop offset=".5" stop-color="#E5383B"/><stop offset="1" stop-color="#B3122B"/></linearGradient></defs>`;
+export const gradDef = (id) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EE8A45"/><stop offset=".5" stop-color="#C2541F"/><stop offset="1" stop-color="#8F3510"/></linearGradient></defs>`;
 export function lineChart(series, { h = 160, unit = "", proj = null, yfmt = (v) => Math.round(v) } = {}) {
   const pts = series.filter(p => p.y != null);
   if (pts.length < 2 && !proj) return `<p class="empty small">La courbe apparaît après deux mesures.</p>`;

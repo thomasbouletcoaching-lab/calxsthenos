@@ -379,7 +379,7 @@ routes.done = () => {
     const g = E.parseScheme(e.scheme).at(-1); const s = E.suggestion(e.name, g.rpe || 8, g.lo, g.hi, e.step); return s ? { n: e.name, s } : null;
   }).filter(Boolean);
   $app.innerHTML = `<section class="loader done" style="justify-content:flex-start;padding-top:calc(40px + var(--safe-t));text-align:center;overflow:auto">
-    <svg class="big-x" viewBox="0 0 40 40"><path class="s1" d="M9 9l22 22" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/><path class="s2" d="M9 31 31 9" stroke="#FFB4A2" stroke-width="5" stroke-linecap="round" fill="none"/></svg>
+    <svg class="big-x" viewBox="0 0 40 40"><path class="s1" d="M9 9l22 22" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/><path class="s2" d="M9 31 31 9" stroke="#EE8A45" stroke-width="5" stroke-linecap="round" fill="none"/></svg>
     <div><h1 class="h1" style="color:#fff">Séance terminée 💪</h1><p style="opacity:.8" class="mt8">${esc(w.title)}</p></div>
     <div style="width:100%;max-width:560px"><div class="stat3"><div><b>${mins}</b><span>minutes</span></div><div><b>${w.setsDone}</b><span>séries</span></div><div><b>${(w.volume / 1000).toFixed(1).replace(".", ",")}</b><span>tonnes</span></div></div></div>
     ${w.records.length ? `<div style="width:100%;max-width:560px;text-align:left;background:rgba(255,255,255,.12);border-radius:18px;padding:14px"><b>🏆 Nouveau${w.records.length > 1 ? "x" : ""} record${w.records.length > 1 ? "s" : ""}</b>${w.records.map(r => `<div class="row between small mt8"><span>${esc(r.name)}</span><b>${Math.round(r.after)} kg <span style="opacity:.7;font-weight:400">1RM estimé</span></b></div>`).join("")}</div>` : ""}
