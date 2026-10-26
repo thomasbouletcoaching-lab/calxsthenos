@@ -11,7 +11,7 @@ const STEPS = [
   { id: "name", type: "text", q: () => `Salut, je suis Thomas, ton coach. <span class="k">Comment tu t'appelles ?</span>`, ph: "Ton prénom" },
   { id: "email", type: "email", q: (a) => `Enchanté ${esc(a.name)}. Quelle est ton <span class="k">adresse e-mail</span> ?`, sub: "Elle sert à retrouver ton compte et à recevoir mes réponses. Jamais revendue." },
   { id: "goal", q: () => `🎯 Quel est ton <span class="k">objectif principal</span> ?`, opts: [["muscle", "Prendre du muscle"], ["strength", "Gagner en force"], ["fat", "Perdre du gras"], ["recomp", "Perdre du gras et prendre du muscle"], ["restart", "Reprendre le sport"]] },
-  { id: "discipline", q: () => `🏋️ Ce qui te <span class="k">parle le plus</span> ?`, opts: [["musculation", "Musculation"], ["powerbuilding", "Powerbuilding", "Force et muscle"], ["streetlifting", "Street lifting", "Tractions et dips lestés"], ["street", "Street workout", "Le programme poids du corps arrive bientôt"]] },
+  { id: "discipline", q: () => `🏋️ Ce qui te <span class="k">parle le plus</span> ?`, opts: [["musculation", "Musculation"], ["powerbuilding", "Powerbuilding", "Force et muscle"], ["powerlifting", "Powerlifting", "Squat, développé couché, soulevé de terre"], ["streetlifting", "Street lifting", "Tractions et dips lestés"], ["street", "Street workout", "Le programme poids du corps arrive bientôt"]] },
   { id: "level", q: () => `Où en es-tu <span class="k">aujourd'hui</span> ?`, opts: [["beginner", "Je débute"], ["comeback", "Je reprends après une pause"], ["regular", "Je m'entraîne régulièrement"], ["advanced", "Je m'entraîne depuis plus de 2 ans"]] },
   { id: "place", q: () => `Compris. <span class="k">Où</span> t'entraînes-tu ?`, opts: [["bigGym", "En salle (Basic-Fit ou équivalent)"], ["smallGym", "Dans une petite salle"], ["home", "À la maison, avec haltères"], ["bodyweight", "Au poids du corps, dehors"]] },
   { id: "days", q: () => `📅 Combien de <span class="k">jours par semaine</span> peux-tu vraiment t'entraîner ?`, sub: "Vise ce que tu tiens sur 12 semaines, pas ce que tu ferais une bonne semaine.", opts: [[2, "2 jours"], [3, "3 jours"], [4, "4 jours"], [5, "5 jours"], [6, "6 jours"]] },
@@ -22,7 +22,9 @@ const STEPS = [
   { id: "diet", q: () => `🍽️ Ton <span class="k">alimentation</span> ?`, opts: [["all", "Je mange de tout"], ["vegetarian", "Végétarien"], ["vegan", "Vegan"]] },
   { id: "word", q: () => `Dernière chose. Veux-tu une <span class="k">parole pour la route</span> chaque jour ?`, sub: "CalXsthenos veut prendre soin de ton corps, de ton âme et de ton esprit. Tu peux changer ce choix à tout moment.", opts: [["daily", "Oui, chaque jour"], ["discreet", "Seulement sur l'accueil"], ["off", "Pas maintenant"]] },
 ];
-const LIFTS_ASK = (a) => a.discipline === "streetlifting"
+const LIFTS_ASK = (a) => a.discipline === "powerlifting"
+  ? [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"]]
+  : a.discipline === "streetlifting"
   ? [["pullup", "Tractions lestées", "lest"], ["dip", "Dips lestés", "lest"], ["squat", "Squat barre"], ["bench", "Développé couché barre"]]
   : [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre"]];
 const visible = () => STEPS.filter(s => !(s.skip && s.skip(OB.a)));

@@ -32,6 +32,7 @@ export function pickProgram(p) {
   if (beg) return p.days <= 2 ? "tb-rep2" : "tb-rep3";
   if (p.discipline === "streetlifting") return adv ? "tb-ml4" : "tb-pb4";
   if (p.discipline === "powerbuilding") return adv ? "tb-pb4" : "tb-int4";
+  if (p.discipline === "powerlifting") return adv ? "tb-ml4" : "tb-pb4";
   if (p.days <= 2) return "tb-rep2";
   if (p.days === 3) return "tb-int3";
   if (p.days >= 5 && adv) return "tb-adv5";
