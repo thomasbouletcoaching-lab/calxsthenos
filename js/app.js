@@ -476,13 +476,16 @@ async function addFoodSheet(meal) {
       box.innerHTML = (dishes.length ? `<h3 class="sec" style="margin-top:4px">Mes plats</h3><div class="list">${dishes.map((d, i) => `<button class="li" data-a="eat-dish" data-i="${i}" data-m="${esc(meal)}"><span class="grow">${esc(d.n)}<br><span class="xs muted">${d.kcal} kcal · ${Math.round(d.p)} g prot.</span></span>${I.plus.replace("<svg", '<svg width="20"')}</button>`).join("")}</div>` : "")
         + (rec.length ? `<h3 class="sec">Récents</h3><div class="list">${rec.map((f, i) => `<button class="li" data-a="pick-food" data-src="recent" data-i="${i}" data-m="${esc(meal)}"><span class="grow">${esc(f.n)}<br><span class="xs muted">${f.kcal} kcal / 100 g</span></span>${I.chev}</button>`).join("")}</div>` : `<p class="empty small">Tape le nom d'un aliment : « riz », « poulet », « skyr »…</p>`);
     };
-    idle(); await N.loadCiqual();
-    let deb;
-    inp.addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(() => {
+    idle();
+    let deb, ready = false;
+    const run = () => {
       const q = inp.value.trim(); if (!q) return idle();
+      if (!ready) { box.innerHTML = `<p class="empty small">Chargement des aliments…</p>`; return; }
       const r = N.searchFoods(q); window.__fr = r;
       box.innerHTML = r.length ? `<div class="list">${r.map((f, i) => `<button class="li" data-a="pick-food" data-src="search" data-i="${i}" data-m="${esc(meal)}"><span class="grow">${esc(f.n)}<br><span class="xs muted">${f.kcal} kcal · ${String(f.p).replace(".", ",")} g prot. / 100 g</span></span>${I.chev}</button>`).join("")}</div>` : `<p class="empty small">Aucun aliment trouvé pour « ${esc(q)} ». Essaie un mot plus simple.</p>`;
-    }, 140); });
+    };
+    inp.addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(run, 140); });
+    await N.loadCiqual(); ready = true; if (inp.value.trim()) run();
   });
 }
 function gramsSheet(food, meal) {

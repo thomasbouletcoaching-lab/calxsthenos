@@ -1,6 +1,6 @@
 // Service worker CalXsthenos : l'app fonctionne hors ligne en salle.
 // Après chaque modification de l'app, augmenter ce numéro de version.
-const C = "cxs-v3";
+const C = "cxs-v4";
 const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/store.js", "js/engine.js", "js/nutrition.js", "js/word.js", "js/config.js", "js/cloud.js",
   "data/programs.json", "data/nutrition-models.json", "manifest.webmanifest", "assets/icon.svg", "assets/icon-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
