@@ -98,6 +98,7 @@ export function seedE1rm(name) {
 export function currentE1rm(name) {
   const h = S().lifts[name];
   if (!h?.length) return seedE1rm(name);
+  if (h.at(-1).manual) return h.at(-1).e1rm;
   const last = h.at(-1).e1rm, best3 = Math.max(...h.slice(-3).map(x => x.e1rm));
   return last * .6 + best3 * .4;
 }
@@ -138,7 +139,7 @@ export function suggestion(name, targetRpe = 8, lo = 8, hi = 10, step = 2.5) {
   let txt, kg = best.kg;
   if (pain) { txt = "Douleur signalée la dernière fois : garde la même charge ou change d'exercice."; }
   else if (avgRpe >= targetRpe + 1) { txt = `Plus dur que prévu (RPE ${fmtKg(avgRpe)} pour ${fmtKg(targetRpe)}) : on garde ${fmtKg(kg)} kg et on vise des reps plus propres.`; }
-  else if (avgRpe <= targetRpe - 1.5 || allTop) { kg = roundTo(best.kg + step * (avgRpe <= targetRpe - 2 ? 2 : 1), step); txt = `Plus facile que prévu (RPE ${fmtKg(avgRpe)}) : monte à ${fmtKg(kg)} kg.`; }
+  else if (avgRpe <= targetRpe - 1.5 || allTop) { kg = roundTo(best.kg + Math.max(1, Math.round(pace().jump * (avgRpe <= targetRpe - 2 ? 2 : 1))) * step, step); txt = `Plus facile que prévu (RPE ${fmtKg(avgRpe)}) : monte à ${fmtKg(kg)} kg.`; }
   else { txt = `Dans la cible (RPE ${fmtKg(avgRpe)}) : vise ${best.reps + 1} reps à ${fmtKg(kg)} kg ou la charge proposée.`; }
   return { txt, kg, last: `${fmtKg(best.kg)} kg × ${best.reps} à RPE ${fmtKg(best.rpe ?? best.trpe ?? 8)}`, date: l.date };
 }
@@ -161,7 +162,7 @@ export function buildSession() {
       for (let k = 0; k < g.sets; k++) {
         let kg = null;
         if (!bw) {
-          if (e) kg = g.pct ? e * g.pct / 100 : loadFor(e, g.lo, g.rpe || 8);
+          if (e) kg = (g.pct ? e * g.pct / 100 : loadFor(e, g.lo, g.rpe || 8)) * pace().f;
           else if (prev) kg = prev.kg;
           if (kg && comeback) kg *= .9;
           if (kg && g.ds && k === g.sets - 1) kg *= .8;
@@ -179,7 +180,7 @@ export function buildSession() {
     const sug = bw ? null : suggestion(name, groups.at(-1).rpe || 8, groups.at(-1).lo, groups.at(-1).hi, step);
     return { orig, name, kind, note: row[2] || "", ss: row[3] || null, tempo: row[4] || null, scheme, unit, bw, step, rest: (row[5]?.rest) || REST[kind] || 90, sets, e1: e, sug, myNote: "" };
   });
-  return { id: Date.now(), programId: p.id, week, idx: ns.idx, title: ns.title, phase: ns.phase, start: new Date().toISOString(), comeback, exercises };
+  return { id: Date.now(), programId: p.id, week, idx: ns.idx % p.s.length, cycle: ns.cycle, title: ns.title, phase: ns.phase, start: new Date().toISOString(), comeback, exercises };
 }
 export function freeSession(title = "Séance libre") {
   return { id: Date.now(), programId: null, free: true, week: S().plan?.week || 1, idx: null, title, phase: "Libre", start: new Date().toISOString(), comeback: false, exercises: [] };
@@ -219,11 +220,37 @@ export function finishSession(cur) {
     st.current = null;
     if (!cur.free && st.plan) {
       const p = program(st.plan.programId);
-      st.plan.idx++;
-      if (st.plan.idx >= p.s.length) { st.plan.idx = 0; st.plan.week++; if (st.plan.week > weeksOf(p)) { st.plan.week = 1; st.plan.cycle = (st.plan.cycle || 1) + 1; } }
+      // prochaine séance : la première pas encore faite de la semaine, sinon semaine suivante
+      const done = doneIn(st.plan.programId, st.plan.cycle || 1, st.plan.week);
+      const left = p.s.map((_, i) => i).filter(i => !done.has(i));
+      if (left.length) st.plan.idx = left[0];
+      else { st.plan.idx = 0; st.plan.week++; if (st.plan.week > weeksOf(p)) { st.plan.week = 1; st.plan.cycle = (st.plan.cycle || 1) + 1; } }
     }
   });
   return cur;
+}
+
+// Séances faites dans une semaine donnée du cycle (indices des séances du programme)
+export function doneIn(programId, cycle, week) {
+  return new Set(S().workouts.filter(w => !w.free && w.programId === programId && (w.cycle || 1) === cycle && w.week === week && w.idx != null).map(w => w.idx));
+}
+// Se placer dans le cycle : semaine et séance choisies
+export function placeIn(week, idx = null) {
+  update(st => { const p = program(st.plan.programId); st.plan.week = Math.max(1, Math.min(weeksOf(p), week));
+    if (idx == null) { const done = doneIn(st.plan.programId, st.plan.cycle || 1, st.plan.week); idx = p.s.findIndex((_, i) => !done.has(i)); if (idx < 0) idx = 0; }
+    st.plan.idx = idx; });
+}
+
+// ---------- Réglage de la surcharge progressive ----------
+// Rythme global : facteur sur les charges calculées et sur le saut proposé quand c'est facile
+export const PROG_PACE = { prudent: { f: .95, jump: .5, n: "Prudent" }, normal: { f: 1, jump: 1, n: "Normal" }, ambitieux: { f: 1.03, jump: 1.5, n: "Ambitieux" } };
+export const pace = () => PROG_PACE[S().settings?.pace] || PROG_PACE.normal;
+// Ajuster le 1RM estimé d'un exercice (toutes les charges futures suivent)
+export function nudgeE1rm(name, deltaKg) {
+  const cur = currentE1rm(name); if (!cur) return 0;
+  const v = Math.max(1, Math.round((cur + deltaKg) * 10) / 10);
+  update(st => { (st.lifts[name] = st.lifts[name] || []).push({ d: today(), e1rm: v, manual: true }); });
+  return v;
 }
 
 // ---------- Semaine, agenda ----------

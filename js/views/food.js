@@ -299,18 +299,39 @@ actions["fast-stop"] = () => { update(st => { st.fasts = [...(st.fasts || []), {
 
 // ---------- Dépense calorique ----------
 function burnBody() {
-  const d = D(), b = EN.breakdown(d), bn = EN.burnedNow(d), cardio = S().daily[d]?.cardio || [];
+  const d = D(), b = EN.breakdown(d), bn = EN.burnedNow(d), p = S().profile, t = N.targets();
   if (!premium()) return `<div class="card mt12"><div class="lbl">🔥 Brûlées aujourd'hui</div><b class="num" style="font-size:34px">${fr(bn.now)} kcal</b><p class="small muted">à cette heure, sur environ ${fr(bn.total)} kcal prévues</p></div>
     <div class="card mt12 locked" style="position:relative;min-height:240px"><h3 class="h3">Le calcul complet</h3><p class="small muted">Métabolisme de base, NEAT (pas et mouvements), EAT (séances et cardio), effet thermique des aliments, TDEE.</p>${lockVeil("Premium", "Le détail de ta dépense et l'ajout de ton cardio.")}</div>`;
-  const rows = [["MB", "Métabolisme de base", b.bmr, "L'énergie pour vivre au repos (Mifflin-St Jeor)."], ["NEAT", "Activité spontanée", b.neat, `Tes ${fr(b.steps)} pas et tes mouvements du quotidien.`], ["EAT", "Exercice", b.eat, `Musculation ${fr(b.lifts)} kcal · cardio ${fr(b.cardio)} kcal.`], ["TEF", "Effet thermique des aliments", b.tef, "≈ 10 % de ce que tu manges, pour digérer."]];
-  return `<div class="card grad mt12"><div class="lbl">🔥 TDEE · dépense totale du jour</div><b class="num" style="font-size:40px">${fr(b.tdee)} kcal</b><p class="small">dont ${fr(bn.now)} kcal déjà brûlées à cette heure · mangé : ${fr(b.intake)} kcal</p><p class="small"><b>${b.intake - b.tdee > 0 ? "Surplus" : "Déficit"} estimé : ${fr(Math.abs(b.intake - b.tdee))} kcal</b></p></div>
-    <div class="card mt12">${rows.map(([k, l, v, t]) => `<div class="mt8"><div class="row between"><span><b>${k}</b> · <span class="small">${l}</span></span><b class="num">${fr(v)}</b></div><div class="gauge mt4"><i style="width:${Math.round(v / b.tdee * 100)}%"></i></div><p class="xs muted" style="margin:4px 0 0">${t}</p></div>`).join("")}</div>
-    <h2 class="sec">🏃 Mon cardio du jour</h2>
-    <div class="card">${cardio.length ? cardio.map((c, i) => `<div class="row between small"><span>${esc(c.n)} · ${c.min} min</span><span><b>${EN.cardioKcal(c.met, c.min)} kcal</b> <button class="icon-btn" data-a="cardio-del" data-i="${i}" aria-label="Retirer">${I.close}</button></span></div>`).join("") : `<p class="small muted" style="margin:0">Aucun cardio noté.</p>`}
-      <form data-f="cardio" class="row mt12" style="gap:6px"><select name="t" class="inp grow" style="text-align:left">${EN.CARDIO.map(([n, m], i) => `<option value="${i}">${n}</option>`).join("")}</select><input name="min" class="inp" style="width:70px" inputmode="numeric" placeholder="min" required><button class="btn btn-red btn-xs">+</button></form></div>
-    <p class="xs muted mt8">Estimations à ±10 %. La tendance de ton poids sur 2 à 3 semaines reste le juge final : si ton poids ne bouge pas comme prévu, ajuste de 100 à 200 kcal.</p>`;
+  const stepTxt = b.activitySteps ? `${fr(b.steps)} pas hors activité (${fr(b.totalSteps)} au total, dont ${fr(b.activitySteps)} déjà comptés dans ton sport)` : `${fr(b.steps)} pas`;
+  const rows = [["MB", "Métabolisme de base", b.bmr, "L'énergie pour vivre au repos : cœur, cerveau, organes (Mifflin-St Jeor)."],
+    ["NEAT", "Activité du quotidien", b.neat, `Ton mode de vie et ${stepTxt}.`],
+    ["EAT", "Exercice", b.eat, `Musculation ${fr(b.lifts)} kcal · sport et cardio ${fr(b.cardio)} kcal (au-delà du repos).`],
+    ["TEF", "Digestion", b.tef, "≈ 10 % de ce que tu manges."]];
+  // semaine en cours
+  const mon = addDays(today(), -((new Date().getDay() + 6) % 7)), days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
+  const wkLifts = S().workouts.filter(w => (w.end || "").slice(0, 10) >= mon);
+  const liftMin = wkLifts.reduce((x, w) => x + Math.max(10, Math.round((new Date(w.end) - new Date(w.start)) / 6e4)), 0);
+  const sportMin = days.reduce((x, k) => x + (S().daily[k]?.cardio || []).reduce((y, c) => y + c.min, 0), 0);
+  const wkKcal = days.reduce((x, k) => { const bb = EN.breakdown(k); return x + bb.eat; }, 0);
+  const opts = ["Cardio", "Sport"].map(cat => `<optgroup label="${cat === "Cardio" ? "Cardio" : "Sports"}">${EN.CARDIO.map((c, i) => c[3] === cat ? `<option value="${i}">${c[0]}</option>` : "").join("")}</optgroup>`).join("");
+  return `<div class="card grad mt12"><div class="lbl">🔥 TDEE · dépense totale du jour</div><b class="num" style="font-size:40px">${fr(b.tdee)} kcal</b><p class="small" style="margin:4px 0 0">dont ${fr(bn.now)} kcal déjà brûlées à cette heure · mangé : ${fr(b.intake)} kcal</p><p class="small" style="margin:4px 0 0"><b>${b.intake - b.tdee > 0 ? "Surplus" : "Déficit"} estimé : ${fr(Math.abs(b.intake - b.tdee))} kcal</b></p></div>
+    <div class="card mt12">${rows.map(([k, l, v, tx]) => `<div class="mt8"><div class="row between"><span><b>${k}</b> · <span class="small">${l}</span></span><b class="num">${fr(v)}</b></div><div class="gauge mt4"><i style="width:${Math.round(v / b.tdee * 100)}%"></i></div><p class="xs muted" style="margin:4px 0 0">${tx}</p></div>`).join("")}</div>
+
+    <h2 class="sec">🏋️ Musculation du jour</h2>
+    <div class="card">${b.sessions.length ? b.sessions.map(x => `<div class="row between small"><span>${esc(x.n)} · ${x.min} min</span><b>${fr(EN.liftKcal(x.min))} kcal</b></div>`).join("") : `<p class="small muted" style="margin:0">Pas de séance aujourd'hui. Elle s'ajoute toute seule quand tu termines une séance dans le carnet.</p>`}</div>
+
+    <h2 class="sec">🏃 Sport et cardio du jour</h2>
+    <div class="card">${b.list.length ? b.list.map((c, i) => { const st = EN.cardioSteps(c); return `<div class="row between small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(c.n)} · ${c.min} min<br><span class="xs muted">${fr(c.met, 1)} MET${st ? ` · ≈ ${fr(st)} pas retirés du NEAT` : ""}</span></span><span><b>${fr(EN.cardioKcal(c.met, c.min))} kcal</b> <button class="icon-btn" data-a="cardio-del" data-i="${i}" aria-label="Retirer">${I.close}</button></span></div>`; }).join("") : `<p class="small muted" style="margin:0">Rien de noté aujourd'hui.</p>`}
+      <form data-f="cardio" class="mt12"><select name="t" class="inp" style="width:100%;text-align:left">${opts}</select>
+        <div class="row mt8" style="gap:6px"><input name="min" class="inp grow" inputmode="numeric" placeholder="Durée (min)" required><select name="int" class="inp" style="width:auto"><option value="0.85">Facile</option><option value="1" selected>Normal</option><option value="1.15">Intense</option></select><button class="btn btn-red btn-xs">Ajouter</button></div></form>
+      <p class="xs muted" style="margin:8px 0 0">Les pas faits pendant la marche, la course ou un sport sont estimés et retirés de tes pas du jour, pour ne pas les compter deux fois.</p></div>
+
+    <h2 class="sec">📅 Ma semaine</h2>
+    <div class="card"><div class="stat3"><div><b>${wkLifts.length}</b><span>séance${wkLifts.length > 1 ? "s" : ""} muscu · ${Math.floor(liftMin / 60)} h ${String(liftMin % 60).padStart(2, "0")}</span></div><div><b>${Math.floor(sportMin / 60)} h ${String(sportMin % 60).padStart(2, "0")}</b><span>sport et cardio</span></div><div><b>${fr(wkKcal)}</b><span>kcal d'exercice</span></div></div>
+      ${t ? `<p class="small mt12" style="margin-bottom:0">Ta semaine type : <b>${p.days} séance${p.days > 1 ? "s" : ""} de ${p.sessionMin || 60} min</b>${p.sportHours ? ` + <b>${fr(p.sportHours, 1)} h de sport</b>` : ""}, soit ≈ <b>${fr(t.ex.total)} kcal par jour</b> en moyenne. Maintien estimé : <b>${fr(t.maintenance)} kcal</b>, objectif : <b>${fr(t.kcal)} kcal</b>.</p><button class="link small mt8" data-a="edit-body">Modifier ma semaine type</button>` : ""}</div>
+    <p class="xs muted mt8">MET : valeurs du Compendium des activités physiques, en retirant le repos (déjà compté dans le MB). Estimations à ±10 %. La tendance de ton poids sur 2 à 3 semaines reste le juge final : ajuste de 100 à 200 kcal si besoin.</p>`;
 }
-forms.cardio = (v) => { const c = EN.CARDIO[+v.t], min = Math.round(num(v.min)); if (!(min > 0 && min < 600)) return toast("Durée invalide"); update(st => { const x = st.daily[D()] = st.daily[D()] || {}; (x.cardio = x.cardio || []).push({ n: c[0], met: c[1], min }); }); toast("Cardio ajouté"); rerender(); };
+forms.cardio = (v) => { const c = EN.CARDIO[+v.t], min = Math.round(num(v.min)), k = +v.int || 1; if (!(min > 0 && min < 600)) return toast("Durée invalide"); update(st => { const x = st.daily[D()] = st.daily[D()] || {}; (x.cardio = x.cardio || []).push({ n: c[0] + (k > 1 ? " (intense)" : k < 1 ? " (facile)" : ""), met: Math.round(c[1] * k * 10) / 10, spm: c[2], min }); }); toast("Activité ajoutée"); rerender(); };
 actions["cardio-del"] = (b, d) => { update(st => st.daily[D()].cardio.splice(+d.i, 1)); rerender(); };
 
 // ---------- Corps : poids, projection, mensurations, photos ----------

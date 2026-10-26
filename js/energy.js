@@ -2,10 +2,22 @@
 import { S, today } from "./store.js";
 
 export const ACTIVITY_NEAT = { low: 0.15, light: 0.22, mid: 0.3, high: 0.5, vhigh: 0.65 }; // fraction du MB hors pas comptés
+// [nom, MET (Compendium of Physical Activities), pas par minute pendant l'activité (pour ne pas les compter deux fois), catégorie]
 export const CARDIO = [
-  ["Marche", 3.5], ["Marche rapide / inclinée", 5], ["Vélo zone 2", 6], ["Rameur", 7], ["Course lente", 8], ["Course", 10],
-  ["Corde à sauter", 11], ["Natation", 7], ["Elliptique", 5.5], ["Sport collectif", 7], ["HIIT", 9],
+  ["Marche normale", 3.5, 100, "Cardio"], ["Marche rapide", 4.3, 120, "Cardio"], ["Marche inclinée (tapis)", 6, 110, "Cardio"], ["Randonnée", 6, 100, "Cardio"],
+  ["Course lente (8 km/h)", 8.3, 155, "Cardio"], ["Course (10 km/h)", 9.8, 165, "Cardio"], ["Course rapide (12 km/h)", 11.5, 175, "Cardio"], ["Fractionné (course)", 10, 165, "Cardio"],
+  ["Vélo tranquille", 5.8, 0, "Cardio"], ["Vélo zone 2 / home-trainer", 6.8, 0, "Cardio"], ["Vélo soutenu", 8.5, 0, "Cardio"], ["Vélo elliptique", 5, 0, "Cardio"],
+  ["Rameur modéré", 7, 0, "Cardio"], ["Rameur intense", 8.5, 0, "Cardio"], ["Stepper / escalier", 9, 0, "Cardio"], ["Corde à sauter", 11.8, 0, "Cardio"],
+  ["HIIT / circuit training", 8, 40, "Cardio"], ["Natation tranquille", 6, 0, "Cardio"], ["Natation soutenue", 9.8, 0, "Cardio"],
+  ["Football", 7, 85, "Sport"], ["Basket", 6.5, 80, "Sport"], ["Handball", 8, 80, "Sport"], ["Rugby", 8.3, 75, "Sport"], ["Volley", 4, 30, "Sport"],
+  ["Tennis", 7.3, 60, "Sport"], ["Padel", 6, 55, "Sport"], ["Badminton", 5.5, 50, "Sport"], ["Tennis de table", 4, 20, "Sport"],
+  ["Boxe (sac, pattes d'ours)", 7.8, 20, "Sport"], ["Boxe / MMA (sparring)", 9, 25, "Sport"], ["Judo / jiu-jitsu / lutte", 10.3, 0, "Sport"], ["Arts martiaux (kata, technique)", 5.3, 15, "Sport"],
+  ["Escalade", 7.5, 0, "Sport"], ["Danse", 5.5, 60, "Sport"], ["Yoga", 2.8, 0, "Sport"], ["Pilates / mobilité", 3, 0, "Sport"],
+  ["CrossFit / WOD", 8, 30, "Sport"], ["Calisthénie / street workout", 5, 0, "Sport"], ["Ski", 6.8, 0, "Sport"], ["Surf", 5, 0, "Sport"],
 ];
+// Repères de l'onboarding : sport et cardio en plus de la musculation, en heures par semaine
+export const EXTRA_SPORT = { 0: 0, 1.5: 1.5, 3.5: 3.5, 6: 6 };
+
 export const day = (d = today()) => S().daily?.[d] || {};
 export function bmr(p = S().profile) {
   if (!p) return 1600;
@@ -15,22 +27,30 @@ export function bmr(p = S().profile) {
 const weight = () => day().weight || S().profile?.weight || 75;
 // kcal des pas : ~0,0005 kcal par pas et par kg (≈ 0,04 kcal/pas à 80 kg)
 export const stepsKcal = (steps, w = weight()) => Math.round((steps || 0) * 0.0005 * w);
-// kcal d'une séance de musculation : MET 5 par heure
-export const liftKcal = (min, w = weight()) => Math.round(5 * w * (min / 60));
-export const cardioKcal = (met, min, w = weight()) => Math.round(met * w * (min / 60));
+// Les MET comptent aussi le métabolisme de base : on retire 1 MET pour ne pas le compter deux fois avec le MB.
+// Musculation : MET 5 (séance classique), donc 4 MET nets.
+export const LIFT_MET = 5;
+export const liftKcal = (min, w = weight()) => Math.round((LIFT_MET - 1) * w * (min / 60));
+export const cardioKcal = (met, min, w = weight()) => Math.round(Math.max(0, met - 1) * w * (min / 60));
+export const cardioSteps = (c) => Math.round((c.spm ?? (CARDIO.find(x => x[0] === c.n)?.[2] ?? 0)) * (c.min || 0));
 
 export function breakdown(d = today()) {
   const p = S().profile, D = S().daily?.[d] || {};
   const B = Math.round(bmr(p));
-  const steps = D.steps ?? 0;
+  const totalSteps = D.steps ?? 0;
+  const list = D.cardio || [];
+  // Les pas faits pendant la course, la marche ou un sport sont déjà dans les kcal de l'activité : on les retire du NEAT
+  const activitySteps = Math.min(totalSteps, list.reduce((a, c) => a + cardioSteps(c), 0));
+  const steps = Math.max(0, totalSteps - activitySteps);
   const baseNeat = Math.round(B * (ACTIVITY_NEAT[p?.activity] ?? .3) * .5);
   const neat = baseNeat + stepsKcal(steps);
-  const lifts = S().workouts.filter(w => w.end?.slice(0, 10) === d).reduce((a, w) => a + liftKcal(Math.max(10, (new Date(w.end) - new Date(w.start)) / 6e4)), 0);
-  const cardio = (D.cardio || []).reduce((a, c) => a + cardioKcal(c.met, c.min), 0);
+  const sessions = S().workouts.filter(w => w.end?.slice(0, 10) === d).map(w => ({ n: w.title, min: Math.max(10, Math.round((new Date(w.end) - new Date(w.start)) / 6e4)) }));
+  const lifts = sessions.reduce((a, x) => a + liftKcal(x.min), 0);
+  const cardio = list.reduce((a, c) => a + cardioKcal(c.met, c.min), 0);
   const eat = lifts + cardio;
   const intake = (S().food?.[d] || []).reduce((a, e) => a + e.kcal, 0);
   const tef = Math.round((intake || 0) * 0.1);
-  return { bmr: B, neat, steps, eat, lifts, cardio, tef, intake, tdee: B + neat + eat + tef };
+  return { bmr: B, neat, steps, totalSteps, activitySteps, sessions, list, eat, lifts, cardio, tef, intake, tdee: B + neat + eat + tef };
 }
 // Dépense « à cette heure » : MB et NEAT de base au prorata de l'heure + ce qui a été fait
 export function burnedNow(d = today()) {

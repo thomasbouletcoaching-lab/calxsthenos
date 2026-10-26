@@ -4,7 +4,7 @@ import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as W from "../word.js";
 import { CONFIG, offer } from "../config.js";
-import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, render, rerender } from "../core.js";
+import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, expert, render, rerender } from "../core.js";
 import { syncProfile } from "../sync.js";
 import { ONB_STEPS, resetOnboarding } from "./onboarding.js";
 
@@ -51,11 +51,13 @@ actions["edit-body"] = () => {
     <label class="field"><span>Objectif</span><select name="goal">${opt("goal").map(([v, l]) => `<option value="${v}" ${p.goal === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="field"><span>Activité</span><select name="activity">${opt("activity").map(([v, l]) => `<option value="${v}" ${p.activity === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="field"><span>Pas par jour en moyenne</span><select name="stepsAvg">${opt("steps").map(([v, l]) => `<option value="${v}" ${p.stepsAvg == v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <div class="grid2"><label class="field"><span>Séances de muscu / semaine</span><select name="days">${[1, 2, 3, 4, 5, 6, 7].map(d => `<option ${p.days == d ? "selected" : ""}>${d}</option>`).join("")}</select></label><label class="field"><span>Durée d'une séance</span><select name="sessionMin">${opt("sessionMin").map(([v, l]) => `<option value="${v}" ${(p.sessionMin || 60) == v ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+    <label class="field"><span>Sport ou cardio en plus</span><select name="sportHours">${opt("sportHours").map(([v, l, sub]) => `<option value="${v}" ${(p.sportHours || 0) == v ? "selected" : ""}>${l}${sub ? " · " + sub : ""}</option>`).join("")}</select></label>
     <label class="field"><span>Alimentation</span><select name="diet">${opt("diet").map(([v, l]) => `<option value="${v}" ${p.diet === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <button class="btn btn-red">Enregistrer</button></form>`);
 };
 forms["edit-body"] = (v) => {
-  update(st => { const p = st.profile; p.weight = num(v.weight) || p.weight; p.height = num(v.height) || p.height; p.age = num(v.age) || p.age; p.email = v.email.trim() || p.email; p.stepsGoal = Math.round(num(v.stepsGoal)) || 8000; p.goal = v.goal; p.activity = v.activity; p.stepsAvg = +v.stepsAvg || null; p.diet = v.diet; p.nutritionModel = N.pickModel(p); st.synced = false; });
+  update(st => { const p = st.profile; p.weight = num(v.weight) || p.weight; p.height = num(v.height) || p.height; p.age = num(v.age) || p.age; p.email = v.email.trim() || p.email; p.stepsGoal = Math.round(num(v.stepsGoal)) || 8000; p.goal = v.goal; p.activity = v.activity; p.stepsAvg = +v.stepsAvg || null; p.days = +v.days || p.days; p.sessionMin = +v.sessionMin || 60; p.sportHours = +v.sportHours || 0; p.diet = v.diet; p.nutritionModel = N.pickModel(p); st.synced = false; });
   closeSheet(); toast("Infos mises à jour"); syncProfile(); rerender();
 };
 
@@ -71,20 +73,20 @@ let kbMode = "cli";
 routes.kb = async () => {
   if (!KB) KB = [...(await (await fetch("data/kb.json")).json()), ...EXTRA];
   if (R.param) return kbChapter(R.param);
-  const open = (c) => c.g ? rank() >= 2 : premium() || KB_FREE.includes(c.id);
+  const open = (c) => c.g ? expert() : premium() || KB_FREE.includes(c.id);
   const groups = [["Les bases", KB.filter(c => !c.g && !EXTRA.includes(c))], ["Énergie, jeûne, eau", EXTRA], ["Maillons faibles et dos (suivi)", KB.filter(c => c.g)]];
   $app.innerHTML = header("Connaissances", "Science de l'entraînement, physiologie, biomécanique", { back: "train" }) + `<main class="page">
-    <p class="small muted">Gratuit : les bases. Premium : toute la bibliothèque. Suivi : la version experte et le module maillons faibles.</p>
+    <p class="small muted">${expert() ? "Toute la bibliothèque est ouverte, avec la version experte de chaque chapitre." : "Gratuit : les bases. Premium : toute la bibliothèque. Suivi : la version experte et le module maillons faibles."}</p>
     ${groups.map(([g, list]) => `<h2 class="sec">${g}</h2><div class="list">${list.map(c => `<button class="li" data-a="go" data-r="kb" data-p="${c.id}"><span class="em">${c.ic || "📘"}</span><span class="grow"><b class="small">${esc(c.t)}</b>${S().kbRead?.[c.id] ? ` <span class="tag g">lu</span>` : ""}</span>${open(c) ? I.chev : `<span class="lock">🔒</span>`}</button>`).join("")}</div>`).join("")}
   </main>${tabbar("train")}`;
 };
 function kbChapter(id) {
   const c = KB.find(x => x.id === id); if (!c) return go("kb");
-  const open = c.g ? rank() >= 2 : premium() || KB_FREE.includes(c.id), expert = rank() >= 2 && c.co;
+  const open = c.g ? expert() : premium() || KB_FREE.includes(c.id), isExp = expert() && c.co;
   if (open) update(st => { st.kbRead = st.kbRead || {}; st.kbRead[id] = true; });
-  const html = open ? (kbMode === "co" && expert ? c.co : (c.cli || c.co)) : "";
+  const html = open ? (kbMode === "co" && isExp ? c.co : (c.cli || c.co)) : "";
   $app.innerHTML = header(`${c.ic || "📘"} ${esc(c.t)}`, "", { back: "kb" }) + `<main class="page full">
-    ${c.co ? `<div class="mt8">${rank() >= 2 ? seg([["cli", "Version simple"], ["co", "Version experte"]], kbMode, "kb-mode") : `<p class="xs muted">🔒 Version experte avec les formules de suivi.</p>`}</div>` : ""}
+    ${c.co ? `<div class="mt8">${expert() ? seg([["cli", "Version simple"], ["co", "Version experte"]], kbMode, "kb-mode") : `<p class="xs muted">🔒 Version experte avec les formules de suivi.</p>`}</div>` : ""}
     ${open ? `<article class="card mt12 prose kb">${html}</article>` : `<div class="card mt12 locked" style="position:relative;min-height:260px"><p class="small muted">${esc((c.cli || "").replace(/<[^>]+>/g, " ").slice(0, 160))}…</p>${lockVeil(c.g ? "Suivi" : "Premium")}</div>`}
   </main>`;
 }

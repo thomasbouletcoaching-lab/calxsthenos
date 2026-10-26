@@ -15,6 +15,8 @@ const STEPS = [
   { id: "level", q: () => `Où en es-tu <span class="k">aujourd'hui</span> ?`, opts: [["beginner", "Je débute"], ["comeback", "Je reprends après une pause"], ["regular", "Je m'entraîne régulièrement"], ["advanced", "Je m'entraîne depuis plus de 2 ans"]] },
   { id: "place", q: () => `Compris. <span class="k">Où</span> t'entraînes-tu ?`, opts: [["bigGym", "En salle (Basic-Fit ou équivalent)"], ["smallGym", "Dans une petite salle"], ["home", "À la maison, avec haltères"], ["bodyweight", "Au poids du corps, dehors"]] },
   { id: "days", q: () => `📅 Combien de <span class="k">jours par semaine</span> peux-tu vraiment t'entraîner ?`, sub: "Vise ce que tu tiens sur 12 semaines, pas ce que tu ferais une bonne semaine.", opts: [[2, "2 jours"], [3, "3 jours"], [4, "4 jours"], [5, "5 jours"], [6, "6 jours"]] },
+  { id: "sessionMin", q: () => `⏱️ Combien de <span class="k">temps par séance</span> de musculation ?`, sub: "Échauffement compris, sans le trajet.", opts: [[45, "45 minutes ou moins"], [60, "Environ 1 heure"], [75, "1 h 15"], [90, "1 h 30"], [120, "2 heures ou plus"]] },
+  { id: "sportHours", q: () => `🏃 Et en plus de la muscu, du <span class="k">sport ou du cardio</span> ?`, sub: "Foot, course, vélo, boxe, natation, danse… En moyenne, par semaine.", opts: [[0, "Non, rien d'autre"], [1.5, "Un peu", "1 à 2 h par semaine"], [3.5, "Régulièrement", "3 à 4 h par semaine"], [6, "Beaucoup", "5 h ou plus par semaine"]] },
   { id: "backPain", q: () => `As-tu une <span class="k">gêne au bas du dos</span> en ce moment ?`, opts: [[false, "Non"], [true, "Oui, régulièrement"]] },
   { id: "records", type: "records", skip: (a) => a.level === "beginner" || a.level === "comeback", q: () => `💪 Tes <span class="k">meilleures séries</span> récentes`, sub: "Répétitions et charge d'une série récente faite avec effort et bonne technique. Laisse vide ce que tu ne fais pas." },
   { id: "body", type: "body", q: () => `🔥 Pour calculer ton <span class="k">carburant</span>`, sub: "Âge, taille et poids." },
@@ -64,7 +66,7 @@ async function building() {
   await Promise.all([E.loadPrograms(), N.loadModels()]);
   const rec = {};
   Object.entries(a.records || {}).forEach(([k, v]) => { if (v.r > 0) rec[k] = { ...v, rpe: 9, e1rm: v.k > 0 ? Math.round(E.e1rm(v.k, v.r, 9) * 10) / 10 : 0, d: today() }; });
-  const profile = { name: a.name, email: a.email, news: a.news !== false, goal: a.goal, discipline: a.discipline === "street" ? "musculation" : a.discipline, wantsStreet: a.discipline === "street", level: a.level, place: a.place, days: a.days, backPain: a.backPain, records: rec, sex: a.sex || "m", age: +a.age, height: +a.height, weight: +a.weight, activity: a.activity, stepsAvg: a.steps || null, stepsGoal: Math.max(8000, Math.ceil(((a.steps || 0) + 1000) / 1000) * 1000), diet: a.diet, createdAt: today() };
+  const profile = { name: a.name, email: a.email, news: a.news !== false, goal: a.goal, discipline: a.discipline === "street" ? "musculation" : a.discipline, wantsStreet: a.discipline === "street", level: a.level, place: a.place, days: a.days, backPain: a.backPain, records: rec, sex: a.sex || "m", age: +a.age, height: +a.height, weight: +a.weight, activity: a.activity, sessionMin: a.sessionMin || 60, sportHours: a.sportHours || 0, stepsAvg: a.steps || null, stepsGoal: Math.max(8000, Math.ceil(((a.steps || 0) + 1000) / 1000) * 1000), diet: a.diet, createdAt: today() };
   profile.nutritionModel = N.pickModel(profile);
   profile.startProgram = E.pickProgram(profile);
   update(st => {

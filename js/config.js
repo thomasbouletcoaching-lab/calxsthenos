@@ -34,6 +34,8 @@ export const OFFERS = [
 export const offer = (id) => OFFERS.find(o => o.id === id) || OFFERS[0];
 export const MSGS_PER_WEEK = { free: 2, premium: 5, essentiel: 10, suivi: 20, avance: 50, surmesure: null };
 // Programmes accessibles sans Premium
+// Phase de test : toutes les fonctionnalités sont ouvertes à tous (les offres restent visibles pour le coaching)
+export const ALL_FREE = true;
 export const FREE_PROGRAMS = ["tb-rep2", "tb-rep3"];
 export const FREE_WEEKS = 4;
 export const FREE_FAVORITES = 5;

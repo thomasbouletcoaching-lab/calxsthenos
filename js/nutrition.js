@@ -26,7 +26,13 @@ export function searchFoods(q, max = 30) {
 }
 
 // ---------- Cibles caloriques (Mifflin-St Jeor) ----------
-export const ACTIVITY = { low: 1.35, light: 1.42, mid: 1.5, high: 1.65, vhigh: 1.8 };
+// Mode de vie hors sport (le sport est ajouté à part, ci-dessous)
+export const ACTIVITY = { low: 1.2, light: 1.3, mid: 1.4, high: 1.55, vhigh: 1.7 };
+// Dépense moyenne par jour des séances de la semaine : musculation 4 MET nets, sport et cardio ~6 MET nets
+export function weeklyExercise(p) {
+  const w = p.weight, lift = (p.days || 0) * ((p.sessionMin || 60) / 60) * 4 * w, sport = (p.sportHours || 0) * 6 * w;
+  return { lift: Math.round(lift / 7), sport: Math.round(sport / 7), total: Math.round((lift + sport) / 7) };
+}
 // Ajustement selon les pas déclarés (référence 7 000 pas)
 const stepsAdj = (p) => p.stepsAvg ? Math.round((p.stepsAvg - 7000) * 0.0005 * p.weight) : 0;
 export function pickModel(p) {
@@ -43,10 +49,11 @@ export function targets(p = S().profile) {
   if (!p || !MODELS) return null;
   const m = MODELS.find(x => x.id === (p.nutritionModel || pickModel(p))) || MODELS[0];
   const bmr = 10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === "f" ? -161 : 5);
-  const kcal = Math.round((bmr * (ACTIVITY[p.activity] || 1.5) + stepsAdj(p)) * (1 + (m.adj || 0) / 100) / 10) * 10;
+  const ex = weeklyExercise(p), base = bmr * (ACTIVITY[p.activity] || 1.4) + stepsAdj(p) + ex.total;
+  const kcal = Math.round(base * (1 + (m.adj || 0) / 100) / 10) * 10;
   const prot = Math.round((m.pk || 1.8) * p.weight), fat = Math.round((m.lk || .9) * p.weight);
   const carbs = Math.max(50, Math.round((kcal - prot * 4 - fat * 9) / 4));
-  return { model: m, kcal, prot, fat, carbs };
+  return { model: m, kcal, prot, fat, carbs, maintenance: Math.round(base / 10) * 10, ex, bmr: Math.round(bmr) };
 }
 
 // ---------- Ingrédients de base (valeurs moyennes Ciqual arrondies, pour 100 g, pesés cuits) ----------

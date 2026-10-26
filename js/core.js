@@ -1,6 +1,6 @@
 // Noyau d'interface : état partagé, routeur, en-tête, barre d'onglets, feuilles, graphiques, formules.
 import { S, update, today } from "./store.js";
-import { CONFIG, offer, MSGS_PER_WEEK, FREE_PROGRAMS, FREE_WEEKS } from "./config.js";
+import { CONFIG, offer, MSGS_PER_WEEK, FREE_PROGRAMS, FREE_WEEKS, ALL_FREE } from "./config.js";
 
 export const $app = document.getElementById("app");
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -15,7 +15,8 @@ export const hhmm = (d = new Date()) => d.toTimeString().slice(0, 5);
 // ---------- Formules ----------
 export const tier = () => S().demoTier || S().me?.tier || "free";
 export const rank = () => offer(tier()).rank;
-export const premium = () => rank() >= 1;
+export const premium = () => ALL_FREE || rank() >= 1;
+export const expert = () => ALL_FREE || rank() >= 2; // contenus « suivi » (connaissances expertes)
 export const isCoach = () => !!S().me?.isCoach && !S().demoTier;
 export const programOpen = (id) => premium() || FREE_PROGRAMS.includes(id) || id === S().profile?.startProgram || (S().customPrograms || []).some(p => p.id === id);
 export const weekOpen = (w) => premium() || w <= FREE_WEEKS;

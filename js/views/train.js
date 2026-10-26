@@ -30,25 +30,46 @@ routes.train = async () => {
 };
 actions["train-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/train/" + d.v); routes.train(); };
 
+let viewWeek = null;
 function programBody(ns) {
   if (!ns) return `<p class="empty">Choisis un programme dans la banque.</p>`;
-  const { p } = ns, blocked = !weekOpen(ns.week), cur = S().current;
-  const alerts = E.injuryAlerts();
-  return `<div class="card grad mt12"><div class="lbl">🎯 Ton programme · cycle ${ns.cycle}</div><h2 class="h2 mt4">${esc(p.name)}</h2>
-      <p class="small mt8">Semaine <b>${ns.week}</b> sur ${ns.weeks} · ${esc(ns.phase)}</p><div class="gauge mt8" style="background:rgba(255,255,255,.25)"><i style="width:${Math.round((ns.week - 1 + ns.idx / p.s.length) / ns.weeks * 100)}%;background:#fff"></i></div>
-      <button class="btn btn-ghost btn-sm mt12" data-a="go" data-r="agenda" style="background:rgba(255,255,255,.18);color:#fff">Voir le cycle complet</button></div>
-    ${alerts.length ? `<div class="card mt12" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alertes blessure</div>${alerts.map(a => `<p class="small mt8" style="margin-bottom:0"><b>${esc(a.name)}</b> · ${a.count} fois en 3 semaines<br><span class="muted">${esc(a.last.note)}</span></p>`).join("")}<p class="xs muted mt8">Réduis la charge, change d'exercice (menu 🔄 dans la séance) ou parles-en à Thomas. Si la douleur persiste, consulte un professionnel de santé.</p></div>` : ""}
-    <h2 class="sec">🏋️ Prochaine séance</h2>
-    <div class="card"><h3 class="h2">${esc(cur ? cur.title : ns.title)}</h3>
-      <div class="mt8">${ns.exercises.map(e => { const sc = E.schemeFor(p, e, ns.week); return `<div class="row between small" style="padding:8px 0;border-top:1px solid var(--line);gap:8px"><span class="grow">${esc(S().swaps[e[0]] || e[0])}${e[3] ? ` <span class="tag r">${esc(e[3])}</span>` : ""}</span><span class="muted" style="white-space:nowrap">${esc(sc.replace(/x/i, "×"))}</span></div>`; }).join("")}</div>
-      ${blocked ? `<p class="small mt8">La semaine ${ns.week} fait partie de la suite du cycle.</p><button class="btn btn-red mt8" data-a="go" data-r="offers">🔓 Débloquer la suite</button>` : `<button class="btn btn-red mt12" data-a="start">${cur ? "Reprendre la séance" : "Commencer la séance"}</button>`}
-      <button class="btn btn-line btn-sm mt8" data-a="free-session" style="width:100%">Séance libre (hors programme)</button></div>
-    <h2 class="sec">🗓️ Les séances du programme</h2>
-    <div class="list">${p.s.map((s, i) => `<div class="li"><span class="em">${i === ns.idx % p.s.length ? "👉" : "•"}</span><span class="grow"><b>${esc(s[0])}</b><br><span class="xs muted">${esc(s[1] || "")} · ${s[2].length} exercices</span></span></div>`).join("")}</div>
+  const { p } = ns, cur = S().current, cyc = ns.cycle;
+  if (viewWeek == null || viewWeek > ns.weeks) viewWeek = ns.week;
+  const vw = viewWeek, blocked = !weekOpen(vw), done = E.doneIn(p.id, cyc, vw);
+  const alerts = E.injuryAlerts(), pc = S().settings.pace || "normal";
+  const weekDone = (w) => E.doneIn(p.id, cyc, w).size;
+  const chipsW = Array.from({ length: ns.weeks }, (_, i) => i + 1).map(w => { const n = weekDone(w), all = n >= p.s.length;
+    return `<button class="chip ${w === vw ? "on" : ""}" data-a="cy-week" data-v="${w}" style="${w === ns.week && w !== vw ? "box-shadow:0 0 0 2px var(--red) inset" : ""}">S${w}${all ? " ✓" : n ? ` ${n}/${p.s.length}` : ""}</button>`; }).join("");
+  return `<div class="card grad mt12"><div class="lbl">🎯 Ton programme · cycle ${cyc}</div><h2 class="h2 mt4">${esc(p.name)}</h2>
+      <p class="small mt8">Tu es en <b>semaine ${ns.week}</b> sur ${ns.weeks} · ${esc(ns.phase)}</p><div class="gauge mt8" style="background:rgba(255,255,255,.25)"><i style="width:${Math.round((ns.week - 1 + weekDone(ns.week) / p.s.length) / ns.weeks * 100)}%;background:#fff"></i></div></div>
+    ${alerts.length ? `<div class="card mt12" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alertes blessure</div>${alerts.map(a => `<p class="small mt8" style="margin-bottom:0"><b>${esc(a.name)}</b> · ${a.count} fois en 3 semaines<br><span class="muted">${esc(a.last.note)}</span></p>`).join("")}<p class="xs muted mt8">Réduis la charge, change d'exercice (🔄 dans la séance) ou parles-en à Thomas. Si la douleur persiste, consulte un professionnel de santé.</p></div>` : ""}
+    <h2 class="sec">🗓️ Mon cycle <small>touche une semaine</small></h2>
+    <div class="chips">${chipsW}</div>
+    <div class="card mt8"><div class="row between"><div><b class="h3">Semaine ${vw}</b> <span class="tag ${vw === ns.week ? "r" : ""}">${vw === ns.week ? "en cours" : vw < ns.week ? "passée" : "à venir"}</span><div class="xs muted mt4">${esc(E.phaseOf(p, vw))} · ${done.size}/${p.s.length} séances faites</div></div>
+      ${vw !== ns.week ? `<button class="btn btn-line btn-xs" data-a="cy-place" data-v="${vw}">Me placer ici</button>` : ""}</div>
+      ${p.s.map((se, i) => { const isNext = vw === ns.week && i === ns.idx % p.s.length, isDone = done.has(i);
+        return `<div class="mt12" style="border-top:1px solid var(--line);padding-top:12px${isNext ? ";box-shadow:inset 3px 0 0 var(--red);padding-left:10px" : ""}">
+          <div class="row between"><b>${isDone ? "✅ " : isNext ? "👉 " : ""}${esc(se[0])}</b><span class="xs muted">${esc(se[1] || "")}</span></div>
+          ${se[2].map(e => `<div class="row between xs" style="padding:3px 0;gap:8px"><span class="grow muted">${esc(S().swaps[e[0]] || e[0])}</span><span style="white-space:nowrap">${esc(E.schemeFor(p, e, vw).replace(/x/i, "×"))}</span></div>`).join("")}
+          ${blocked ? "" : isDone ? `<button class="link xs mt4" data-a="cy-do" data-w="${vw}" data-i="${i}">Refaire cette séance</button>` : `<button class="btn ${isNext ? "btn-red" : "btn-line"} btn-sm mt8" data-a="cy-do" data-w="${vw}" data-i="${i}">${cur ? "Reprendre ma séance en cours" : isNext ? "Commencer cette séance" : "Faire cette séance"}</button>`}</div>`; }).join("")}
+      ${blocked ? `<button class="btn btn-red mt12" data-a="go" data-r="offers">🔓 Débloquer la semaine ${vw}</button>` : ""}</div>
+    <button class="btn btn-line btn-sm mt8" data-a="free-session" style="width:100%">Séance libre (hors programme)</button>
+
+    <h2 class="sec">📈 Ma surcharge progressive</h2>
+    <div class="card"><div class="lbl">Rythme de progression</div>${chips(Object.entries(E.PROG_PACE).map(([k, v]) => [k, v.n]), pc, "pace-set")}
+      <p class="xs muted mt8" style="margin-bottom:0">${{ prudent: "Charges calculées 5 % plus légères, et petits sauts quand c'est facile. Idéal en reprise ou avec une gêne.", normal: "Charges calculées sur ton 1RM estimé, un saut de charge quand tu es sous le RPE prévu.", ambitieux: "Charges 3 % plus lourdes et sauts plus grands. Pour les périodes où tout va bien (sommeil, nutrition)." }[pc]}</p>
+      <p class="xs muted mt8" style="margin-bottom:0">Pendant la séance, le bouton <b>📈 Progression</b> de chaque exercice permet d'ajuster la charge, les reps ou ton 1RM estimé.</p></div>
     ${p.rules?.length ? `<h2 class="sec">📏 Les règles</h2><div class="card"><ul style="margin:0;padding-left:18px" class="small">${p.rules.map(r => `<li style="margin-bottom:8px">${esc(r)}</li>`).join("")}</ul></div>` : ""}
     ${p.desc ? `<p class="small muted mt12">${esc(p.desc)}</p>` : ""}
     <div class="row mt12" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="go" data-r="kb">📚 Connaissances</button><button class="btn btn-line btn-sm grow" data-a="go" data-r="builder">✏️ Créer mon programme</button></div>`;
 }
+actions["cy-week"] = (b, d) => { viewWeek = +d.v; rerender(); };
+actions["cy-place"] = (b, d) => { if (S().current) return toast("Termine d'abord ta séance en cours."); E.placeIn(+d.v); viewWeek = +d.v; toast(`Tu es maintenant en semaine ${d.v}`); rerender(); };
+actions["cy-do"] = async (b, d) => {
+  if (S().current) { sessionStorage.removeItem("cxs.min"); return go("workout"); }
+  E.placeIn(+d.w, +d.i); viewWeek = +d.w; await actions.start();
+};
+actions["pace-set"] = (b, d) => { update(st => st.settings.pace = d.v); toast(`Rythme ${E.PROG_PACE[d.v].n.toLowerCase()} : appliqué dès ta prochaine séance`); rerender(); };
 
 function bankBody() {
   const mine = S().customPrograms || [];
@@ -232,7 +253,7 @@ function exerciseBlock(ex, xi) {
       <h3 class="mt8">${esc(ex.name)}</h3><div class="xs muted mt4">🎯 ${targetTxt(ex)}${ex.name !== ex.orig ? ` · remplace ${esc(ex.orig)}` : ""}${adv() && ex.e1 ? ` · e1RM ${fr(ex.e1)} kg` : ""}</div>
       ${!ex.bw && ex.sets.every(s => !s.kg) ? `<div class="xs mt8 red">Première fois : choisis une charge qui te laisse 2 à 3 répétitions en réserve. L'app calcule la suite.</div>` : ""}
       ${ex.note ? `<div class="xs mt8">📝 ${esc(ex.note)}</div>` : ""}</div></div>
-    <div class="acts"><button data-a="go" data-r="fiche" data-p="${esc(ex.name)}">📖 Fiche</button><button data-a="ex-swap" data-x="${xi}">🔄 Remplacer</button><button data-a="ex-rest" data-x="${xi}">⏱️ Repos</button><button data-a="ex-more" data-x="${xi}">${I.dots.replace("<svg", '<svg width="18"')}</button></div>
+    <div class="acts"><button data-a="go" data-r="fiche" data-p="${esc(ex.name)}">📖 Fiche</button><button data-a="ex-swap" data-x="${xi}">🔄 Remplacer</button><button data-a="ex-prog" data-x="${xi}">📈 Progression</button><button data-a="ex-rest" data-x="${xi}">⏱️ Repos</button><button data-a="ex-more" data-x="${xi}">${I.dots.replace("<svg", '<svg width="18"')}</button></div>
     ${sugBox}
     <div class="sethead"><span>Série</span><span>${ex.bw ? "Lest" : "Kg"}</span><span>${unit}</span><span>RPE</span><span></span></div>
     ${ex.sets.map((s, si) => {
@@ -272,6 +293,28 @@ actions["add-set"] = (b, d) => {
   if (d.t === "W") { const top = ex.sets.find(s => s.type !== "W")?.kg; const w = ex.sets.filter(s => s.type === "W").length; ex.sets.splice(w, 0, { g: -1, type: "W", kg: top ? E.roundTo(top * .5, ex.step) : null, reps: 8, lo: 8, hi: 8, trpe: 5, rpe: null, pct: null, tech: [], note: "", done: false }); }
   else { const l = ex.sets.filter(s => s.type !== "W").at(-1) || ex.sets.at(-1); ex.sets.push({ ...l, type: l?.type === "T" ? "B" : (l?.type || "N"), tech: [...(l?.tech || [])], note: "", done: false, rpe: null, pain: false }); }
   save(); closeSheet(); rerender();
+};
+actions["ex-prog"] = (b, d) => progSheet(+d.x);
+function progSheet(xi) {
+  const ex = S().current.exercises[xi], e1 = Math.round(E.currentE1rm(ex.name) * 10) / 10, st = ex.step || 2.5, pending = ex.sets.filter(s => !s.done && s.type !== "W");
+  const last = ex.sug?.last;
+  sheet(`<h2 class="h2">📈 ${esc(ex.name)}</h2>${last ? `<p class="small muted mt4">Dernière fois : ${esc(last)}</p>` : ""}${ex.sug && premium() ? `<div class="sug">💡 ${esc(ex.sug.txt)}</div>` : ""}
+    <div class="lbl mt12">Aujourd'hui · ${pending.length} série${pending.length > 1 ? "s" : ""} à faire</div>
+    ${ex.bw ? `<p class="small muted">Exercice au poids du corps : joue sur les répétitions ou ajoute du lest dans le carnet.</p>` : `<div class="row mt8" style="gap:6px">${[-2, -1, 1, 2].map(k => `<button class="btn btn-line btn-sm grow" data-a="pg-kg" data-x="${xi}" data-v="${k * st}">${k > 0 ? "+" : "−"}${E.fmtKg(Math.abs(k * st))} kg</button>`).join("")}</div>`}
+    <div class="row mt8" style="gap:6px"><button class="btn btn-line btn-sm grow" data-a="pg-rep" data-x="${xi}" data-v="-1">−1 rep</button><button class="btn btn-line btn-sm grow" data-a="pg-rep" data-x="${xi}" data-v="1">+1 rep</button><button class="btn btn-line btn-sm grow" data-a="pg-set" data-x="${xi}">+1 série</button></div>
+    ${ex.bw ? "" : `<div class="lbl mt16">Mon 1RM estimé · ${e1 ? E.fmtKg(e1) + " kg" : "pas encore connu"}</div>
+    <p class="xs muted mt4">Il sert à calculer toutes tes charges sur cet exercice. Ajuste-le si les charges proposées sont trop légères ou trop lourdes : les prochaines séances suivent.</p>
+    ${e1 ? `<div class="row mt8" style="gap:6px">${[-5, -2.5, 2.5, 5].map(v => `<button class="btn btn-line btn-sm grow" data-a="pg-e1" data-x="${xi}" data-v="${v}">${v > 0 ? "+" : "−"}${E.fmtKg(Math.abs(v))} kg</button>`).join("")}</div>` : `<p class="small">Fais une première série : l'app le calcule tout de suite après.</p>`}`}
+    <button class="btn btn-red mt16" data-a="set-close">OK</button>`);
+}
+actions["pg-kg"] = (b, d) => { const ex = S().current.exercises[+d.x]; ex.sets.forEach(s => { if (!s.done && s.type !== "W") s.kg = E.roundTo((s.kg || 0) + +d.v, ex.step || 2.5); }); save(); toast(`${+d.v > 0 ? "+" : ""}${E.fmtKg(+d.v)} kg sur les séries restantes`); rerender(); progSheet(+d.x); };
+actions["pg-rep"] = (b, d) => { const ex = S().current.exercises[+d.x]; ex.sets.forEach(s => { if (!s.done && s.type !== "W") { s.reps = Math.max(1, (s.reps || s.lo) + +d.v); s.lo = Math.max(1, s.lo + +d.v); s.hi = Math.max(s.lo, s.hi + +d.v); } }); save(); rerender(); progSheet(+d.x); };
+actions["pg-set"] = (b, d) => { actions["add-set"](b, { x: d.x }); progSheet(+d.x); };
+actions["pg-e1"] = (b, d) => {
+  const ex = S().current.exercises[+d.x], v = E.nudgeE1rm(ex.name, +d.v); if (!v) return;
+  const old = ex.e1 || v; ex.e1 = v;
+  ex.sets.forEach(s => { if (!s.done && s.kg) { s.kg = E.roundTo(s.kg * v / old, ex.step || 2.5); if (s.pct) s.pct = Math.round(s.kg / v * 100); } });
+  save(); toast(`1RM estimé : ${E.fmtKg(v)} kg, charges recalculées`); rerender(); progSheet(+d.x);
 };
 actions["ex-rest"] = (b, d) => {
   const ex = S().current.exercises[+d.x];
