@@ -27,7 +27,7 @@ const I = {
   dots: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`,
   scan: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9v6M11 9v6M14 9v6M17 9v6"/></svg>`,
 };
-const logo = (size = 22) => `<span class="logo" style="font-size:${size}px">CAL${I.x(size)}STHENOS</span>`;
+const logo = (size = 22) => `<span class="logo" style="font-size:${size}px">CAL<span style="margin:0 -.04em">${I.x(size)}</span>STHENOS</span>`;
 
 // ---------- Utilitaires d'interface ----------
 let toastT;
@@ -100,7 +100,7 @@ const STEPS = [
   { id: "body", type: "body", q: () => `Pour calculer ton <span class="k">carburant</span>`, sub: "Ces infos restent sur ton téléphone." },
   { id: "activity", q: () => `Ta journée, en dehors du sport ?`, opts: [["low", "Assis la plupart du temps"], ["mid", "Debout ou en mouvement une partie du temps"], ["high", "Métier physique"]] },
   { id: "diet", q: () => `Ton <span class="k">alimentation</span> ?`, opts: [["all", "Je mange de tout"], ["vegetarian", "Végétarien"], ["vegan", "Vegan"]] },
-  { id: "word", q: () => `Dernière chose. Veux-tu une <span class="k">Parole pour la route</span> chaque jour ?`, sub: "Cal X Sthenos est fondée sur 1 Timothée 4:8 : l'exercice du corps est utile, et il n'est pas tout. Tu peux changer ce choix à tout moment.", opts: [["daily", "Oui, chaque jour"], ["discreet", "Seulement sur l'accueil"], ["off", "Pas maintenant"]] },
+  { id: "word", q: () => `Dernière chose. Veux-tu une <span class="k">Parole pour la route</span> chaque jour ?`, sub: "CalXsthenos est fondée sur 1 Timothée 4:8 : l'exercice du corps est utile, et il n'est pas tout. Tu peux changer ce choix à tout moment.", opts: [["daily", "Oui, chaque jour"], ["discreet", "Seulement sur l'accueil"], ["off", "Pas maintenant"]] },
 ];
 const LIFTS_ASK = (a) => a.discipline === "streetlifting"
   ? [["pullup", "Tractions lestées", "lest"], ["dip", "Dips lestés", "lest"], ["squat", "Squat barre"], ["bench", "Développé couché barre"]]
@@ -131,7 +131,7 @@ function renderWelcome() {
     <div class="mt32">${logo(24)}</div>
     <div>
       <h1 class="h-xl">Un corps fort et noble.<br>Un plan qui suit ce que tu fais vraiment.</h1>
-      <p class="dim mt16" style="font-size:17px">Entraînement, nutrition et progression calculés pour toi, par un coach diplômé STAPS. Le X au centre.</p>
+      <p class="dim mt16" style="font-size:17px">Entraînement, nutrition et progression calculés pour toi, par un coach diplômé STAPS. Pour le corps, l'âme et l'esprit.</p>
     </div>
     <div class="stack"><button class="btn btn-gold" data-a="ob-start">Commencer</button>
     <label class="btn btn-ghost" style="cursor:pointer">Restaurer une sauvegarde<input type="file" accept="application/json" data-f="import" hidden></label></div>
@@ -555,7 +555,7 @@ routes.profile = () => {
     <div class="list"><button class="li" data-a="export"><span class="grow">Télécharger ma sauvegarde</span>${I.chev}</button>
       <label class="li" style="cursor:pointer"><span class="grow">Restaurer une sauvegarde</span>${I.chev}<input type="file" accept="application/json" data-f="import" hidden></label>
       <button class="li" data-a="reset"><span class="grow" style="color:var(--grenat)">Tout effacer et recommencer</span></button></div>
-    <p class="xs dim mt24">Cal X Sthenos · version 1.0 · ${esc(CONFIG.coachName)}. Les conseils de l'app ne remplacent pas un avis médical : en cas de douleur ou de problème de santé, consulte un médecin avant de t'entraîner.</p>
+    <p class="xs dim mt24">CalXsthenos · version 1.0 · ${esc(CONFIG.coachName)}. Les conseils de l'app ne remplacent pas un avis médical : en cas de douleur ou de problème de santé, consulte un médecin avant de t'entraîner.</p>
   </section>`;
 };
 routes.x = () => {

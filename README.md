@@ -1,6 +1,6 @@
-# Cal X Sthenos
+# CalXsthenos
 
-Application d'entraînement, de nutrition et de suivi : un corps fort et noble, le X au centre (1 Timothée 4:8).
+Entraînement, nutrition et progression personnalisés qui édifient corps, âme et esprit, pour cette vie et l'éternité. Fondée sur 1 Timothée 4:8.
 PWA statique hébergée gratuitement sur GitHub Pages. **Aucun serveur, aucun compte, aucune base en ligne** :
 les données de chaque utilisateur restent sur son téléphone (sauvegarde par fichier depuis le profil).
 

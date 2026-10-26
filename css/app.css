@@ -73,7 +73,7 @@ p{margin:0 0 12px}
 .tab[aria-current="page"] svg .acc{stroke:var(--or)}
 
 /* Logo */
-.logo{display:inline-flex;align-items:center;gap:.18em;font:italic 800 22px/1 var(--f-display);letter-spacing:-.01em}
+.logo{display:inline-flex;align-items:center;gap:0;font:italic 800 22px/1 var(--f-display);letter-spacing:-.01em}
 .logo svg{height:.82em;width:.82em}
 
 /* Conversational onboarding */

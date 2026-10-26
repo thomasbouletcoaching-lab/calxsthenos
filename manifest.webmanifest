@@ -1,7 +1,7 @@
 {
-  "name": "Cal X Sthenos",
+  "name": "CalXsthenos",
   "short_name": "Calxsthenos",
-  "description": "Entraînement, nutrition et progression calculés pour toi. Le X au centre.",
+  "description": "Entraînement, nutrition et progression personnalisés qui édifient corps, âme et esprit, pour cette vie et l'éternité.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

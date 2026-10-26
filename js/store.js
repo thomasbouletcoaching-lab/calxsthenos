@@ -29,7 +29,7 @@ export function resetAll() { state = blank(); save(); }
 export function exportJSON() { return JSON.stringify({ app: "calxsthenos", v: 1, at: new Date().toISOString(), data: state }, null, 1); }
 export function importJSON(text) {
   const o = JSON.parse(text);
-  if (!o || o.app !== "calxsthenos" || !o.data) throw new Error("Ce fichier n'est pas une sauvegarde Cal X Sthenos.");
+  if (!o || o.app !== "calxsthenos" || !o.data) throw new Error("Ce fichier n'est pas une sauvegarde CalXsthenos.");
   state = Object.assign(blank(), o.data); save();
 }
 
