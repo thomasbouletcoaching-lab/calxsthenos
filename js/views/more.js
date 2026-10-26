@@ -50,11 +50,12 @@ actions["edit-body"] = () => {
     <label class="field"><span>Objectif de pas par jour</span><input name="stepsGoal" inputmode="numeric" value="${p.stepsGoal || 8000}"></label>
     <label class="field"><span>Objectif</span><select name="goal">${opt("goal").map(([v, l]) => `<option value="${v}" ${p.goal === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="field"><span>Activité</span><select name="activity">${opt("activity").map(([v, l]) => `<option value="${v}" ${p.activity === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="field"><span>Pas par jour en moyenne</span><select name="stepsAvg">${opt("steps").map(([v, l]) => `<option value="${v}" ${p.stepsAvg == v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="field"><span>Alimentation</span><select name="diet">${opt("diet").map(([v, l]) => `<option value="${v}" ${p.diet === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <button class="btn btn-red">Enregistrer</button></form>`);
 };
 forms["edit-body"] = (v) => {
-  update(st => { const p = st.profile; p.weight = num(v.weight) || p.weight; p.height = num(v.height) || p.height; p.age = num(v.age) || p.age; p.email = v.email.trim() || p.email; p.stepsGoal = Math.round(num(v.stepsGoal)) || 8000; p.goal = v.goal; p.activity = v.activity; p.diet = v.diet; p.nutritionModel = N.pickModel(p); st.synced = false; });
+  update(st => { const p = st.profile; p.weight = num(v.weight) || p.weight; p.height = num(v.height) || p.height; p.age = num(v.age) || p.age; p.email = v.email.trim() || p.email; p.stepsGoal = Math.round(num(v.stepsGoal)) || 8000; p.goal = v.goal; p.activity = v.activity; p.stepsAvg = +v.stepsAvg || null; p.diet = v.diet; p.nutritionModel = N.pickModel(p); st.synced = false; });
   closeSheet(); toast("Infos mises à jour"); syncProfile(); rerender();
 };
 

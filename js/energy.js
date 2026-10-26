@@ -1,7 +1,7 @@
 // Dépense énergétique : MB (Mifflin-St Jeor), NEAT (pas + activité), EAT (séances, cardio), TEF (effet thermique), TDEE.
 import { S, today } from "./store.js";
 
-export const ACTIVITY_NEAT = { low: 0.15, mid: 0.3, high: 0.5 }; // fraction du MB hors pas comptés
+export const ACTIVITY_NEAT = { low: 0.15, light: 0.22, mid: 0.3, high: 0.5, vhigh: 0.65 }; // fraction du MB hors pas comptés
 export const CARDIO = [
   ["Marche", 3.5], ["Marche rapide / inclinée", 5], ["Vélo zone 2", 6], ["Rameur", 7], ["Course lente", 8], ["Course", 10],
   ["Corde à sauter", 11], ["Natation", 7], ["Elliptique", 5.5], ["Sport collectif", 7], ["HIIT", 9],
