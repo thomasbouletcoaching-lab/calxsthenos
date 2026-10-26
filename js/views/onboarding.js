@@ -23,8 +23,8 @@ const STEPS = [
   { id: "word", q: () => `Dernière chose. Veux-tu une <span class="k">parole pour la route</span> chaque jour ?`, sub: "CalXsthenos veut prendre soin de ton corps, de ton âme et de ton esprit. Tu peux changer ce choix à tout moment.", opts: [["daily", "Oui, chaque jour"], ["discreet", "Seulement sur l'accueil"], ["off", "Pas maintenant"]] },
 ];
 const LIFTS_ALL = [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre"], ["row", "Rowing barre"],
-  ["dbbench", "Développé couché haltères", "halt"], ["dbohp", "Développé militaire haltères", "halt"], ["pullup", "Tractions (poids du corps ou lestées)", "lest"], ["dip", "Dips (poids du corps ou lestés)", "lest"]];
-const LIFTS_FIRST = { powerlifting: ["squat", "bench", "deadlift"], streetlifting: ["pullup", "dip", "squat"] };
+  ["dbbench", "Développé couché haltères", "halt"], ["dbohp", "Développé militaire haltères", "halt"], ["pullup", "Tractions (poids du corps ou lestées)", "lest"], ["dip", "Dips (poids du corps ou lestés)", "lest"], ["muscleup", "Muscle-up (poids du corps ou lesté)", "lest"], ["pulldown", "Tirage vertical poulie"]];
+const LIFTS_FIRST = { powerlifting: ["squat", "bench", "deadlift"], streetlifting: ["pullup", "dip", "muscleup", "squat"] };
 const LIFTS_ASK = (a) => { const f = LIFTS_FIRST[a.discipline] || []; return [...LIFTS_ALL.filter(l => f.includes(l[0])).sort((x, y) => f.indexOf(x[0]) - f.indexOf(y[0])), ...LIFTS_ALL.filter(l => !f.includes(l[0]))]; };
 const visible = () => STEPS.filter(s => !(s.skip && s.skip(OB.a)));
 export const ONB_STEPS = STEPS;
