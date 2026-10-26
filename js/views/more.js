@@ -92,7 +92,7 @@ actions["kb-mode"] = (b, d) => { kbMode = d.v; kbChapter(R.param); };
 // ---------- Pourquoi le X, confidentialité ----------
 routes.x = () => {
   $app.innerHTML = header("Pourquoi le X ?", "", { back: S().profile ? "profile" : "onboarding" }) + `<main class="page full prose">
-    <img src="assets/logo-complet.jpg" alt="Le logo Cal X Sthenos : un athlète grec en figure noire, vu de dos, fait une traction sur la barre d'une croix, dans un médaillon à frise grecque" style="width:100%;border-radius:18px;margin-top:12px;display:block">
+    <img src="assets/logo-grec-complet.jpg" alt="Le logo Cal X Sthenos : un athlète grec en figure noire, vu de dos, fait une traction sur la barre d'une croix, dans un médaillon à frise grecque" style="width:100%;border-radius:18px;margin-top:12px;display:block">
     <p class="mt24"><i>Kalos</i>, en grec, c'est le beau, le noble. <i>Sthenos</i>, c'est la force. Ensemble, ils ont donné la calisthénie : l'art de bâtir un corps fort.</p>
     <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Et le X : la lettre grecque Chi, la première du nom du Christ.</p>
     <p>Sur le logo, un athlète peint comme sur un vase grec fait une traction sur la barre d'une croix. La force se construit en s'élevant, et la croix est ce qui nous relève : « Je puis tout par celui qui me fortifie » (Philippiens 4:13).</p>
