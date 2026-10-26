@@ -22,11 +22,10 @@ const STEPS = [
   { id: "diet", q: () => `🍽️ Ton <span class="k">alimentation</span> ?`, opts: [["all", "Je mange de tout"], ["vegetarian", "Végétarien"], ["vegan", "Vegan"]] },
   { id: "word", q: () => `Dernière chose. Veux-tu une <span class="k">parole pour la route</span> chaque jour ?`, sub: "CalXsthenos veut prendre soin de ton corps, de ton âme et de ton esprit. Tu peux changer ce choix à tout moment.", opts: [["daily", "Oui, chaque jour"], ["discreet", "Seulement sur l'accueil"], ["off", "Pas maintenant"]] },
 ];
-const LIFTS_ASK = (a) => a.discipline === "powerlifting"
-  ? [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"]]
-  : a.discipline === "streetlifting"
-  ? [["pullup", "Tractions lestées", "lest"], ["dip", "Dips lestés", "lest"], ["squat", "Squat barre"], ["bench", "Développé couché barre"]]
-  : [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre"]];
+const LIFTS_ALL = [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre"], ["row", "Rowing barre"],
+  ["dbbench", "Développé couché haltères", "halt"], ["dbohp", "Développé militaire haltères", "halt"], ["pullup", "Tractions (poids du corps ou lestées)", "lest"], ["dip", "Dips (poids du corps ou lestés)", "lest"]];
+const LIFTS_FIRST = { powerlifting: ["squat", "bench", "deadlift"], streetlifting: ["pullup", "dip", "squat"] };
+const LIFTS_ASK = (a) => { const f = LIFTS_FIRST[a.discipline] || []; return [...LIFTS_ALL.filter(l => f.includes(l[0])).sort((x, y) => f.indexOf(x[0]) - f.indexOf(y[0])), ...LIFTS_ALL.filter(l => !f.includes(l[0]))]; };
 const visible = () => STEPS.filter(s => !(s.skip && s.skip(OB.a)));
 export const ONB_STEPS = STEPS;
 
@@ -40,7 +39,7 @@ routes.onboarding = () => {
   else if (s.type === "email") body = `<form class="choices" data-f="ob-email" style="align-items:stretch"><label class="field"><span>Adresse e-mail</span><input name="v" type="email" autocomplete="email" inputmode="email" required value="${esc(OB.a.email || "")}"></label>
     <label class="check"><input type="checkbox" name="news" ${OB.a.news !== false ? "checked" : ""}> Recevoir mes conseils et les nouveautés de CalXsthenos par e-mail (désinscription en un clic).</label>
     <p class="xs muted" style="text-align:left;margin:0">En continuant, tu acceptes la <a href="#/privacy">politique de confidentialité</a>.</p><button class="btn btn-red">Continuer</button></form>`;
-  else if (s.type === "records") body = `<form class="choices" data-f="ob-records" style="align-items:stretch">${LIFTS_ASK(OB.a).map(([k, n, lest]) => `<div><div class="small" style="font-weight:700;margin-bottom:6px;text-align:left">${n}</div><div class="grid2"><label class="field"><span>Répétitions</span><input name="${k}-r" inputmode="numeric" placeholder="0"></label><label class="field"><span>${lest ? "Lest (kg)" : "Charge (kg)"}</span><input name="${k}-k" inputmode="decimal" placeholder="0"></label></div></div>`).join("")}<button class="btn btn-red">Continuer</button><button type="button" class="link" data-a="ob-skip" style="align-self:center">Je ne sais pas, passer</button></form>`;
+  else if (s.type === "records") body = `<form class="choices" data-f="ob-records" style="align-items:stretch">${LIFTS_ASK(OB.a).map(([k, n, lest]) => `<div><div class="small" style="font-weight:700;margin-bottom:6px;text-align:left">${n}</div><div class="grid2"><label class="field"><span>Répétitions</span><input name="${k}-r" inputmode="numeric" placeholder="0"></label><label class="field"><span>${lest === "lest" ? "Lest (kg), vide = poids du corps" : lest === "halt" ? "Charge par haltère (kg)" : "Charge (kg)"}</span><input name="${k}-k" inputmode="decimal" placeholder="0"></label></div></div>`).join("")}<button class="btn btn-red">Continuer</button><button type="button" class="link" data-a="ob-skip" style="align-self:center">Je ne sais pas, passer</button></form>`;
   else if (s.type === "body") body = `<form class="choices" data-f="ob-body" style="align-items:stretch"><div class="seg"><button type="button" data-a="ob-sex" data-v="m" class="${OB.a.sex !== "f" ? "on" : ""}">Homme</button><button type="button" data-a="ob-sex" data-v="f" class="${OB.a.sex === "f" ? "on" : ""}">Femme</button></div><div class="grid3"><label class="field"><span>Âge</span><input name="age" inputmode="numeric" required value="${OB.a.age || ""}"></label><label class="field"><span>Taille (cm)</span><input name="height" inputmode="numeric" required value="${OB.a.height || ""}"></label><label class="field"><span>Poids (kg)</span><input name="weight" inputmode="decimal" required value="${OB.a.weight || ""}"></label></div><button class="btn btn-red">Continuer</button></form>`;
   else body = `<div class="choices">${s.opts.map(([v, l, sub]) => `<button class="choice" data-a="ob-pick" data-v='${JSON.stringify(v)}'>${l}${sub ? `<small>${sub}</small>` : ""}</button>`).join("")}</div>`;
   $app.innerHTML = `<section class="convo"><div class="convo-top"><button class="icon-btn" data-a="ob-back" aria-label="Retour">${I.back}</button><div class="progress"><i style="width:${pct}%"></i></div></div>
@@ -63,7 +62,7 @@ async function building() {
   $app.innerHTML = `<section class="loader"><svg class="big-x" viewBox="0 0 40 40"><defs><linearGradient id="gxl" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8F3510"/><stop offset=".6" stop-color="#C2541F"/><stop offset="1" stop-color="#EE8A45"/></linearGradient></defs><path class="s1" d="M9 9l22 22" stroke="currentColor" stroke-width="5" stroke-linecap="round" fill="none"/><path class="s2" d="M9 31 31 9" stroke="url(#gxl)" stroke-width="5" stroke-linecap="round" fill="none"/></svg><ul style="padding:0;margin:0">${lines.map(l => `<li><i></i>${l}</li>`).join("")}</ul></section>`;
   await Promise.all([E.loadPrograms(), N.loadModels()]);
   const rec = {};
-  Object.entries(a.records || {}).forEach(([k, v]) => { if (v.k > 0 && v.r > 0) rec[k] = { ...v, rpe: 9, e1rm: Math.round(E.e1rm(v.k, v.r, 9) * 10) / 10, d: today() }; });
+  Object.entries(a.records || {}).forEach(([k, v]) => { if (v.r > 0) rec[k] = { ...v, rpe: 9, e1rm: v.k > 0 ? Math.round(E.e1rm(v.k, v.r, 9) * 10) / 10 : 0, d: today() }; });
   const profile = { name: a.name, email: a.email, news: a.news !== false, goal: a.goal, discipline: a.discipline === "street" ? "musculation" : a.discipline, wantsStreet: a.discipline === "street", level: a.level, place: a.place, days: a.days, backPain: a.backPain, records: rec, sex: a.sex || "m", age: +a.age, height: +a.height, weight: +a.weight, activity: a.activity, diet: a.diet, createdAt: today() };
   profile.nutritionModel = N.pickModel(profile);
   profile.startProgram = E.pickProgram(profile);
@@ -106,7 +105,7 @@ actions["ob-sex"] = (b, d) => { OB.a.sex = d.v; b.parentElement.querySelectorAll
 forms["ob-text"] = (v) => { if (v.v.trim()) next(v.v.trim(), v.v.trim()); };
 forms["ob-email"] = (v) => { const em = v.v.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("Vérifie ton adresse e-mail."); OB.a.news = !!v.news; next(em, em); };
 forms["ob-records"] = (v) => {
-  const rec = {}; LIFTS_ASK(OB.a).forEach(([k]) => { const r = num(v[k + "-r"]), kg = num(v[k + "-k"]); if (r > 0 && kg > 0) rec[k] = { r, k: kg }; });
+  const rec = {}; LIFTS_ASK(OB.a).forEach(([k, , t]) => { const r = num(v[k + "-r"]), kg = num(v[k + "-k"]) || 0; if (r > 0 && (kg > 0 || t === "lest")) rec[k] = { r, k: kg }; });
   const n = Object.keys(rec).length; next(rec, n ? `${n} record${n > 1 ? "s" : ""} enregistré${n > 1 ? "s" : ""}` : "Je passe");
 };
 forms["ob-body"] = (v) => {

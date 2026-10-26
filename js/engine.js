@@ -77,6 +77,8 @@ export const pctFor = (reps, rpe = 10) => 100 * loadFor(1, reps, rpe);
 
 // Records de départ (onboarding ou saisis à la main)
 const SEEDS = [
+  [/développé couché haltères/i, "dbbench", 1], [/développé incliné haltères/i, "dbbench", .88], [/développé (épaules|militaire) haltères/i, "dbohp", 1],
+  [/tractions lestées/i, "pullup", 1], [/dips lestés/i, "dip", 1],
   [/^squat barre(?!.*(pause|tempo))/i, "squat", 1], [/squat barre.*pause/i, "squat", .85], [/squat barre.*tempo/i, "squat", .75],
   [/^front squat/i, "squat", .8], [/hack squat|leg press|presse à cuisses/i, "squat", 1.6],
   [/^développé couché barre(?!.*(pause|serrée|incliné))/i, "bench", 1], [/développé couché barre.*pause/i, "bench", .93], [/développé couché.*serrée/i, "bench", .88],
@@ -86,7 +88,7 @@ const SEEDS = [
   [/rowing barre/i, "row", 1], [/rowing haltère/i, "row", .42],
   [/tractions lestées/i, "pullup", 1], [/dips lestés/i, "dip", 1],
 ];
-export const MAIN_LIFTS = [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre (OHP)"], ["row", "Rowing barre"], ["pullup", "Tractions lestées (pronation)"], ["dip", "Dips lestés"]];
+export const MAIN_LIFTS = [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre (OHP)"], ["row", "Rowing barre"], ["pullup", "Tractions lestées (pronation)"], ["dip", "Dips lestés"], ["dbbench", "Développé couché haltères"], ["dbohp", "Développé militaire haltères"]];
 export function seedE1rm(name) {
   const rec = S().profile?.records || {};
   for (const [re, key, f] of SEEDS) if (re.test(name) && rec[key]?.e1rm) return rec[key].e1rm * f;
