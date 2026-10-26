@@ -177,7 +177,6 @@ routes.fiche = async () => {
   const recordE = Math.round(E.currentE1rm(f.name));
   $app.innerHTML = header("Fiche technique", "", { back }) + `<main class="page">
     <h1 class="h1 mt8" style="color:var(--red)">${esc(f.name)}</h1><p class="small muted">${esc(E.musclesOf(f.name).join(" · "))}${fam.nom ? ` · ${esc(fam.nom)}` : ""}</p>
-    ${f.svg ? `<div class="card mt12" style="background:#F6F1EC;color:#151515;padding:10px">${f.svg}</div>` : ""}
     ${recordE ? `<div class="card mt12"><div class="lbl">📈 Ton 1RM estimé</div><b class="num" style="font-size:26px">${recordE} kg</b></div>` : ""}
     <div class="card mt12">${f.setup ? `<div class="lbl">🛠️ Installation</div><p class="small mt4">${esc(f.setup)}</p>` : ""}${f.cues?.length ? `<div class="lbl mt12">🎯 Points clés</div>${block(f.cues)}` : ""}${f.note ? `<p class="small muted mt8" style="margin-bottom:0">${esc(f.note)}</p>` : ""}</div>
     ${FIELD.filter(([k]) => fam[k] && (deep || FREE_FIELDS.includes(k))).map(([k, l]) => `<div class="card mt12"><div class="lbl">${l}</div>${block(fam[k])}</div>`).join("")}
