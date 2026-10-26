@@ -1,0 +1,16 @@
+// Service worker Cal X Sthenos : l'app fonctionne hors ligne en salle.
+// Après chaque modification de l'app, augmenter ce numéro de version.
+const C = "cxs-v1";
+const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/store.js", "js/engine.js", "js/nutrition.js", "js/word.js", "js/config.js",
+  "data/programs.json", "data/nutrition-models.json", "manifest.webmanifest", "assets/icon.svg", "assets/icon-192.png"];
+self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener("fetch", e => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== "GET") return;
+  if (u.hostname.includes("openfoodfacts")) return; // toujours en ligne
+  e.respondWith(caches.match(e.request).then(hit => {
+    const net = fetch(e.request).then(r => { if (r.ok && (u.origin === location.origin || u.hostname.includes("fonts."))) { const cp = r.clone(); caches.open(C).then(c => c.put(e.request, cp)); } return r; }).catch(() => hit);
+    return hit || net;
+  }));
+});

@@ -1,0 +1,17 @@
+{
+  "name": "Cal X Sthenos",
+  "short_name": "Calxsthenos",
+  "description": "Entraînement, nutrition et progression calculés pour toi. Le X au centre.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D0D0F",
+  "theme_color": "#0D0D0F",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
