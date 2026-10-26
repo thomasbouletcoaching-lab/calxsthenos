@@ -1,8 +1,19 @@
 # CalXsthenos
 
 Entraînement, nutrition et progression personnalisés qui édifient corps, âme et esprit, pour cette vie et l'éternité. Fondée sur 1 Timothée 4:8.
-PWA statique hébergée gratuitement sur GitHub Pages. **Aucun serveur, aucun compte, aucune base en ligne** :
-les données de chaque utilisateur restent sur son téléphone (sauvegarde par fichier depuis le profil).
+PWA hébergée gratuitement sur GitHub Pages, avec un serveur Supabase dédié (projet `calxsthenos`, Paris),
+séparé de TB my Coach. Le serveur garde : profils (e-mail, réponses de l'onboarding), formules, messages, notifications.
+Le détail des séances, le journal alimentaire et les photos restent sur le téléphone.
+
+## Formules
+
+Définies dans `js/config.js` (prix, contenu, quota de messages). Le quota est aussi appliqué par le serveur (table `tiers`).
+Le coach change la formule d'un membre depuis l'espace coach. Les liens de paiement Stripe se collent dans `OFFERS[].pay`.
+
+## Devenir coach dans l'app
+
+Après avoir fait l'onboarding avec son e-mail, exécuter dans Supabase :
+`update profiles set is_coach = true where email = 'ton@email';`
 
 ## Contenu
 
@@ -14,7 +25,8 @@ les données de chaque utilisateur restent sur son téléphone (sauvegarde par f
 | `js/engine.js` | Programmes, charges calculées (e1RM), surcharge progressive ajustée au réel |
 | `js/nutrition.js` | Cibles kcal/macros, recherche d'aliments, plats types, plan du jour |
 | `js/word.js` | Versets (Louis Segond 1910) et déclarations |
-| `js/config.js` | **À personnaliser** : lien Calendly, Instagram, e-mail, texte de l'offre |
+| `js/config.js` | **À personnaliser** : liens, formules et prix |
+| `js/cloud.js` | Lien avec le serveur (comptes, messages, notifications, espace coach) |
 | `data/programs.json` | 8 programmes de la Méthode Thomas Boulet (repris de TB my Coach) |
 | `data/nutrition-models.json` | 10 modèles nutritionnels |
 | `data/fiches.json` | 280 fiches d'exercices et schémas (brouillon à valider) |

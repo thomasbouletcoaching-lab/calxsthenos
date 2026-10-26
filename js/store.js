@@ -14,6 +14,11 @@ const blank = () => ({
   application: null,      // candidature coaching
   swaps: {},              // exercice d'origine -> remplaçant choisi
   settings: { word: "daily", haptics: true },
+  favorites: [],          // ids de versets et d'affirmations
+  me: { tier: "free", isCoach: false, msgsLeft: null }, // dernier état connu du serveur
+  demoTier: null,         // aperçu d'une formule
+  notifSeen: 0,           // horodatage de la dernière lecture des notifications
+  synced: false,          // profil envoyé au serveur
 });
 
 let state;
