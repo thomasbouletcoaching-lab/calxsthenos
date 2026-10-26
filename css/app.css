@@ -45,6 +45,7 @@ a{color:var(--red)}
 .top .row1{display:flex;align-items:center;gap:12px}
 .top .appic{width:48px;height:48px;border-radius:14px;background:var(--paper);display:grid;place-items:center;box-shadow:var(--shadow);flex:none;border:1px solid var(--line)}
 .top .appic svg{width:30px;height:30px}
+.top .appic{padding:0;overflow:hidden;background:#1A080D;border-color:transparent}
 .top h1{font-weight:800;font-size:21px;letter-spacing:-.02em;margin:0;flex:1;min-width:0;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top .sub{color:var(--soft);font-size:14px;margin-top:4px}
 .pill{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:19px;background:var(--btn2);border:1px solid var(--line);font-weight:600;font-size:15px;white-space:nowrap;position:relative}

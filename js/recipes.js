@@ -95,3 +95,35 @@ export function shoppingList(items) {
   Object.entries(tot).forEach(([k, g]) => { const a = ING[k]?.[5] || "Divers"; (byAisle[a] = byAisle[a] || []).push([ingLabel(k), k === "oeuf" ? `${Math.ceil(g / 55)} œufs` : `${Math.round(g / 10) * 10} g`]); });
   return byAisle;
 }
+
+// ---------- Budget : prix moyens estimés en supermarché (€ par kg, poids tel qu'utilisé dans la recette ; œufs à l'unité de 55 g) ----------
+// Repères moyens France 2026, à ajuster par chacun dans « Mes prix ».
+export const PRICE = {
+  riz: 1.0, rizc: 1.2, pates: 0.9, patesc: 1.1, pdt: 1.6, pdouce: 3.0, quinoa: 2.8, semoule: 0.9, avoine: 2.2,
+  pain: 4.5, tortilla: 6.0, wasa: 8.0,
+  poulet: 13, dinde: 13, boeuf: 15, steak: 24, jambon: 14, saumon: 28, cabillaud: 22, thon: 14, crevettes: 22, sardines: 12,
+  oeuf: 5.5, blanc: 6, skyr: 4.5, fb: 2.6, grec: 4.2, lait: 1.1, mozza: 9, feta: 13, parmesan: 22, cottage: 7,
+  whey: 28, tofu: 8, tempeh: 16, lentilles: 1.8, pchiches: 2.4, hrouges: 2.4, soja: 1.8,
+  legumes: 3, brocoli: 3.5, epinards: 4, courgette: 2.8, poivron: 4.5, tomate: 3.2, champi: 5, oignon: 2, hverts: 4, salade: 6, carotte: 1.6, avocat: 8,
+  banane: 2.2, pomme: 2.8, frouges: 10, citron: 4,
+  amandes: 16, noix: 18, cacahuete: 9, huile: 10, miel: 12, choco: 14, coco: 6, stomate: 3, creme: 4.5, curry: 30, pesto: 15, houmous: 9, graines: 12, compote: 3.5,
+};
+export const priceOf = (k, mine = {}) => mine[k] ?? PRICE[k] ?? 5;
+export function costOf(ing, portions = 1, mine = {}) {
+  let c = 0; for (const [k, g] of Object.entries(ing)) c += priceOf(k, mine) * g / 1000; return c / portions;
+}
+// Liste de courses chiffrée, regroupée par rayon
+export function shoppingListPriced(items, mine = {}) {
+  const tot = {};
+  items.forEach(({ r, portions }) => { const f = portions / r.portions; Object.entries(r.ing).forEach(([k, g]) => { tot[k] = (tot[k] || 0) + g * f; }); });
+  const byAisle = {}; let total = 0;
+  Object.entries(tot).forEach(([k, g]) => {
+    const a = ING[k]?.[5] || "Divers", cost = priceOf(k, mine) * g / 1000; total += cost;
+    (byAisle[a] = byAisle[a] || []).push({ k, label: ingLabel(k), qty: k === "oeuf" ? `${Math.ceil(g / 55)} œufs` : `${Math.round(g / 10) * 10} g`, cost });
+  });
+  return { byAisle, total };
+}
+// Protéines les moins chères : euros pour 100 g de protéines
+export function cheapProteins(mine = {}) {
+  return Object.entries(ING).filter(([, v]) => v[2] >= 8).map(([k, v]) => ({ k, label: v[0], eur: priceOf(k, mine) * 100 / v[2] / 10 })).sort((a, b) => a.eur - b.eur);
+}

@@ -32,6 +32,9 @@ const blank = () => ({
   bibleNotes: {},         // Bible : { 'livre.chap.verset': texte }
   bibleAt: { b: 43, c: 3 },
   kbRead: {},
+  budget: { weekly: null, people: 1 }, // budget courses (Premium)
+  receipts: [],           // tickets de caisse { id, d, shop, amount }
+  prices: {},             // prix personnels { ingrédient: €/kg }
 });
 
 let state;

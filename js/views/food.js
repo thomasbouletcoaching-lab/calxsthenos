@@ -4,12 +4,12 @@ import { S, update, today, addPhoto, listPhotos, deletePhoto } from "../store.js
 import * as N from "../nutrition.js";
 import * as RC from "../recipes.js";
 import * as EN from "../energy.js";
-import { $app, esc, num, fr, buzz, toast, routes, R, actions, forms, changes, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, hbars, ring, gradDef, premium, rank, fmtDate, addDays, hhmm, rerender } from "../core.js";
+import { $app, esc, num, fr, buzz, toast, routes, R, actions, forms, changes, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, ring, gradDef, premium, rank, fmtDate, addDays, hhmm, rerender } from "../core.js";
 import { caloriesCard } from "./home.js";
 import { pushStats } from "../sync.js";
 
 let tab = "journal", day = null;
-const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"]];
+const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["budget", "💶 Budget courses"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"]];
 const D = () => day || today();
 const FREE_RECIPES = 10;
 const recipeOpen = (r) => premium() || r.mine || RC.RECIPES.indexOf(r) < FREE_RECIPES;
@@ -26,10 +26,12 @@ routes.food = async () => {
   else if (tab === "recettes") body = recipesBody();
   else if (tab === "batch") body = batchBody();
   else if (tab === "jeune") body = fastBody();
+  else if (tab === "budget") body = budgetBody();
   else if (tab === "depense") body = burnBody();
   else body = await bodyBody();
   $app.innerHTML = header("Nutrition", t ? `${fr(t.kcal)} kcal · ${t.prot} g de protéines` : "") + `<main class="page">${chips(TABS, tab, "food-tab")}${body}</main>${tabbar("food")}`;
   if (tab === "recettes") bindRecipeSearch();
+  if (tab === "budget") { const i = document.getElementById("prq"); i?.addEventListener("input", () => { prQ = i.value; document.getElementById("prl").innerHTML = priceRows(N.norm(prQ)); }); }
 };
 actions["food-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); routes.food(); };
 actions["food-day"] = (b, d) => { const n = addDays(D(), +d.v); day = n >= today() ? null : n; rerender(); };
@@ -205,7 +207,7 @@ actions["rc-open"] = (b, d) => {
     w.querySelector("#rpor").textContent = por;
   };
   sheet(`<div class="row" style="gap:10px"><span style="font-size:40px">${r.e}</span><div><h2 class="h2">${esc(r.n)}</h2><p class="xs muted">${esc(r.cat)} · ${r.min} min${r.batch ? " · se conserve 3 à 4 jours" : ""}</p></div></div>
-    <div class="stat3 mt12"><div><b>${r.m.kcal}</b><span>kcal</span></div><div><b>${r.m.p} g</b><span>protéines</span></div><div><b>${r.m.c} / ${r.m.f}</b><span>gluc. / lip.</span></div></div><p class="xs muted center">par portion</p>
+    <div class="stat3 mt12"><div><b>${r.m.kcal}</b><span>kcal</span></div><div><b>${r.m.p} g</b><span>protéines</span></div><div><b>${r.m.c} / ${r.m.f}</b><span>gluc. / lip.</span></div></div><p class="xs muted center">par portion · ${premium() ? `≈ ${eur(RC.costOf(r.ing, r.portions, S().prices))} la portion` : "💶 prix : Premium"}</p>
     <div class="row between mt12"><b>Ingrédients</b><div class="water"><button data-a="rc-por" data-v="-1">−</button><b id="rpor">1</b><button data-a="rc-por" data-v="1">+</button></div></div>
     <ul id="ring" class="small" style="padding-left:18px"></ul>
     <b>Préparation</b><ol class="small" style="padding-left:18px">${r.steps.map(s => `<li style="margin-bottom:6px">${esc(s)}</li>`).join("")}</ol>
@@ -246,12 +248,12 @@ let cart = [];
 function batchBody() {
   if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:260px"><h2 class="h2">🥡 Batch cooking</h2><p class="small muted">Choisis tes recettes et tes portions : l'app calcule la liste de courses par rayon, et tes portions prêtes se mangent en un geste dans le journal.</p>${lockVeil("Premium")}</div>`;
   const stock = (S().batches || []).flatMap((b, bi) => b.items.map((it, ii) => ({ ...it, bi, ii, d: b.d }))).filter(x => x.left > 0);
-  const list = RC.shoppingList(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })));
+  const { byAisle: list, total: cost } = RC.shoppingListPriced(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })), S().prices);
   const tot = cart.reduce((a, c) => a + c.portions, 0);
   return `${stock.length ? `<h2 class="sec">🧊 Mes portions prêtes</h2><div class="list">${stock.map(x => { const r = allRecipes().find(y => y.id === x.id); return r ? `<div class="li"><span class="em">${r.e}</span><span class="grow small"><b>${esc(r.n)}</b><br><span class="xs muted">${x.left} portion${x.left > 1 ? "s" : ""} · cuisiné ${fmtDate(x.d, { weekday: "short", day: "numeric" })}</span></span><button class="btn btn-red btn-xs" data-a="bt-eat" data-b="${x.bi}" data-i="${x.ii}">Manger</button></div>` : ""; }).join("")}</div>` : ""}
     <h2 class="sec">🛒 Préparer un batch</h2>
     ${cart.length ? `<div class="list">${cart.map((c, i) => { const r = allRecipes().find(x => x.id === c.id); return `<div class="li"><span class="em">${r.e}</span><span class="grow small"><b>${esc(r.n)}</b><br><span class="xs muted">${r.m.kcal * c.portions} kcal au total</span></span><div class="water"><button data-a="bt-por" data-i="${i}" data-v="-1">−</button><b>${c.portions}</b><button data-a="bt-por" data-i="${i}" data-v="1">+</button></div></div>`; }).join("")}</div>
-      <div class="card mt12"><div class="lbl">🧾 Liste de courses · ${tot} portions</div>${Object.entries(list).map(([a, its]) => `<div class="mt8"><b class="small">${esc(a)}</b>${its.map(([l, q]) => `<div class="row between small"><span>☐ ${esc(l)}</span><span class="muted">${q}</span></div>`).join("")}</div>`).join("")}
+      <div class="card mt12"><div class="row between"><div class="lbl">🧾 Liste de courses · ${tot} portions</div><b class="num">≈ ${eur(cost)}</b></div><p class="xs muted" style="margin:2px 0 0">soit ≈ ${eur(cost / Math.max(1, tot))} la portion${budgetLine(cost)}</p>${Object.entries(list).map(([a, its]) => `<div class="mt8"><b class="small">${esc(a)}</b>${its.map(x => `<div class="row between small"><span>☐ ${esc(x.label)} <span class="muted">${x.qty}</span></span><span class="muted">${eur(x.cost)}</span></div>`).join("")}</div>`).join("")}
         <button class="btn btn-ghost btn-xs mt8" data-a="bt-share">Partager la liste</button></div>
       <button class="btn btn-red mt12" data-a="bt-cook">✅ C'est cuisiné : ranger mes ${tot} portions</button>
       <p class="xs muted mt8">Repère : 3 à 4 jours au réfrigérateur, jusqu'à 3 mois au congélateur.</p>`
@@ -261,8 +263,8 @@ function batchBody() {
 actions["bt-add"] = (b, d) => { if (!premium()) return go("offers"); const r = allRecipes().find(x => x.id === d.id); if (!cart.some(c => c.id === d.id)) cart.push({ id: d.id, portions: r.portions }); closeSheet(); toast("Ajouté au batch"); tab = "batch"; go("food", "batch"); };
 actions["bt-por"] = (b, d) => { const c = cart[+d.i]; c.portions += +d.v; if (c.portions <= 0) cart.splice(+d.i, 1); rerender(); };
 actions["bt-share"] = () => {
-  const list = RC.shoppingList(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })));
-  const t = "Liste de courses CalXsthenos\n\n" + Object.entries(list).map(([a, its]) => a + "\n" + its.map(([l, q]) => `- ${l} : ${q}`).join("\n")).join("\n\n");
+  const { byAisle: list, total } = RC.shoppingListPriced(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })), S().prices);
+  const t = "Liste de courses CalXsthenos\n\n" + Object.entries(list).map(([a, its]) => a + "\n" + its.map(x => `- ${x.label} : ${x.qty} (≈ ${eur(x.cost)})`).join("\n")).join("\n\n") + `\n\nTotal estimé : ${eur(total)}`;
   if (navigator.share) navigator.share({ text: t }).catch(() => { }); else { navigator.clipboard?.writeText(t); toast("Liste copiée"); }
 };
 actions["bt-cook"] = () => { update(st => { st.batches = [{ d: today(), items: cart.map(c => ({ id: c.id, portions: c.portions, left: c.portions })) }, ...(st.batches || [])].slice(0, 20); }); cart = []; toast("Portions rangées 🧊"); rerender(); };
@@ -352,3 +354,46 @@ forms.measures = (v) => {
 };
 changes.photo = async (el) => { if (!premium()) return go("offers"); const f = el.files?.[0]; if (!f) return; await addPhoto(f); toast("Photo ajoutée"); rerender(); };
 actions.photo = async (b, d) => { if (confirm("Supprimer cette photo ?")) { await deletePhoto(+d.id); rerender(); } };
+
+// ---------- Budget des courses (Premium) ----------
+const eur = (v) => (Math.round((v || 0) * 100) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+const mondayOf = (d) => addDays(d, -((new Date(d + "T12:00:00").getDay() + 6) % 7));
+function budgetLine(cost) { const w = S().budget?.weekly; return w ? ` · ${Math.round(cost / w * 100)} % de ton budget de la semaine` : ""; }
+let prQ = "";
+function budgetBody() {
+  if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:300px"><h2 class="h2">💶 Budget des courses</h2><p class="small muted">Fixe ton budget, note tes tickets, vois le prix de chaque recette et de ta liste de courses, et repère les protéines les moins chères.</p>${lockVeil("Premium", "Le budget des courses fait partie de Premium.")}</div>`;
+  const B = S().budget || {}, RCP = S().receipts || [], mon = mondayOf(today());
+  const weekSpent = RCP.filter(r => r.d >= mon).reduce((a, r) => a + r.amount, 0);
+  const weeks = Array.from({ length: 8 }, (_, i) => addDays(mon, -7 * (7 - i)));
+  const perWeek = weeks.map(w => ({ l: `${Number(w.slice(8))}/${Number(w.slice(5, 7))}`, v: RCP.filter(r => r.d >= w && r.d < addDays(w, 7)).reduce((a, r) => a + r.amount, 0) }));
+  const month = today().slice(0, 7), monthSpent = RCP.filter(r => r.d.startsWith(month)).reduce((a, r) => a + r.amount, 0);
+  const left = B.weekly ? B.weekly - weekSpent : null, pct = B.weekly ? Math.min(1, weekSpent / B.weekly) : 0;
+  const cheap = RC.cheapProteins(S().prices).slice(0, 8);
+  const recipes = allRecipes().map(r => ({ r, c: RC.costOf(r.ing, r.portions, S().prices) })).sort((a, b) => a.c - b.c).slice(0, 6);
+  const q = N.norm(prQ);
+  return `<div class="card grad mt12"><div class="lbl">💶 Cette semaine</div><b class="num" style="font-size:36px">${eur(weekSpent)}</b>
+      <p class="small" style="margin:4px 0 0">${B.weekly ? `sur ${eur(B.weekly)} · ${left >= 0 ? `reste ${eur(left)}` : `dépassé de ${eur(-left)}`}` : "Fixe ton budget pour suivre ce qu'il reste."}</p>
+      ${B.weekly ? `<div class="gauge mt8" style="background:rgba(255,255,255,.25)"><i style="width:${Math.round(pct * 100)}%;background:#fff"></i></div>` : ""}
+      <p class="xs" style="margin:8px 0 0;opacity:.85">Ce mois-ci : ${eur(monthSpent)}${B.people > 1 ? ` · ${B.people} personnes` : ""}</p></div>
+    <form data-f="budget-set" class="card mt12"><div class="lbl">⚙️ Mon budget</div><div class="grid2 mt8"><label class="field"><span>Budget par semaine (€)</span><input name="weekly" inputmode="decimal" value="${B.weekly ?? ""}" placeholder="ex. 80"></label><label class="field"><span>Personnes au foyer</span><input name="people" inputmode="numeric" value="${B.people || 1}"></label></div><button class="btn btn-line btn-sm mt8" style="width:100%">Enregistrer</button></form>
+    <h2 class="sec">🧾 Mes tickets de courses</h2>
+    <form data-f="receipt" class="card"><div class="grid3"><label class="field"><span>Montant (€)</span><input name="amount" inputmode="decimal" required placeholder="0,00"></label><label class="field"><span>Magasin</span><input name="shop" maxlength="30" placeholder="ex. Lidl"></label><label class="field"><span>Date</span><input name="d" type="date" value="${today()}"></label></div><button class="btn btn-red btn-sm mt8" style="width:100%">+ Ajouter le ticket</button></form>
+    ${RCP.length ? `<div class="list mt8">${RCP.slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 12).map(r => `<div class="li"><span class="em">🛒</span><span class="grow small"><b>${esc(r.shop || "Courses")}</b><br><span class="xs muted">${fmtDate(r.d, { weekday: "short", day: "numeric", month: "short" })}</span></span><b class="num">${eur(r.amount)}</b><button class="icon-btn" data-a="receipt-del" data-id="${r.id}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>
+      <div class="card mt12"><div class="lbl">📊 Dépenses par semaine</div><div class="mt8">${barChart(perWeek, { fmt: (v) => Math.round(v) + " €" })}</div>${B.weekly ? `<p class="xs muted" style="margin:0">Budget : ${eur(B.weekly)} par semaine.</p>` : ""}</div>` : `<p class="empty small">Note le montant de chaque ticket : l'app suit ce qu'il te reste.</p>`}
+    <h2 class="sec">💪 Protéines les moins chères <small>pour 100 g de protéines</small></h2>
+    <div class="card">${hbars(cheap.map(x => ({ l: x.label, v: x.eur })), (v) => eur(v))}<p class="xs muted" style="margin:6px 0 0">Prix moyens estimés : ajuste-les à ton magasin dans « Mes prix ».</p></div>
+    <h2 class="sec">👩‍🍳 Recettes les plus économiques</h2>
+    <div class="list">${recipes.map(({ r, c }) => `<button class="li" data-a="rc-open" data-id="${r.id}"><span class="em">${r.e}</span><span class="grow small"><b>${esc(r.n)}</b><br><span class="xs muted">${r.m.kcal} kcal · ${r.m.p} g P</span></span><b class="num">${eur(c)}</b></button>`).join("")}</div>
+    <h2 class="sec">🏷️ Mes prix <small>€ par kg</small></h2>
+    <div class="search">${I.search}<input id="prq" placeholder="Chercher un ingrédient" value="${esc(prQ)}" autocomplete="off"></div>
+    <div class="list mt8" id="prl">${priceRows(q)}</div>
+    <p class="xs muted mt8">Les prix servent à chiffrer tes recettes, ton batch cooking et ta liste de courses. Œufs : prix pour 1 kg (≈ 18 œufs).</p>`;
+}
+function priceRows(q) {
+  return Object.entries(RC.ING).filter(([k, v]) => !q || N.norm(v[0]).includes(q)).sort((a, b) => a[1][0].localeCompare(b[1][0], "fr")).slice(0, q ? 40 : 12)
+    .map(([k, v]) => `<div class="li"><span class="grow small">${esc(v[0])}${S().prices[k] != null ? ` <span class="tag r">perso</span>` : ""}</span><input class="inp" style="width:84px" inputmode="decimal" value="${String(RC.priceOf(k, S().prices)).replace(".", ",")}" data-c="price" data-k="${k}" aria-label="Prix au kilo de ${esc(v[0])}"></div>`).join("") + (q ? "" : `<p class="xs muted center" style="margin:8px 0 0">Cherche un ingrédient pour voir les autres.</p>`);
+}
+forms["budget-set"] = (v) => { const w = num(v.weekly); update(st => st.budget = { weekly: w > 0 ? Math.round(w * 100) / 100 : null, people: Math.max(1, Math.round(num(v.people)) || 1) }); toast("Budget enregistré"); rerender(); };
+forms.receipt = (v) => { const a = num(v.amount); if (!(a > 0 && a < 5000)) return toast("Montant invalide"); update(st => st.receipts = [...(st.receipts || []), { id: Date.now(), d: v.d || today(), shop: v.shop.trim(), amount: Math.round(a * 100) / 100 }]); buzz(); toast("Ticket ajouté"); rerender(); };
+actions["receipt-del"] = (b, d) => { if (!confirm("Supprimer ce ticket ?")) return; update(st => st.receipts = st.receipts.filter(r => r.id !== +d.id)); rerender(); };
+changes.price = (el) => { const v = num(el.value); update(st => { if (v > 0) st.prices[el.dataset.k] = Math.round(v * 100) / 100; else delete st.prices[el.dataset.k]; }); toast("Prix enregistré"); };

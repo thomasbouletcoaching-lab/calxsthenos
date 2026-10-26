@@ -4,7 +4,7 @@ import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as W from "../word.js";
 import { CONFIG, offer } from "../config.js";
-import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, render, rerender } from "../core.js";
+import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, render, rerender } from "../core.js";
 import { syncProfile } from "../sync.js";
 import { ONB_STEPS, resetOnboarding } from "./onboarding.js";
 
@@ -92,9 +92,10 @@ actions["kb-mode"] = (b, d) => { kbMode = d.v; kbChapter(R.param); };
 // ---------- Pourquoi le X, confidentialité ----------
 routes.x = () => {
   $app.innerHTML = header("Pourquoi le X ?", "", { back: S().profile ? "profile" : "onboarding" }) + `<main class="page full prose">
-    <div class="mt16">${logo(30)}</div>
+    <div class="mt16" style="display:flex;flex-direction:column;gap:14px;align-items:flex-start">${markImg(110)}${logo(30)}</div>
     <p class="mt24"><i>Kalos</i>, en grec, c'est le beau, le noble. <i>Sthenos</i>, c'est la force. Ensemble, ils ont donné la calisthénie : l'art de bâtir un corps fort.</p>
-    <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Et le X : la lettre grecque Chi, la première du nom du Christ, et la forme d'une croix.</p>
+    <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Et le X : la lettre grecque Chi, la première du nom du Christ.</p>
+    <p>Sur le logo, un athlète fait une traction sur la barre d'une croix : la force se construit en s'élevant, et la croix est ce qui nous relève.</p>
     <p>Nous croyons que le corps compte et mérite d'être servi avec exigence. Et qu'il n'est pas tout : nous voulons édifier le corps, l'âme et l'esprit, pour cette vie et pour l'éternité.</p>
     <div class="card mt16">${W.wordCard(W.VERSES[0])}</div>
     <p class="mt16">La force que tu construis ici est réelle. Celle que Dieu offre l'est davantage, et elle ne se gagne pas : elle se reçoit.</p>

@@ -16,7 +16,7 @@ export const OFFERS = [
     feats: ["La Bible complète, surlignages, notes et favoris : gratuits pour toujours", "Ton programme de départ : les 4 premières semaines", "Carnet de séance, minuteur de repos, charges calculées", "Agenda, routine du jour, eau et jeûne", "Journal alimentaire, favoris et repas enregistrés", "Les bases des connaissances"] },
   { id: "premium", rank: 1, name: "Premium", price: "19,99 €", per: "/mois", alt: "ou 119,99 € par an, soit 10 € par mois", msgs: "5 messages par semaine",
     tagline: "L'app complète, en autonomie.", ribbon: "Le plus choisi",
-    feats: ["Tous les programmes de la banque, et tes propres programmes", "Le cycle complet, suggestions de charges selon ton RPE", "Stats : volume par muscle, exercice, semaine, mois ; courbes de force", "Plan alimentaire écrit, 49 recettes, batch cooking", "Dépense complète : MB, NEAT, EAT, TEF, TDEE", "Projection de poids, mensurations et photos", "Toute la bibliothèque de connaissances"],
+    feats: ["Tous les programmes de la banque, et tes propres programmes", "Le cycle complet, suggestions de charges selon ton RPE", "Stats : volume par muscle, exercice, semaine, mois ; courbes de force", "Plan alimentaire écrit, 49 recettes, batch cooking", "Budget des courses : tickets, prix des recettes et de la liste", "Dépense complète : MB, NEAT, EAT, TEF, TDEE", "Projection de poids, mensurations et photos", "Toute la bibliothèque de connaissances"],
     pay: { month: "", year: "" } },
   { id: "essentiel", rank: 2, name: "Suivi essentiel", price: "59 €", per: "/mois", msgs: "10 messages par semaine",
     tagline: "L'app, avec un coach qui garde un œil sur toi.",

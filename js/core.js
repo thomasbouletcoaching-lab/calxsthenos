@@ -57,7 +57,10 @@ export const I = {
   refresh: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>', 2),
   scan: svg('<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9v6M11 9v6M14 9v6M17 9v6"/>'),
 };
-export const logo = (size = 24) => `<span style="display:inline-flex;align-items:center;font-weight:800;font-size:${size}px;letter-spacing:-.02em">CAL${I.x(size * .95)}STHENOS</span>`;
+// Nom de marque : CAL X STHENOS, avec le X du logo
+const MINI_X = `<svg viewBox="54 52 292 320" aria-hidden="true" style="height:.74em;width:.68em;margin:0 .12em"><defs><linearGradient id="mxr" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#B3122B"/><stop offset=".55" stop-color="#E5383B"/><stop offset="1" stop-color="#FF8A65"/></linearGradient><linearGradient id="mxd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C21D35"/><stop offset="1" stop-color="#5E0815"/></linearGradient></defs><path d="M300 52H346L212 212L118 372H70L188 212Z" fill="url(#mxd)"/><path d="M54 52H100L212 212L330 372H282L188 212Z" fill="url(#mxr)"/></svg>`;
+export const logo = (size = 24) => `<span role="img" aria-label="Cal X Sthenos" style="display:inline-flex;align-items:center;font-weight:900;font-size:${size}px;letter-spacing:.02em;white-space:nowrap">CAL${MINI_X}STHENOS</span>`;
+export const markImg = (size = 96) => `<img src="assets/icon.svg" alt="Logo Cal X Sthenos" width="${size}" height="${size}" style="border-radius:${Math.round(size * .22)}px;box-shadow:0 12px 30px rgba(42,11,19,.3)">`;
 
 // ---------- Retours visuels ----------
 let toastT;
@@ -81,7 +84,7 @@ export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bo
 export const badges = { msgs: 0, notifs: 0 };
 export function header(title, sub = "", { back = null, actions = "" } = {}) {
   const demo = S().demoTier ? `<div class="demo-bar"><span class="grow">Démo · <b>${esc(offer(S().demoTier).name)}</b></span><button data-a="demo-choose">Choisir</button><button data-a="demo-exit">Quitter</button></div>` : "";
-  const lead = back ? `<button class="icon-btn" data-a="go" data-r="${back}" aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil">${I.x(30)}</button>`;
+  const lead = back ? `<button class="icon-btn" data-a="go" data-r="${back}" aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil"><img src="assets/icon.svg" alt="" width="40" height="40" style="width:100%;height:100%;border-radius:inherit;display:block"></button>`;
   return demo + `<header class="top"><div class="row1">${lead}<h1>${title}</h1>
     ${actions}<button class="pill ic" data-a="notifs" aria-label="Notifications">${I.bell}${badges.notifs ? `<span class="badge">${badges.notifs}</span>` : ""}</button>
     ${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;

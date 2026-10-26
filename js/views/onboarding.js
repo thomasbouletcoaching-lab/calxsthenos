@@ -2,7 +2,7 @@ import { S, update, today } from "../store.js";
 import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as W from "../word.js";
-import { $app, esc, buzz, num, toast, routes, actions, forms, go, I, logo, wordOn } from "../core.js";
+import { $app, esc, buzz, num, toast, routes, actions, forms, go, I, logo, markImg, wordOn } from "../core.js";
 import { syncProfile } from "../sync.js";
 import { importJSON } from "../store.js";
 
@@ -48,7 +48,7 @@ routes.onboarding = () => {
 };
 function welcome() {
   $app.innerHTML = `<section class="convo" style="justify-content:space-between">
-    <div class="mt24">${logo(30)}</div>
+    <div class="mt24" style="display:flex;flex-direction:column;gap:14px;align-items:flex-start">${markImg(88)}${logo(30)}</div>
     <div><p class="kicker">Corps · âme · esprit</p><h1 class="hello mt8" style="font-size:46px">Ton corps, ton âme, ton esprit. Un seul plan.</h1>
       <p class="mt16 muted" style="font-size:17px">Entraînement, nutrition et progression calculés pour toi par un coach diplômé STAPS. Des charges qui suivent ce que tu fais vraiment.</p></div>
     <div class="stack"><button class="btn btn-red" data-a="ob-start">Créer mon plan gratuit</button>
