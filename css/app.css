@@ -312,8 +312,8 @@ p{margin:0 0 10px}
 /* Feuilles et divers */
 .sheet .grab{cursor:pointer;position:relative}.sheet .grab::after{content:"";position:absolute;left:-30px;right:-30px;top:-14px;bottom:-14px}
 .sheet{transition:transform .15s}
-.sheet-wrap{position:fixed;inset:0;z-index:60;background:rgba(10,4,6,.45);display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
-.sheet{width:100%;max-width:640px;max-height:92dvh;overflow:auto;background:var(--chalk);border-radius:28px 28px 0 0;padding:10px 16px calc(22px + var(--safe-b));animation:up .28s cubic-bezier(.2,.8,.2,1)}
+.sheet-wrap{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:60;background:rgba(10,4,6,.45);display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
+.sheet{width:100%;max-width:640px;max-height:calc(var(--vvh,100dvh) - 16px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--chalk);border-radius:28px 28px 0 0;padding:10px 16px calc(22px + var(--safe-b));animation:up .28s cubic-bezier(.2,.8,.2,1)}
 .sheet .grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
 @keyframes fade{from{opacity:0}} @keyframes up{from{transform:translateY(40px);opacity:.4}}
 .stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -407,3 +407,14 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .rpe-seg{display:flex;background:var(--line);border-radius:999px;padding:4px;margin-top:18px}
 .rpe-seg button{flex:1;border:0;background:none;font:700 16px var(--f);color:var(--ink);padding:12px 0;border-radius:999px}
 .rpe-seg button.on{background:var(--gradbtn);color:#fff}
+
+/* ---------- Clavier ouvert : on libère l'écran ---------- */
+html.sheet-open,html.sheet-open body{overflow:hidden;overscroll-behavior:none}
+html.kb .tabbar,html.kb .rest,html.kb .dock,html.kb button[data-a="resume"],html.kb .demo-bar{display:none!important}
+html.kb .sheet{border-radius:20px 20px 0 0;padding-bottom:12px}
+.composer{bottom:var(--kb,0px)!important}
+html.kb .composer{padding-bottom:8px}
+html.kb .page{padding-bottom:24px}
+/* champs : jamais de zoom, jamais de débordement */
+input,select,textarea{max-width:100%;min-width:0}
+.field input,.field select,.field textarea,.inp,.composer textarea{font-size:16px}

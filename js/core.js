@@ -83,9 +83,28 @@ export function sheet(html, onMount, { keep = false } = {}) {
   sh.addEventListener("touchstart", e => { y0 = sh.scrollTop <= 0 && e.touches[0].clientY - sh.getBoundingClientRect().top < 90 ? e.touches[0].clientY : null; }, { passive: true });
   sh.addEventListener("touchmove", e => { if (y0 == null) return; const dy = e.touches[0].clientY - y0; if (dy > 0) sh.style.transform = `translateY(${dy}px)`; }, { passive: true });
   sh.addEventListener("touchend", e => { if (y0 == null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null; if (dy > 90) closeSheet(); else sh.style.transform = ""; });
+  document.documentElement.classList.add("sheet-open");
   document.body.append(w); onMount?.(w); return w;
 }
-export function closeSheet() { const s = document.getElementById("sheet"); if (!s) return; s.remove(); if (s.dataset.rr) rerender(); }
+export function closeSheet() { const s = document.getElementById("sheet"); if (!s) return; s.remove(); document.documentElement.classList.remove("sheet-open"); if (s.dataset.rr) rerender(); }
+// ---------- Clavier et fenêtres : la zone visible réelle (iPhone, Android) ----------
+// --vvh / --vvt = hauteur et décalage de la zone visible ; --kb = hauteur du clavier ; html.kb quand il est ouvert
+function viewportVars() {
+  const v = window.visualViewport, root = document.documentElement; if (!v) return;
+  const kb = Math.max(0, Math.round(window.innerHeight - v.height - v.offsetTop));
+  root.style.setProperty("--vvh", `${Math.round(v.height)}px`); root.style.setProperty("--vvt", `${Math.round(v.offsetTop)}px`); root.style.setProperty("--kb", `${kb}px`);
+  const typing = kb > 120 || (document.activeElement?.matches?.("input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea,select") && kb > 60);
+  root.classList.toggle("kb", !!typing);
+}
+if (window.visualViewport) { visualViewport.addEventListener("resize", viewportVars); visualViewport.addEventListener("scroll", viewportVars); }
+window.addEventListener("orientationchange", () => setTimeout(viewportVars, 300));
+// Le champ touché reste visible au-dessus du clavier, dans une fenêtre comme dans la page
+document.addEventListener("focusin", (e) => {
+  const el = e.target; if (!el.matches?.("input,textarea,select") || el.type === "checkbox" || el.type === "file") return;
+  setTimeout(() => { viewportVars(); const sh = el.closest(".sheet"); if (sh) { const r = el.getBoundingClientRect(), vh = window.visualViewport?.height || innerHeight; if (r.bottom > vh - 20 || r.top < 60) el.scrollIntoView({ block: "center", behavior: "smooth" }); } else if (!el.closest(".composer")) el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 320);
+});
+document.addEventListener("focusout", () => setTimeout(() => { viewportVars(); if (!document.activeElement?.matches?.("input,textarea,select")) document.documentElement.classList.remove("kb"); }, 120));
+viewportVars();
 export const wordOn = (place) => { const w = S().settings.word; return w === "daily" || (w === "discreet" && place === "home"); };
 export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; };
 
@@ -157,10 +176,17 @@ export function render() {
   window.scrollTo(0, 0);
 }
 // Redessine la page sans la faire sauter : position de défilement et rangées de menus conservées
+// Le champ en cours de saisie garde le focus après un redessin (le clavier ne se ferme pas, la page ne saute pas)
+const FOCUS_KEYS = ["id", "name", "data-c", "data-i", "data-k", "data-x", "data-s", "data-d", "data-m", "data-f", "aria-label"];
+function focusKey() { const a = document.activeElement; if (!a?.matches?.("input,textarea,select") || a.closest("#sheet")) return null; return { sel: a.tagName.toLowerCase() + FOCUS_KEYS.map(k => a.hasAttribute(k) ? `[${k}="${CSS.escape(a.getAttribute(k))}"]` : "").join(""), start: a.selectionStart, end: a.selectionEnd }; }
+function refocus(f) { if (!f) return; const el = document.querySelector(f.sel); if (!el || el === document.activeElement) return; el.focus({ preventScroll: true }); try { if (f.start != null) el.setSelectionRange(f.start, f.end); } catch { } }
 export function rerender(keepY = true) {
+  // après un « change » (champ quitté), on attend que le doigt ait posé le focus sur le champ suivant
+  if (window.event?.type === "change" || window.event?.type === "blur") { setTimeout(() => rerender(keepY), 40); return; }
+  const fk = focusKey();
   const y = window.scrollY, rows = [...document.querySelectorAll(".chips:not(.wrap)")].map(r => r.scrollLeft);
   const restore = () => { document.querySelectorAll(".chips:not(.wrap)").forEach((r, i) => { if (rows[i] != null) r.scrollLeft = rows[i]; const on = r.querySelector(".chip.on"); if (on && (on.offsetLeft < r.scrollLeft || on.offsetLeft + on.offsetWidth > r.scrollLeft + r.clientWidth)) r.scrollTo({ left: on.offsetLeft - 16, behavior: "smooth" }); }); if (keepY) window.scrollTo(0, y); };
-  const p = Promise.resolve((routes[R.route] || routes.home)()); restore(); p.then(restore);
+  const p = Promise.resolve((routes[R.route] || routes.home)()); restore(); refocus(fk); p.then(() => { restore(); refocus(fk); });
 }
 // Fait apparaître la puce active dans les rangées qui défilent
 function centerChips() { document.querySelectorAll(".chips:not(.wrap)").forEach(row => { const on = row.querySelector(".chip.on"); if (on && row.scrollWidth > row.clientWidth) row.scrollLeft = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2; }); }
