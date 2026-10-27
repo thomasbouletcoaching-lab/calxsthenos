@@ -7,6 +7,7 @@ import { $app, esc, num, fr, toast, buzz, routes, R, actions, changes, go, I, he
 import { pushStats } from "../sync.js";
 import { agendaWeekView, agendaMonthView, agendaYearView } from "./agenda.js";
 import { durationSheet } from "./train.js";
+import { seasonTimeline, goalsMini } from "./season.js";
 import { FREE_WEEKS } from "../config.js";
 
 let homeTab = "today", homeDay = null;
@@ -81,12 +82,12 @@ routes.home = async () => {
   if (R.param && ["today", "week", "month", "year"].includes(R.param)) { homeTab = R.param; R.param = null; }
   if (homeTab === "week") body = agendaWeekView() + `<h2 class="sec">📊 Bilan de la semaine</h2>` + weekSummary();
   else if (homeTab === "month") body = agendaMonthView();
-  else if (homeTab === "year") body = agendaYearView(yearExtra());
+  else if (homeTab === "year") body = agendaYearView(seasonTimeline());
   else body = `${weekStrip(d)}
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
     ${trainingCard(d)}
-    ${d === today() ? stallCard() : ""}
+    ${d === today() ? stallCard() + goalsMini() : ""}
     ${routineCard(d)}
     <h2 class="sec">🔥 Calories du jour <small><a href="#/food" class="link">Nutrition</a></small></h2>
     <button class="card tap" data-a="go" data-r="food">${caloriesCard(d)}</button>

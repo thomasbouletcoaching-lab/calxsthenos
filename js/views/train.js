@@ -5,11 +5,12 @@ import * as W from "../word.js";
 import { CONFIG } from "../config.js";
 import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave } from "../core.js";
 import { pushStats } from "../sync.js";
+import { seasonBody } from "./season.js";
 
 const kgTxt = (v) => v == null || v === "" ? "" : E.fmtKg(v);
 const adv = () => S().settings.adv ?? (S().profile?.level === "advanced");
 let tab = "programme";
-const TABS = [["programme", "🎯 Programme"], ["stats", "📈 Stats"], ["outils", "🧮 Records et outils"], ["exos", "📖 Exercices"], ["banque", "🗂️ Banque"], ["historique", "🕘 Historique"]];
+const TABS = [["programme", "🎯 Programme"], ["saison", "🗓️ Saison et objectifs"], ["stats", "📈 Stats"], ["outils", "🧮 Records et outils"], ["exos", "📖 Exercices"], ["banque", "🗂️ Banque"], ["historique", "🕘 Historique"]];
 
 // =====================================================================
 // PAGE ENTRAÎNEMENT
@@ -24,6 +25,7 @@ routes.train = async () => {
   else if (tab === "outils") body = toolsBody();
   else if (tab === "exos") body = exosBody();
   else if (tab === "banque") body = bankBody();
+  else if (tab === "saison") body = seasonBody();
   else body = historyBody();
   $app.innerHTML = header("Entraînement", ns ? esc(ns.p.name.split("·")[0].trim()) : "") + `<main class="page">${chips(TABS, tab, "train-tab")}${body}</main>${tabbar("train")}`;
   if (tab === "exos") bindExoSearch();
@@ -148,11 +150,8 @@ function toolsBody() {
       <table class="mt12" style="width:100%;font-size:14px;border-collapse:collapse"><tr class="muted"><th style="text-align:left">Reps</th><th>RPE 10</th><th>RPE 8</th><th>%</th></tr>
       ${[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map(r => `<tr style="border-top:1px solid var(--line)"><td style="padding:6px 0"><b>${r}</b></td><td class="center">${E.fmtKg(E.roundTo(E.loadFor(e, r, 10), 2.5))} kg</td><td class="center">${E.fmtKg(E.roundTo(E.loadFor(e, r, 8), 2.5))} kg</td><td class="center muted">${Math.round(E.pctFor(r, 10))} %</td></tr>`).join("")}</table>
       <p class="xs muted mt8">Formule d'Epley corrigée par les répétitions en réserve (RPE). Fiable entre 1 et 10 reps.</p></div>
-    <h2 class="sec">🎯 Mon objectif de performance</h2>
-    <div class="card"><div class="grid2"><label class="field"><span>Mouvement</span><select data-c="goal" data-k="lift">${E.MAIN_LIFTS.map(([k, n]) => `<option value="${k}" ${k === goal.lift ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label><label class="field"><span>Objectif 1RM (kg)</span><input inputmode="decimal" value="${goal.target ?? ""}" data-c="goal" data-k="target" placeholder="ex. 140"></label></div>
-      <p class="small mt12">Aujourd'hui : <b>${curE ? curE + " kg" : "renseigne ton record"}</b></p>
-      ${cg ? cg.cycles ? `<div class="card soft mt8"><b class="h2">${cg.cycles} cycle${cg.cycles > 1 ? "s" : ""} de 12 semaines</b><p class="small muted mt4">soit environ ${cg.months} mois, à raison de +${Math.round(cg.rate * 100)} % par cycle (rythme moyen à ton niveau, si l'entraînement, le sommeil et l'alimentation suivent).</p></div>
-        <p class="small mt12">Avec un coach qui ajuste tes charges chaque semaine, tu évites les cycles perdus (plateaux, blessures, mauvais choix d'exercices).</p><button class="btn btn-red mt8" data-a="choose" data-v="suivi">🚀 Candidater au coaching</button>` : `<p class="small mt8">Objectif déjà atteint 🎉 Fixe-toi la marche suivante.</p>` : ""}</div>`;
+    <h2 class="sec">🎯 Mes objectifs de performance</h2>
+    <div class="card"><p class="small" style="margin-top:0">Fixe une charge à atteindre avant une date (ex. 60 kg aux tractions lestées) : l'app calcule le rythme à tenir et guide tes sauts de charge.</p><button class="btn btn-line btn-sm" data-a="train-tab" data-v="saison">Voir mes objectifs</button></div>`;
 }
 changes.simu = (el) => { const v = num(el.value); if (v > 0) { simu[el.dataset.k] = v; rerender(); } };
 changes.goal = (el) => { if (el.dataset.k === "lift") goal.lift = el.value; else goal.target = num(el.value) || null; rerender(); };
@@ -398,7 +397,8 @@ const pk = { cb: null, title: "", q: "", mus: "", eq: "", multi: false, added: 0
 export function filterExercises(q, mus, eq, pre = null) {
   const terms = nrm(q).split(/\s+/).filter(t => t.length > 1);
   const list = pre || E.allExercises();
-  const score = (n) => { const nn = nrm(n), m0 = E.musclesOf(n)[0]; let s = 0; if (terms.every(t => nn.includes(t))) s += 4; if (terms.some(t => nrm(m0 + " " + (MUS_ALIAS[m0] || "")).includes(t))) s += 2; if (mus && m0 === mus) s += 2; return s; };
+  const qq = nrm(q).trim();
+  const score = (n) => { const nn = nrm(n), m0 = E.musclesOf(n)[0]; let s = 0; if (qq && nn === qq) s += 20; else if (qq && nn.startsWith(qq)) s += 6; if (terms.every(t => nn.includes(t))) s += 4; if (terms.some(t => nrm(m0 + " " + (MUS_ALIAS[m0] || "")).includes(t))) s += 2; if (mus && m0 === mus) s += 2; return s; };
   const out = list.filter(n => {
     const ms = E.musclesOf(n);
     if (mus && !ms.includes(mus)) return false;

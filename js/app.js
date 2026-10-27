@@ -10,6 +10,7 @@ import "./views/train.js";
 import "./views/food.js";
 import "./views/parole.js";
 import "./views/coach.js";
+import "./views/season.js";
 import { applyTheme } from "./views/more.js";
 
 installEvents();

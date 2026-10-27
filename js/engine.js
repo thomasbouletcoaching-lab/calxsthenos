@@ -220,7 +220,7 @@ export function suggestion(name, targetRpe = 8, lo = 8, hi = 10, step = 2.5) {
   let txt, kg = best.kg;
   if (pain) { txt = "Douleur signalée la dernière fois : garde la même charge ou change d'exercice."; }
   else if (avgRpe >= targetRpe + 1) { txt = `Plus dur que prévu (RPE ${fmtKg(avgRpe)} pour ${fmtKg(targetRpe)}) : on garde ${fmtKg(kg)} kg et on vise des reps plus propres.`; }
-  else if (avgRpe <= targetRpe - 1.5 || allTop) { kg = roundTo(best.kg + Math.max(1, Math.round(pace().jump * (avgRpe <= targetRpe - 2 ? 2 : 1))) * step, step); txt = `Plus facile que prévu (RPE ${fmtKg(avgRpe)}) : monte à ${fmtKg(kg)} kg.`; }
+  else if (avgRpe <= targetRpe - 1.5 || allTop) { const g = goalFor(name), gs = g && goalStatus(g); const goalJump = gs && gs.need > 0 ? Math.ceil(gs.need * best.kg / Math.max(1, gs.cur) / step) : 0; kg = roundTo(best.kg + Math.max(1, Math.round(pace().jump * (avgRpe <= targetRpe - 2 ? 2 : 1)), Math.min(goalJump, 3)) * step, step); txt = `Plus facile que prévu (RPE ${fmtKg(avgRpe)}) : monte à ${fmtKg(kg)} kg.${goalJump > 1 ? " Ton objectif demande ce rythme." : ""}`; }
   else { txt = `Dans la cible (RPE ${fmtKg(avgRpe)}) : vise ${best.reps + 1} reps à ${fmtKg(kg)} kg ou la charge proposée.`; }
   return { txt, kg, last: `${fmtKg(best.kg)} kg × ${best.reps} à RPE ${fmtKg(best.rpe ?? best.trpe ?? 8)}`, date: l.date };
 }
@@ -318,7 +318,12 @@ export function finishSession(cur) {
       const done = doneIn(st.plan.programId, st.plan.cycle || 1, st.plan.week);
       const left = p.s.map((_, i) => i).filter(i => !done.has(i));
       if (left.length) st.plan.idx = left[0];
-      else { st.plan.idx = 0; st.plan.week++; if (st.plan.week > weeksOf(p)) { st.plan.week = 1; st.plan.cycle = (st.plan.cycle || 1) + 1; } }
+      else {
+        st.plan.idx = 0; st.plan.week++;
+        const blk = st.season?.blocks?.[st.season.cur || 0], blockEnd = blk && blk.programId === st.plan.programId ? blk.weeks : null;
+        if (blockEnd && (st.plan.week > blockEnd || (st.plan.week > weeksOf(p) && blockEnd <= weeksOf(p)))) { if (!seasonAdvance(st)) { st.plan.week = 1; st.plan.cycle = (st.plan.cycle || 1) + 1; } cur.blockDone = true; }
+        else if (st.plan.week > weeksOf(p)) { st.plan.week = 1; st.plan.cycle = (st.plan.cycle || 1) + 1; }
+      }
     }
   });
   return cur;
@@ -490,3 +495,43 @@ export function ficheOf(name) {
 }
 export function allExercises() { return [...new Set([...Object.keys(FICHES?.ex || {}), ...(S().customExercises || []).map(x => x.n)])].sort((a, b) => a.localeCompare(b, "fr")); }
 export const isCustomExercise = (name) => !FICHES?.ex?.[name] && (S().customExercises || []).some(x => x.n === name);
+
+// ---------- Saison : macrocycle d'un an en blocs ----------
+// S().season = { start: "YYYY-MM-DD", cur: 0, blocks: [{ id, programId, weeks, focus }] }
+export const FOCUS = { force: ["Force", "#B4491A"], hyper: ["Hypertrophie", "#C98A2B"], power: ["Puissance", "#8F3510"], deload: ["Allègement", "#7C8B6A"], test: ["Test / compétition", "#5B2A86"], reprise: ["Reprise", "#2F6F8F"], perso: ["Bloc perso", "#6E5A4E"] };
+const addD = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return today(d); };
+export function seasonBlocks() {
+  const se = S().season; if (!se?.blocks?.length) return [];
+  let d = se.start;
+  return se.blocks.map((b, i) => { const p = program(b.programId), from = d, to = addD(d, b.weeks * 7 - 1); d = addD(d, b.weeks * 7); return { ...b, i, p, from, to, cur: i === (se.cur || 0) }; });
+}
+// Fin de bloc : on passe au programme du bloc suivant
+export function seasonAdvance(st) {
+  const se = st.season; if (!se?.blocks?.length) return false;
+  const i = se.cur || 0, nb = se.blocks[i + 1]; if (!nb) return false;
+  se.cur = i + 1; st.plan = { programId: nb.programId, startedAt: today(), week: 1, idx: 0, cycle: 1 }; return true;
+}
+
+// ---------- Objectifs de performance ----------
+// S().goals = [{ id, name, kg, reps, date, start, created }]
+export function goalTarget(g) { return e1rm(g.kg, g.reps || 1, 10); }
+export function liftRate(name, weeks = 8) {
+  const h = (S().lifts[name] || []).filter(x => new Date(x.d) >= new Date(Date.now() - weeks * 7 * 864e5));
+  if (h.length < 3) return null;
+  const xs = h.map(x => new Date(x.d).getTime() / (7 * 864e5)), ys = h.map(x => x.e1rm), n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
+  const num = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0), den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+  return den ? num / den : null; // kg de 1RM estimé par semaine
+}
+export function goalStatus(g) {
+  const cur = currentE1rm(g.name) || g.start || 0, tgt = goalTarget(g), start = g.start || cur;
+  const weeksLeft = Math.max(.5, (new Date(g.date + "T12:00:00") - Date.now()) / (7 * 864e5));
+  const need = (tgt - cur) / weeksLeft, rate = liftRate(g.name);
+  const total = Math.max(1, (new Date(g.date + "T12:00:00") - new Date(g.created + "T12:00:00")) / (7 * 864e5));
+  const elapsed = Math.max(0, (Date.now() - new Date(g.created + "T12:00:00")) / (7 * 864e5));
+  const traj = start + (tgt - start) * Math.min(1, elapsed / total);
+  const pct = tgt > start ? Math.max(0, Math.min(1, (cur - start) / (tgt - start))) : 1;
+  const eta = rate && rate > 0 && tgt > cur ? Math.ceil((tgt - cur) / rate) : null;
+  return { cur, tgt, start, need, rate, traj, pct, eta, weeksLeft, done: cur >= tgt, ahead: cur >= traj };
+}
+// L'objectif dicte le saut de charge : le saut proposé couvre au moins le rythme nécessaire
+export function goalFor(name) { return (S().goals || []).find(g => g.name === name && g.date >= today()) || null; }
