@@ -49,6 +49,27 @@ export function routineCard(d = today()) {
     <div class="rt"><span class="em">🍽️</span><div class="grow"><b>Nutrition</b><div class="small muted">${foodN ? `${foodN} aliment${foodN > 1 ? "s" : ""} noté${foodN > 1 ? "s" : ""} · ${fr(N.dayTotals(d).kcal)} kcal` : "pas encore noté"}</div></div><button class="btn btn-line btn-sm" data-a="go" data-r="food">Noter</button></div>
     <p class="xs muted mt8" style="margin:0">Une journée compte dans la série dès que 3 des 5 cases sont remplies. Le poids se lit en moyenne sur 7 jours : les variations d'un jour à l'autre sont normales.</p></div>`;
 }
+// Rituel du matin : 1 minute, l'esprit, le corps, une seule priorité
+const FOCUS_CHIPS = [["famille", "👨‍👩‍👧 Famille"], ["travail", "💼 Travail"], ["sante", "💪 Santé"], ["foi", "✝ Foi"]];
+function ritualCard() {
+  const d = today(), D = S().daily[d] || {}, r = D.ritual || {}, y = S().daily[addDays(d, -1)] || {};
+  const done = r.verse && r.body && r.focus;
+  if (done) return `<div class="card" style="padding:12px 16px"><div class="row between"><span class="small"><b>☀️ Rituel fait</b> · priorité : <b>${esc(r.focus)}</b></span><button class="link xs" data-a="rit-reset">Modifier</button></div></div>`;
+  if (new Date().getHours() >= 14 && !r.verse && !r.body && !r.focus) return "";
+  const v = W.verseOfDay(), stepsGoal = S().profile?.stepsGoal || 8000;
+  const yTxt = [y.steps ? `${fr(y.steps)} pas hier${y.steps >= stepsGoal ? " ✅" : ` (objectif ${fr(stepsGoal)})`}` : "", y.water ? `${fr(y.water * .25, 2)} L d'eau` : "", y.sleep ? `${fr(y.sleep, 1)} h de sommeil` : ""].filter(Boolean).join(" · ");
+  const n = [r.verse, r.body, r.focus].filter(Boolean).length;
+  return `<div class="card ritual"><div class="row between"><div class="lbl">☀️ Rituel du matin · 1 minute</div><span class="xs muted">${n}/3</span></div>
+    <div class="rit ${r.verse ? "ok" : ""}"><button class="rk" data-a="rit" data-k="verse" aria-label="Verset lu">${r.verse ? "✓" : "1"}</button><div class="grow"><b class="small">Esprit</b><p class="small mt4" style="margin:4px 0 0;font-style:italic">« ${esc(v.t)} »</p><span class="xs muted">${esc(v.ref)}</span></div></div>
+    <div class="rit ${r.body ? "ok" : ""}"><button class="rk" data-a="rit" data-k="body" aria-label="Corps validé">${r.body ? "✓" : "2"}</button><div class="grow"><b class="small">Corps</b><p class="small mt4" style="margin:4px 0 0">Un grand verre d'eau maintenant${yTxt ? `. Hier : ${esc(yTxt)}` : ", et note ton sommeil plus bas"}.</p></div></div>
+    <div class="rit ${r.focus ? "ok" : ""}"><span class="rk">${r.focus ? "✓" : "3"}</span><div class="grow"><b class="small">Ma priorité du jour</b><div class="chips wrap mt4">${FOCUS_CHIPS.map(([k, l]) => `<button class="chip sm" data-a="rit-chip" data-v="${k}">${l}</button>`).join("")}</div>
+      <input class="inp mt8" style="text-align:left;width:100%;box-sizing:border-box" placeholder="Une seule action, ex. jouer 30 min avec mon fils" value="${esc(r.focus || "")}" data-c="rit-focus" maxlength="90"></div></div></div>`;
+}
+const ritSet = (k, v) => update(st => { const x = st.daily[today()] = st.daily[today()] || {}; x.ritual = { ...(x.ritual || {}), [k]: v }; });
+actions.rit = (b, d) => { const r = S().daily[today()]?.ritual || {}; ritSet(d.k, !r[d.k]); if (d.k === "body" && !r.body) { update(st => { const x = st.daily[today()]; x.water = (x.water || 0) + 1; }); } buzz(); rerender(); };
+actions["rit-chip"] = (b, d) => { const i = document.querySelector('[data-c="rit-focus"]'); const ex = { famille: "Un vrai moment avec ma famille ce soir", travail: "Finir la tâche la plus importante avant midi", sante: "Ma séance, mes protéines et 8 000 pas", foi: "Prier 10 minutes et lire un chapitre" }[d.v]; if (i) { i.value = ex; i.focus(); } };
+changes["rit-focus"] = (el) => { ritSet("focus", el.value.trim() || null); buzz(); rerender(); };
+actions["rit-reset"] = () => { ritSet("focus", null); rerender(); };
 function stallCard() {
   const st = E.stalls(); if (!st.length) return "";
   const x = st[0];
@@ -86,6 +107,7 @@ routes.home = async () => {
   else body = `${weekStrip(d)}
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
+    ${d === today() ? ritualCard() : ""}
     ${trainingCard(d)}
     ${d === today() ? stallCard() + goalsMini() : ""}
     ${routineCard(d)}

@@ -393,3 +393,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .season-bar b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)}
 .season-key{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--soft)}.season-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 .dot{display:inline-block;width:12px;height:12px;border-radius:4px;flex:none}
+.ritual .rit{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}.ritual .rit:first-of-type{margin-top:8px}
+.ritual .rk{flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:var(--paper);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--soft)}
+.ritual .rit.ok .rk{background:var(--gradbtn);color:#fff;border-color:transparent}
+.ritual .rit.ok b{color:var(--soft)}

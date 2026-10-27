@@ -3,7 +3,7 @@ import { S, update, resetAll, exportJSON, importJSON, today } from "../store.js"
 import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as W from "../word.js";
-import { CONFIG, offer } from "../config.js";
+import { CONFIG, offer, OFFERS, ALL_FREE } from "../config.js";
 import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, expert, render, rerender } from "../core.js";
 import { syncProfile } from "../sync.js";
 import { ONB_STEPS, resetOnboarding } from "./onboarding.js";
@@ -13,6 +13,8 @@ routes.profile = async () => {
   const p = S().profile, t = N.targets(), w = S().settings.word;
   $app.innerHTML = header(esc(p.name), `${p.age} ans · ${p.height} cm · ${E.fmtKg(p.weight)} kg`, { back: "home" }) + `<main class="page">
     <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(S().me?.tier || "free").name)}</span><button class="link" data-a="go" data-r="offers">Changer</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
+    ${ALL_FREE ? `<div class="card mt12"><div class="lbl">🧪 Phase de test</div><p class="small mt4" style="margin-bottom:8px">Toutes les fonctionnalités sont ouvertes pour l'instant. Pour voir l'app exactement comme un abonné de chaque formule (avec les cadenas), choisis-en une :</p>
+      <div class="chips wrap">${OFFERS.map(o => `<button class="chip ${S().demoTier === o.id ? "on" : ""}" data-a="demo" data-v="${o.id}">${esc(o.name)}</button>`).join("")}${S().demoTier ? `<button class="chip" data-a="demo-exit">Tout ouvrir</button>` : ""}</div></div>` : ""}
     <h2 class="sec">✝ La Parole dans l'app</h2>
     ${seg([["daily", "Chaque jour"], ["discreet", "Accueil seul"], ["off", "Pause"]], w, "word-set")}
     <p class="xs muted mt8">La Bible reste toujours accessible dans l'onglet Parole.</p>

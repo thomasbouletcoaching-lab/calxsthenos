@@ -15,8 +15,8 @@ export const hhmm = (d = new Date()) => d.toTimeString().slice(0, 5);
 // ---------- Formules ----------
 export const tier = () => S().demoTier || S().me?.tier || "free";
 export const rank = () => offer(tier()).rank;
-export const premium = () => ALL_FREE || rank() >= 1;
-export const expert = () => ALL_FREE || rank() >= 2; // contenus « suivi » (connaissances expertes)
+export const premium = () => (ALL_FREE && !S().demoTier) || rank() >= 1;
+export const expert = () => (ALL_FREE && !S().demoTier) || rank() >= 2; // contenus « suivi » (connaissances expertes)
 export const isCoach = () => !!S().me?.isCoach && !S().demoTier;
 export const programOpen = (id) => premium() || FREE_PROGRAMS.includes(id) || id === S().profile?.startProgram || (S().customPrograms || []).some(p => p.id === id);
 export const weekOpen = (w) => premium() || w <= FREE_WEEKS;
