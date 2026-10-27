@@ -4,21 +4,36 @@ import { S, update, today } from "./store.js";
 let CQ = null, MODELS = null;
 export async function loadModels() { if (!MODELS) MODELS = await (await fetch("data/nutrition-models.json")).json(); return MODELS; }
 export async function loadCiqual() {
-  if (!CQ) { const j = await (await fetch("data/ciqual.json")).json(); CQ = j.foods.map(f => ({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], k: norm(f[0]) })); }
+  if (!CQ) { const j = await (await fetch("data/ciqual.json")).json(); CQ = [...j.foods, ...EXTRA].map(f => ({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], k: norm(f[0]), a: f[0].toLowerCase() })); }
   return CQ;
 }
-export const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/œ/g, "oe");
+export const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/œ/g, "oe").replace(/æ/g, "ae").replace(/['’‘`´,;.()\/-]+/g, " ").replace(/\s+/g, " ").trim();
+// Aliments courants absents de la table Ciqual (valeurs moyennes d'étiquettes)
+const EXTRA = [
+  ["Skyr nature 0 %", "Produits laitiers", 60, 10.5, 4, 0.2],
+  ["Skyr aux fruits", "Produits laitiers", 80, 9, 10, 0.2],
+  ["Protéine whey en poudre", "Compléments", 380, 75, 8, 6],
+];
+// Mots ignorés et pluriels : « flocons d'avoine » trouve « Flocon d'avoine »
+const STOP = new Set(["d", "l", "de", "du", "des", "la", "le", "les", "au", "aux", "a", "et", "en", "un", "une"]);
+const stem = (t) => t.length > 3 ? t.replace(/(s|x)$/, "") : t;
 
 export function searchFoods(q, max = 30) {
   if (!CQ || !q.trim()) return [];
-  const terms = norm(q).split(/\s+/).filter(Boolean);
+  const terms = norm(q).split(" ").filter(t => t && !STOP.has(t)).map(stem);
+  if (!terms.length) return [];
+  const raw = String(q).toLowerCase().replace(/oe/g, "œ").split(/[\s'’,]+/).filter(t => t.length > 1 && !STOP.has(t)).map(t => t.replace(/(s|x)$/, ""));
   const res = [];
   for (const f of CQ) {
     if (!terms.every(t => f.k.includes(t))) continue;
     let s = 0;
     if (f.k.startsWith(terms[0])) s += 4;
-    if (/cru|cuit|bouilli/.test(f.k) && /cuit|bouilli/.test(f.k)) s += 1;
-    if (f.cat === "Plats préparés") s -= 1;
+    // mot entier avec ses accents : « pâtes » ne remonte pas « pâté », « lait » ne remonte pas « laitue »
+    for (const w of raw) if (new RegExp(`(^|[^a-zà-ÿœ])${w.replace(/[.*+?^${}()|[\]\\]/g, "")}(s|x)?($|[^a-zà-ÿœ])`).test(f.a)) s += 2;
+    if (/\b(cuit|bouilli|dur)/.test(f.k)) s += 1;
+    s += terms.join(" ").length / f.k.length * 3; // plus le nom est proche de la recherche, plus il remonte
+    if (/\b(blanc|jaune|poudre|deshydrate|lyophilise|infantile|bebe)\b/.test(f.k) && !terms.some(t => /blanc|jaune|poudre/.test(t))) s -= 1.5;
+    if (f.cat === "Plats préparés" && f.n.length > 25) s -= 1;
     s -= f.n.length / 80;
     res.push([s, f]);
   }

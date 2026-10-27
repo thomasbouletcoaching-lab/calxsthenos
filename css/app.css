@@ -92,7 +92,9 @@ p{margin:0 0 10px}
 .btn-red:active{filter:brightness(.92)}
 .btn-red:disabled{opacity:.45}
 .btn-line{background:var(--btn2);border:1.5px solid var(--line);color:var(--red)}
-.btn-ghost{background:rgba(255,255,255,.2);color:#fff}
+.btn-ghost{background:color-mix(in srgb,var(--ink) 7%,transparent);border:1px solid var(--line);color:var(--ink)}
+.grad .btn-ghost,.daycard .btn-ghost,.demo-bar .btn-ghost,.rest .btn-ghost,.loader.done .btn-ghost{background:rgba(255,255,255,.2);border-color:transparent;color:#fff}
+.btn-xs{white-space:nowrap}
 .btn-sm{min-height:44px;font-size:15.5px;border-radius:14px;padding:0 16px;width:auto}
 .btn-xs{min-height:34px;font-size:14px;border-radius:11px;padding:0 12px;width:auto}
 .link{color:var(--red);font-weight:700;font-size:15.5px;padding:6px 0}

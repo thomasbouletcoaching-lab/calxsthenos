@@ -63,24 +63,43 @@ actions["save-meal"] = (b, d) => {
   toast("Repas enregistré : il est dans « Mes repas »");
 };
 
-// Ajouter un aliment : recherche, favoris, récents, mes repas, recettes, scan
-let afs = { meal: "Déjeuner", tab: "search", date: null };
+// Ajouter des aliments : on reste dans la fenêtre et on enchaîne les aliments du repas
+let afs = { meal: "Déjeuner", tab: "search", date: null, time: "" };
+const afsTime = () => document.getElementById("afs-time")?.value || afs.time;
 async function addFoodSheet(meal) {
-  afs.meal = meal; afs.date = D();
-  sheet(`<h2 class="h2">${esc(meal)}</h2><div class="mt8">${seg([["search", "Chercher"], ["fav", "Favoris"], ["recent", "Récents"], ["dishes", "Mes repas"], ["rec", "Recettes"]], afs.tab, "afs-tab")}</div><div id="afsb" class="mt12"></div>`, (w) => drawAfs(w));
+  afs.meal = meal; afs.date = D(); afs.tab = afs.tab || "search";
+  afs.time = afs.date === today() ? hhmm() : N.MEAL_TIMES[meal] || "12:00";
+  const w = sheet(`<div class="row between" style="gap:10px"><h2 class="h2">${esc(meal)}</h2><label class="row xs muted" style="gap:6px">Heure <input id="afs-time" class="inp" type="time" style="width:116px" value="${afs.time}"></label></div>
+    <div id="afs-sum" class="mt8"></div>
+    <div class="mt12">${seg([["search", "Chercher"], ["fav", "Favoris"], ["recent", "Récents"], ["dishes", "Mes repas"], ["rec", "Recettes"]], afs.tab, "afs-tab")}</div><div id="afsb" class="mt12"></div>
+    <button class="btn btn-red mt16" data-a="afs-done" style="position:sticky;bottom:12px;width:100%">Terminé</button>`, (w) => { drawSum(); drawAfs(w); });
+  w.dataset.rr = "1";
+  w.querySelector("#afs-time").addEventListener("change", (e) => { afs.time = e.target.value; });
 }
+// Ce qui est déjà dans le repas, avec la possibilité de retirer un aliment
+function drawSum() {
+  const box = document.getElementById("afs-sum"); if (!box) return;
+  const es = N.dayLog(afs.date).filter(e => e.meal === afs.meal);
+  if (!es.length) { box.innerHTML = `<p class="xs muted">Ajoute autant d'aliments que tu veux, puis touche « Terminé ».</p>`; return; }
+  const k = es.reduce((a, e) => a + e.kcal, 0), p = es.reduce((a, e) => a + e.p, 0);
+  box.innerHTML = `<div class="card" style="padding:10px 14px"><div class="row between"><b class="small">Dans ce repas · ${es.length} aliment${es.length > 1 ? "s" : ""}</b><span class="xs muted">${fr(k)} kcal · ${fr(p)} g P</span></div>
+    ${es.map(e => `<div class="row between xs mt4"><span class="grow">${e.g ? fr(e.g) + " g " : ""}${esc(e.label)}</span><span class="muted">${e.kcal} kcal</span><button class="icon-btn" style="width:30px;height:30px" data-a="afs-del" data-id="${e.id}" aria-label="Retirer">${I.close}</button></div>`).join("")}</div>`;
+}
+actions["afs-del"] = (b, d) => { N.removeEntry(+d.id, afs.date); drawSum(); };
+actions["afs-done"] = () => closeSheet();
+function addedToMeal(e, label = "Ajouté") { N.addEntry({ ...e, meal: afs.meal, time: afsTime() }, afs.date); buzz(); toast(label); drawSum(); }
 function drawAfs(w = document.getElementById("sheet")) {
-  const box = w.querySelector("#afsb"), m = esc(afs.meal);
+  const box = w.querySelector("#afsb");
   w.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.v === afs.tab));
-  const foodLi = (f, src, i) => `<div class="li"><button class="grow" style="text-align:left" data-a="pick-food" data-src="${src}" data-i="${i}"><span class="small">${esc(f.n)}</span><br><span class="xs muted">${f.kcal} kcal · ${fr(f.p, 1)} g prot. / 100 g</span></button><button class="icon-btn" data-a="fav-food" data-src="${src}" data-i="${i}" aria-label="Favori" style="color:${N.isFavFood(f.n) ? "var(--gold)" : "var(--soft)"}">${N.isFavFood(f.n) ? "★" : "☆"}</button></div>`;
+  const foodLi = (f, src, i) => `<div class="li" data-li="${src}-${i}"><button class="grow" style="text-align:left" data-a="pick-food" data-src="${src}" data-i="${i}"><span class="small">${esc(f.n)}</span><br><span class="xs muted">${f.kcal} kcal · ${fr(f.p, 1)} g prot. / 100 g</span></button><button class="icon-btn" data-a="fav-food" data-src="${src}" data-i="${i}" aria-label="Favori" style="color:${N.isFavFood(f.n) ? "var(--gold)" : "var(--soft)"}">${N.isFavFood(f.n) ? "★" : "☆"}</button></div>`;
   if (afs.tab === "search") {
     box.innerHTML = `<div class="search">${I.search}<input id="fq" placeholder="riz, poulet, skyr…" autocomplete="off" enterkeyhint="search"></div>
       ${"BarcodeDetector" in window ? `<button class="btn btn-line btn-sm mt8" data-a="scan" style="width:100%">${I.scan.replace("<svg", '<svg width="20"')} Scanner un code-barres</button>` : ""}<div id="fr" class="mt12"><p class="empty small">Tape le nom d'un aliment.</p></div>`;
     const inp = box.querySelector("#fq"), out = box.querySelector("#fr"); let ready = false, deb;
-    const run = () => { const q = inp.value.trim(); if (!q) { out.innerHTML = `<p class="empty small">Tape le nom d'un aliment.</p>`; return; } if (!ready) { out.innerHTML = `<p class="empty small">Chargement des aliments…</p>`; return; } const r = N.searchFoods(q); window.__fr = r; out.innerHTML = r.length ? `<div class="list">${r.map((f, i) => foodLi(f, "search", i)).join("")}</div>` : `<p class="empty small">Rien pour « ${esc(q)} ». Essaie un mot plus simple.</p>`; };
+    const run = () => { const q = inp.value.trim(); if (!q) { out.innerHTML = `<p class="empty small">Tape le nom d'un aliment.</p>`; return; } if (!ready) { out.innerHTML = `<p class="empty small">Chargement des aliments…</p>`; return; } const r = N.searchFoods(q); window.__fr = r; out.innerHTML = r.length ? `<div class="list">${r.map((f, i) => foodLi(f, "search", i)).join("")}</div>` : `<p class="empty small">Rien pour « ${esc(q)} ». Essaie un seul mot, par exemple « ${esc(N.norm(q).split(/[^a-z0-9]+/).filter(x => x.length > 2).pop() || "riz")} ».</p>`; };
     inp.addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(run, 140); });
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } });
     N.loadCiqual().then(() => { ready = true; if (inp.value.trim()) run(); });
-    setTimeout(() => inp.focus(), 50);
   } else if (afs.tab === "fav") {
     const l = S().favFoods; box.innerHTML = l.length ? `<div class="list">${l.map((f, i) => foodLi(f, "fav", i)).join("")}</div>` : `<p class="empty small">Touche ☆ à côté d'un aliment pour le retrouver ici.</p>`;
   } else if (afs.tab === "recent") {
@@ -95,10 +114,33 @@ actions["add-food"] = (b, d) => addFoodSheet(d.m);
 actions["afs-tab"] = (b, d) => { afs.tab = d.v; drawAfs(); };
 const srcList = (src) => src === "search" ? window.__fr : src === "fav" ? S().favFoods : S().recentFoods;
 actions["fav-food"] = (b, d) => { const f = srcList(d.src)[+d.i]; N.toggleFavFood({ n: f.n, kcal: f.kcal, p: f.p, c: f.c, f: f.f }); const on = N.isFavFood(f.n); b.textContent = on ? "★" : "☆"; b.style.color = on ? "var(--gold)" : "var(--soft)"; toast(on ? "Ajouté aux favoris" : "Retiré des favoris"); };
-actions["pick-food"] = (b, d) => gramsSheet(srcList(d.src)[+d.i], (e) => { N.addEntry(e, afs.date); toast("Ajouté"); rerender(); });
-actions["eat-dish"] = (b, d) => { const di = S().dishes[+d.i]; N.addEntry({ meal: afs.meal, label: di.n, g: null, kcal: Math.round(di.kcal), p: di.p, c: di.c, f: di.f }, afs.date); closeSheet(); toast("Repas ajouté"); rerender(); };
+// Quantité choisie sur place, sous l'aliment touché : pas de nouvelle fenêtre
+actions["pick-food"] = (b, d) => {
+  const food = srcList(d.src)[+d.i], li = b.closest(".li"); if (!food || !li) return;
+  document.querySelectorAll("#sheet .qty-pick").forEach(x => x.remove());
+  const last = (S().recentFoods || []).find(x => x.n === food.n)?.g;
+  let g = last || 100;
+  const panel = document.createElement("div"); panel.className = "qty-pick card"; panel.style.cssText = "margin:4px 0 10px;padding:12px";
+  panel.innerHTML = `<div class="row" style="gap:8px"><input class="inp" inputmode="decimal" value="${g}" style="width:90px" aria-label="Quantité en grammes"><span class="small muted">g</span><span class="grow small" data-v></span></div>
+    <div class="chips wrap mt8">${[30, 50, 100, 150, 200, 250].map(x => `<button class="chip" data-g="${x}">${x} g</button>`).join("")}</div>
+    <button class="btn btn-red btn-sm mt8" style="width:100%" data-ok>Ajouter</button>`;
+  li.after(panel);
+  const inp = panel.querySelector("input"), v = panel.querySelector("[data-v]");
+  const draw = () => { const e = N.entryFromFood(food, g, afs.meal); v.innerHTML = `<b>${e.kcal} kcal</b> <span class="xs muted">· ${fr(e.p)} g P</span>`; panel.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", +c.dataset.g === g)); };
+  inp.addEventListener("input", () => { g = num(inp.value) || 0; draw(); });
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); panel.querySelector("[data-ok]").click(); } });
+  panel.querySelectorAll(".chip").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); g = +c.dataset.g; inp.value = g; draw(); }));
+  panel.querySelector("[data-ok]").addEventListener("click", (e) => {
+    e.stopPropagation(); if (!(g > 0)) return toast("Quantité invalide");
+    N.rememberFood({ ...food, g }); addedToMeal(N.entryFromFood(food, g, afs.meal), `${food.n.split(",")[0]} ajouté`);
+    panel.remove(); li.style.opacity = ".55";
+    const q = document.getElementById("fq"); if (q && afs.tab === "search") { q.value = ""; q.dispatchEvent(new Event("input")); q.focus(); }
+  });
+  draw(); inp.select?.();
+};
+actions["eat-dish"] = (b, d) => { const di = S().dishes[+d.i]; addedToMeal({ label: di.n, g: null, kcal: Math.round(di.kcal), p: di.p, c: di.c, f: di.f }, "Repas ajouté"); };
 actions["del-dish"] = (b, d) => { if (!confirm("Supprimer ce repas enregistré ?")) return; update(st => st.dishes.splice(+d.i, 1)); drawAfs(); };
-actions["eat-recipe"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); N.addEntry({ meal: afs.meal, label: `${r.n} (1 portion)`, g: null, ...r.m }, afs.date); closeSheet(); toast("Ajouté"); rerender(); };
+actions["eat-recipe"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); addedToMeal({ label: `${r.n} (1 portion)`, g: null, ...r.m }); };
 function gramsSheet(food, onAdd, meal = afs.meal) {
   let g = 100;
   const draw = (w) => { const e = N.entryFromFood(food, g, meal); w.querySelector("#gv").innerHTML = `<span class="num" style="font-size:34px">${e.kcal}</span><span class="small muted"> kcal · ${fr(e.p)} g prot. · ${fr(e.c)} g gluc. · ${fr(e.f)} g lip.</span>`; };
@@ -122,7 +164,7 @@ actions.scan = async () => {
       let alive = true; const stop = () => { alive = false; stream.getTracks().forEach(t => t.stop()); };
       w.addEventListener("click", e => { if (e.target === w) stop(); });
       while (alive && document.body.contains(v)) {
-        try { const c = await det.detect(v); if (c[0]) { stop(); const f = await N.lookupBarcode(c[0].rawValue); if (f) gramsSheet(f, (e) => { N.addEntry(e, afs.date); toast("Ajouté"); rerender(); }); else { closeSheet(); toast("Produit introuvable : cherche-le par son nom."); } return; } } catch { }
+        try { const c = await det.detect(v); if (c[0]) { stop(); const f = await N.lookupBarcode(c[0].rawValue); if (f) gramsSheet(f, (e) => { N.addEntry(e, afs.date); toast("Ajouté"); addFoodSheet(afs.meal); }); else { closeSheet(); toast("Produit introuvable : cherche-le par son nom."); } return; } } catch { }
         await new Promise(r => setTimeout(r, 300));
       }
       stop();
@@ -161,7 +203,7 @@ function planEditor() {
   const P = S().myPlan, t = N.targets();
   const tot = P.meals.reduce((a, m) => a + m.items.reduce((x, i) => x + i.kcal, 0), 0);
   sheet(`<h2 class="h1">Mon plan</h2><p class="small muted">${fr(tot)} kcal pour un objectif de ${fr(t.kcal)} kcal.</p>
-    ${P.meals.map((m, mi) => `<div class="card mt12"><div class="row" style="gap:8px"><input class="inp grow" style="text-align:left;font-weight:700" value="${esc(m.name)}" data-c="pl-name" data-m="${mi}" aria-label="Nom du repas"><input class="inp" type="time" style="width:96px" value="${m.time}" data-c="pl-time" data-m="${mi}" aria-label="Heure"></div>
+    ${P.meals.map((m, mi) => `<div class="card mt12"><div class="row" style="gap:8px"><input class="inp grow" style="text-align:left;font-weight:700" value="${esc(m.name)}" data-c="pl-name" data-m="${mi}" aria-label="Nom du repas"><input class="inp" type="time" style="width:116px" value="${m.time}" data-c="pl-time" data-m="${mi}" aria-label="Heure"></div>
       ${m.items.map((it, ii) => `<div class="row between small mt8"><span class="grow">${it.g ? it.g + " g " : ""}${esc(it.label)} <span class="xs muted">${it.kcal} kcal</span></span><button class="icon-btn" data-a="pl-idel" data-m="${mi}" data-i="${ii}" aria-label="Retirer">${I.close}</button></div>`).join("")}
       <div class="row mt8" style="gap:6px"><button class="btn btn-ghost btn-xs" data-a="pl-add" data-m="${mi}">+ Aliment</button><button class="btn btn-ghost btn-xs" data-a="pl-addr" data-m="${mi}">+ Recette</button>${P.meals.length > 1 ? `<button class="btn btn-ghost btn-xs" data-a="pl-mdel" data-m="${mi}">Supprimer le repas</button>` : ""}</div></div>`).join("")}
     <button class="btn btn-line btn-sm mt12" data-a="pl-madd">+ Ajouter un repas</button><button class="btn btn-red mt12" data-a="pl-done">Terminé</button>`);

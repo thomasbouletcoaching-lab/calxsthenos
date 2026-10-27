@@ -77,7 +77,7 @@ export function sheet(html, onMount) {
   w.addEventListener("click", e => { if (e.target === w) closeSheet(); });
   document.body.append(w); onMount?.(w); return w;
 }
-export function closeSheet() { document.getElementById("sheet")?.remove(); }
+export function closeSheet() { const s = document.getElementById("sheet"); if (!s) return; s.remove(); if (s.dataset.rr) rerender(); }
 export const wordOn = (place) => { const w = S().settings.word; return w === "daily" || (w === "discreet" && place === "home"); };
 export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; };
 
