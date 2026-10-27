@@ -376,3 +376,6 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .mtab td{text-align:center;padding:3px 2px;border-top:1px solid var(--line)}
 .mtab td:first-child{text-align:left;font-weight:600;white-space:nowrap;padding-right:6px}
 .mtab.in input{width:100%;min-width:0;box-sizing:border-box;text-align:center;font:inherit;font-size:15px;padding:8px 2px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}
+.tbar{height:4px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.tbar i{display:block;height:100%;width:0;background:var(--gradbtn);transition:width .5s}
+.set .setmeta .prev{color:var(--soft);font-style:italic}
+.prevbox{margin:8px 0 2px;font-size:13px;color:var(--soft)}.prevbox summary{cursor:pointer;font-weight:600;list-style:none}.prevbox summary::-webkit-details-marker{display:none}.prevbox[open] summary{color:var(--ink)}

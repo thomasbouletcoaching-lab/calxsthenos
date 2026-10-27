@@ -214,9 +214,22 @@ actions.start = async () => {
   const cur = S().current, ns = E.nextSession();
   if (ns && !weekOpen(ns.week) && !cur) return go("offers");
   sessionStorage.removeItem("cxs.min");
-  if (!cur) { await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]); const s = E.buildSession(); if (!s) return toast("Choisis d'abord un programme."); update(st => st.current = s); }
-  go("workout");
+  if (cur) return go("workout");
+  await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
+  const s = E.buildSession(); if (!s) return toast("Choisis d'abord un programme.");
+  durationSheet((min) => { s.target = min; s.start = new Date().toISOString(); update(st => st.current = s); go("workout"); }, s.title);
 };
+// Durée visée de la séance : compte à rebours pendant toute la séance
+export function durationSheet(onGo, title = "Ta séance") {
+  const last = S().settings.sessionMin ?? (S().profile?.sessionMin || 45);
+  sheet(`<h2 class="h2">${esc(title)}</h2><p class="small muted mt4">Combien de temps as-tu ? Le compte à rebours te dit si tu es dans les temps.</p>
+    <div class="chips wrap mt12">${[30, 40, 45, 50, 60, 75, 90].map(m => `<button class="chip ${m === last ? "on" : ""}" data-a="dur-pick" data-v="${m}">${m} min</button>`).join("")}<button class="chip ${last === 0 ? "on" : ""}" data-a="dur-pick" data-v="0">Sans chrono</button></div>
+    <label class="field mt12"><span>Ou une durée précise (minutes)</span><input id="dur-x" inputmode="numeric" placeholder="ex. 35"></label>
+    <button class="btn btn-red mt16" data-a="dur-go">C'est parti</button>`, (w) => { w._go = onGo; w._min = last; });
+}
+actions["dur-pick"] = (b, d) => { const w = document.getElementById("sheet"); w._min = +d.v; w.querySelectorAll('[data-a="dur-pick"]').forEach(x => x.classList.toggle("on", x === b)); w.querySelector("#dur-x").value = ""; };
+actions["dur-go"] = () => { const w = document.getElementById("sheet"), x = num(w.querySelector("#dur-x").value); const min = x > 0 && x < 300 ? Math.round(x) : w._min; update(st => st.settings.sessionMin = min); const go2 = w._go; closeSheet(); go2(min); };
+actions["dur-change"] = () => durationSheet((min) => { update(st => st.current.target = min); rerender(); }, "Changer la durée");
 actions.resume = () => { sessionStorage.removeItem("cxs.min"); go("workout"); };
 actions.minimize = () => { sessionStorage.setItem("cxs.min", "1"); go("home"); };
 
@@ -226,10 +239,12 @@ routes.workout = async () => {
   sessionStorage.removeItem("cxs.min");
   const doneSets = cur.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0), all = cur.exercises.reduce((a, e) => a + e.sets.length, 0);
   $app.innerHTML = `<header class="top"><div class="row1"><button class="icon-btn" data-a="minimize" aria-label="Réduire">${I.back}</button><h1 style="font-size:20px">${esc(cur.title)}</h1><button class="btn btn-red btn-sm" data-a="finish" style="width:auto">Terminer</button></div>
-      <div class="sub">⏱️ <span id="clock">0:00</span> · ${doneSets}/${all} séries${cur.free ? "" : ` · semaine ${cur.week} · ${esc(cur.phase)}`}</div></header>
+      <div class="sub">${cur.target ? `<button class="link" data-a="dur-change" style="color:inherit">⏳ <span id="clock">0:00</span></button>` : `⏱️ <span id="clock">0:00</span>`} · ${doneSets}/${all} séries${cur.free ? "" : ` · semaine ${cur.week} · ${esc(cur.phase)}`}</div>
+      ${cur.target ? `<div class="tbar"><i id="tbar"></i></div><div class="xs" id="tpace" style="margin-top:4px"></div>` : ""}</header>
     <main class="page" style="padding-bottom:200px">
     ${cur.comeback ? `<p class="small red">Reprise après une pause : charges allégées de 10 % aujourd'hui.</p>` : ""}
     <div class="row between small muted"><span>${adv() ? "Mode avancé : % et RPE visibles" : "RPE visible · % masqués"}</span><button class="link" data-a="adv-toggle">${adv() ? "Simplifier" : "Afficher les %"}</button></div>
+    ${cur.exercises.length > 1 ? `<button class="btn btn-line btn-sm mt8" data-a="ex-order" style="width:100%">↕️ Réorganiser les exercices</button>` : ""}
     ${cur.exercises.map((ex, xi) => exerciseBlock(ex, xi)).join("")}
     ${cur.exercises.length ? "" : `<p class="empty">Ajoute ton premier exercice.</p>`}
     <button class="btn btn-line mt16" data-a="add-ex">${I.plus.replace("<svg", '<svg width="20"')} Ajouter un exercice</button>
@@ -237,9 +252,15 @@ routes.workout = async () => {
   tickClock(); clearInterval(clockT); clockT = setInterval(tickClock, 1000);
   if (restEnd > Date.now()) showRest();
 };
+const mmss = (s) => `${s < 0 ? "−" : ""}${Math.floor(Math.abs(s) / 60)}:${String(Math.abs(s) % 60).padStart(2, "0")}`;
 function tickClock() {
   const c = document.getElementById("clock"), cur = S().current; if (!c || !cur) return clearInterval(clockT);
-  const s = Math.floor((Date.now() - new Date(cur.start)) / 1000); c.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const s = Math.floor((Date.now() - new Date(cur.start)) / 1000);
+  if (!cur.target) { c.textContent = mmss(s); return; }
+  const left = cur.target * 60 - s; c.textContent = left >= 0 ? `${mmss(left)} restantes` : `${mmss(left)} de dépassement`;
+  const bar = document.getElementById("tbar"); if (bar) { bar.style.width = `${Math.min(100, s / (cur.target * 60) * 100)}%`; bar.style.background = left < 0 ? "var(--warn)" : ""; }
+  const sets = cur.exercises.flatMap(e => e.sets.filter(x => x.type !== "W")), done = sets.filter(x => x.done).length;
+  const p = document.getElementById("tpace"); if (p && sets.length) { const should = Math.round(sets.length * s / (cur.target * 60)), diff = done - should; const perSet = cur.target * 60 / sets.length; p.textContent = diff >= 1 ? `En avance de ${Math.round(diff * perSet / 60)} min` : diff <= -1 ? `En retard de ${Math.round(-diff * perSet / 60)} min · raccourcis tes repos` : "Dans les temps"; p.style.color = diff <= -2 ? "var(--warn)" : ""; }
 }
 function targetTxt(ex) {
   return E.parseScheme(ex.scheme).map(g => `${g.sets}×${g.lo}${g.hi !== g.lo ? "-" + g.hi : ""}${g.pct && adv() ? ` à ${g.pct} %` : ""}${g.rpe ? ` RPE ${String(g.rpe).replace(".", ",")}` : ""}${g.ds ? " + dégressive" : ""}`).join(" puis ");
@@ -247,6 +268,10 @@ function targetTxt(ex) {
 function exerciseBlock(ex, xi) {
   const unit = ex.unit === "s" ? "Sec" : "Reps";
   let n = 0;
+  const L = E.lastExercise(ex.name), prevW = L ? L.ex.sets.filter(s => s.done && s.type !== "W") : [], prevWu = L ? L.ex.sets.filter(s => s.done && s.type === "W") : [];
+  const prevTxt = (s) => s ? `${s.kg ? kgTxt(s.kg) + " kg × " : ""}${s.reps ?? "–"}${ex.unit === "s" ? " s" : ""}${s.rpe != null ? ` @${String(s.rpe).replace(".", ",")}` : ""}${s.type && s.type !== "N" && s.type !== "W" ? ` · ${E.SET_TYPES[s.type]}` : ""}${(s.tech || []).length ? ` · ${s.tech.join(", ")}` : ""}${s.note ? ` · « ${s.note} »` : ""}` : "";
+  let wi = 0, wu = 0;
+  const stall = E.stalls().find(x => x.name === ex.name);
   const sugBox = ex.sug ? (premium() ? `<div class="sug">💡 <b>Suggestion</b> · ${esc(ex.sug.txt)}<br><span class="xs muted">Dernière fois : ${esc(ex.sug.last)}</span></div>` : `<div class="sug">💡 Dernière fois : <b>${esc(ex.sug.last)}</b> <button class="lock" data-a="go" data-r="offers" style="margin-left:4px">🔒 Suggestion Premium</button></div>`) : "";
   return `<article class="card ex"><div class="head"><div class="grow">
       <div>${ex.ss ? `<span class="tag r">Superset ${esc(ex.ss)}</span>` : ""}<span class="tag">${E.KIND_LABEL[ex.kind] || ex.kind}</span>${ex.tempo ? `<span class="tag">Tempo ${esc(ex.tempo)}</span>` : ""}<span class="tag">⏱️ ${Math.floor(ex.rest / 60)}:${String(ex.rest % 60).padStart(2, "0")}</span></div>
@@ -255,10 +280,13 @@ function exerciseBlock(ex, xi) {
       ${ex.note ? `<div class="xs mt8">📝 ${esc(ex.note)}</div>` : ""}</div></div>
     <div class="acts"><button data-a="go" data-r="fiche" data-p="${esc(ex.name)}">📖 Fiche</button><button data-a="ex-swap" data-x="${xi}">🔄 Remplacer</button><button data-a="ex-prog" data-x="${xi}">📈 Progression</button><button data-a="ex-rest" data-x="${xi}">⏱️ Repos</button><button data-a="ex-more" data-x="${xi}">${I.dots.replace("<svg", '<svg width="18"')}</button></div>
     ${sugBox}
+    ${L ? `<details class="prevbox"><summary>↺ La dernière fois · ${fmtDate(today(new Date(L.date)), { weekday: "short", day: "numeric", month: "short" })}${L.week ? ` · semaine ${L.week}` : ""}</summary><div class="xs mt4">${L.ex.sets.filter(s => s.done).map((s, i) => `<div>${s.type === "W" ? "Échauf." : "Série " + (L.ex.sets.filter(x => x.done && x.type !== "W").indexOf(s) + 1)} : ${esc(prevTxt(s))}</div>`).join("")}${L.ex.myNote ? `<div class="mt4">📝 ${esc(L.ex.myNote)}</div>` : ""}</div></details>` : ""}
+    ${stall ? `<div class="sug" style="box-shadow:0 0 0 1.5px var(--warn) inset">📹 <b>Tu bloques sur cet exercice depuis ${stall.weeks} semaines.</b> Filme une série de profil et envoie-la à Thomas : il corrige ta technique et ajuste ta progression. <button class="link xs" data-a="stall-video" data-n="${esc(ex.name)}">Envoyer une vidéo</button></div>` : ""}
     <div class="sethead"><span>Série</span><span>${ex.bw ? "Lest" : "Kg"}</span><span>${unit}</span><span>RPE</span><span></span></div>
     ${ex.sets.map((s, si) => {
       const lab = s.type === "W" ? "É" : String(++n);
-      const meta = [s.type !== "N" ? `<span class="tag ${s.type === "W" ? "" : "r"}">${E.SET_TYPES[s.type]}</span>` : "", ...(s.tech || []).map(t => `<span class="tag">${(E.TECHS.find(x => x[1] === t) || ["⚡"])[0]} ${esc(t)}</span>`), `<span>${s.lo !== s.hi ? `${s.lo}-${s.hi}` : s.lo} ${unit.toLowerCase()} · RPE ${String(s.trpe).replace(".", ",")}${adv() && s.pct ? ` · ${s.pct} %` : ""}</span>`, s.pain ? `<span class="tag" style="background:var(--warn);color:#fff">Douleur</span>` : "", s.note ? `<span>📝 ${esc(s.note)}</span>` : ""].filter(Boolean).join("");
+      const pv = s.type === "W" ? prevWu[wu++] : prevW[wi++];
+      const meta = [s.type !== "N" ? `<span class="tag ${s.type === "W" ? "" : "r"}">${E.SET_TYPES[s.type]}</span>` : "", ...(s.tech || []).map(t => `<span class="tag">${(E.TECHS.find(x => x[1] === t) || ["⚡"])[0]} ${esc(t)}</span>`), `<span>${s.lo !== s.hi ? `${s.lo}-${s.hi}` : s.lo} ${unit.toLowerCase()} · RPE ${String(s.trpe).replace(".", ",")}${adv() && s.pct ? ` · ${s.pct} %` : ""}</span>`, s.pain ? `<span class="tag" style="background:var(--warn);color:#fff">Douleur</span>` : "", s.note ? `<span>📝 ${esc(s.note)}</span>` : "", pv ? `<span class="prev">↺ ${esc(prevTxt(pv))}</span>` : ""].filter(Boolean).join("");
       return `<div class="set ${s.done ? "done" : ""} ${s.type === "W" ? "w" : ""}"><button class="n" data-a="set-menu" data-x="${xi}" data-s="${si}" aria-label="Options de la série">${lab}${s.type !== "N" ? `<small>${s.type === "W" ? "échauf." : E.SET_TYPES[s.type].split(" ")[0].toLowerCase()}</small>` : ""}</button>
         <input inputmode="decimal" data-i="set" data-k="kg" data-x="${xi}" data-s="${si}" value="${ex.bw ? kgTxt(s.kg || "") : kgTxt(s.kg)}" placeholder="${ex.bw ? "PDC" : "kg"}" aria-label="Charge">
         <input inputmode="numeric" data-i="set" data-k="reps" data-x="${xi}" data-s="${si}" value="${s.reps ?? ""}" placeholder="${s.lo}" aria-label="${unit}">
@@ -329,6 +357,14 @@ actions["ex-more"] = (b, d) => {
     <button class="li" data-a="ex-tech" data-x="${xi}"><span class="grow">⚡ Technique sur toutes les séries</span>${I.chev}</button>
     <button class="li" data-a="ex-del" data-x="${xi}"><span class="grow" style="color:var(--red)">🗑️ Retirer de la séance</span></button></div>`);
 };
+actions["ex-order"] = () => orderSheet();
+function orderSheet() {
+  const a = S().current.exercises;
+  sheet(`<h2 class="h2">Réorganiser</h2><p class="small muted">Change l'ordre de ta séance : machine prise, envie de commencer par un autre mouvement.</p>
+    <div class="list mt12">${a.map((ex, i) => `<div class="li" style="gap:6px"><span class="num" style="width:22px">${i + 1}</span><span class="grow small"><b>${esc(ex.name)}</b><br><span class="xs muted">${ex.sets.filter(s => s.done).length}/${ex.sets.length} séries</span></span><button class="icon-btn" data-a="ord-mv" data-x="${i}" data-v="-1" ${i === 0 ? "disabled style=\"opacity:.3\"" : ""} aria-label="Monter">↑</button><button class="icon-btn" data-a="ord-mv" data-x="${i}" data-v="1" ${i === a.length - 1 ? "disabled style=\"opacity:.3\"" : ""} aria-label="Descendre">↓</button></div>`).join("")}</div>
+    <button class="btn btn-red mt12" data-a="set-close">Terminé</button>`);
+}
+actions["ord-mv"] = (b, d) => { const a = S().current.exercises, i = +d.x, j = i + +d.v; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; save(); orderSheet(); };
 actions["ex-move"] = (b, d) => { const a = S().current.exercises, i = +d.x, j = i + +d.v; [a[i], a[j]] = [a[j], a[i]]; save(); closeSheet(); rerender(); };
 actions["ex-del"] = (b, d) => { if (!confirm("Retirer cet exercice de la séance ?")) return; S().current.exercises.splice(+d.x, 1); save(); closeSheet(); rerender(); };
 actions["ex-tech"] = (b, d) => {
@@ -449,6 +485,8 @@ function doSwap(xi, n) {
   save(); closeSheet(); rerender(); toast("Exercice remplacé, charges recalculées");
 }
 actions.swap = (b, d) => doSwap(+d.x, d.n);
+actions["stall-video"] = (b, d) => { window.__prefill = `Salut Thomas, je bloque sur ${d.n} depuis plusieurs semaines. Voici ma vidéo de profil : `; sessionStorage.setItem("cxs.min", "1"); go("chat"); };
+actions["stall-snooze"] = (b, d) => { E.snoozeStall(d.n); toast("Rappel masqué pendant 3 semaines"); rerender(); };
 actions["swap-any"] = (b, d) => pickExercise((n) => doSwap(+d.x, n), "Remplacer par", { mus: E.musclesOf(S().current.exercises[+d.x].name)[0] || "" });
 actions["fiche-sheet"] = (b, d) => ficheSheet(d.n);
 

@@ -119,11 +119,29 @@ export function nextSession() {
 }
 export function daysSinceLast() { const w = S().workouts; if (!w.length) return null; return Math.floor((Date.now() - new Date(w.at(-1).end).getTime()) / 864e5); }
 
-function lastExercise(name) {
+export function lastExercise(name) {
   const w = S().workouts;
-  for (let i = w.length - 1; i >= 0; i--) { const ex = w[i].exercises.find(x => x.name === name); if (ex && ex.sets.some(s => s.done)) return { ex, date: w[i].end }; }
+  for (let i = w.length - 1; i >= 0; i--) { const ex = w[i].exercises.find(x => x.name === name); if (ex && ex.sets.some(s => s.done)) return { ex, date: w[i].end, week: w[i].week, title: w[i].title }; }
   return null;
 }
+// Stagnation : le meilleur 1RM estimé des 3 dernières semaines ne dépasse pas celui d'avant
+export function stalls(minDays = 21) {
+  const out = [], now = Date.now(), dismissed = S().stallSnooze || {};
+  Object.entries(S().lifts || {}).forEach(([name, h]) => {
+    const real = h.filter(x => !x.manual); if (real.length < 4) return;
+    const last = new Date(real.at(-1).d).getTime(); if (now - last > 30 * 864e5) return;
+    const cut = now - minDays * 864e5;
+    const before = real.filter(x => new Date(x.d).getTime() < cut), recent = real.filter(x => new Date(x.d).getTime() >= cut);
+    if (!before.length || recent.length < 2) return;
+    const b = Math.max(...before.map(x => x.e1rm)), r = Math.max(...recent.map(x => x.e1rm));
+    if (r <= b * 1.005 && !(dismissed[name] && dismissed[name] > now)) {
+      const since = real.slice().reverse().find(x => x.e1rm >= b)?.d || before.at(-1).d;
+      out.push({ name, best: b, recent: r, weeks: Math.max(3, Math.round((now - new Date(since).getTime()) / (7 * 864e5))) });
+    }
+  });
+  return out.sort((a, b) => b.weeks - a.weeks);
+}
+export function snoozeStall(name, days = 21) { update(st => { st.stallSnooze = st.stallSnooze || {}; st.stallSnooze[name] = Date.now() + days * 864e5; }); }
 export function lastPerformance(name) {
   const l = lastExercise(name); if (!l) return null;
   const s = l.ex.sets.filter(x => x.done && x.type !== "W");

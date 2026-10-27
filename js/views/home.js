@@ -6,6 +6,7 @@ import * as EN from "../energy.js";
 import { $app, esc, num, fr, toast, buzz, routes, R, actions, changes, go, I, header, tabbar, seg, ring, gradDef, lineChart, barChart, greet, wordOn, fmtDate, addDays, isCoach, rank, premium, badges, msgQuotaText, weekOpen, rerender } from "../core.js";
 import { pushStats } from "../sync.js";
 import { agendaWeekView, agendaMonthView, agendaYearView } from "./agenda.js";
+import { durationSheet } from "./train.js";
 import { FREE_WEEKS } from "../config.js";
 
 let homeTab = "today", homeDay = null;
@@ -47,6 +48,13 @@ export function routineCard(d = today()) {
     <div class="rt"><span class="em">🍽️</span><div class="grow"><b>Nutrition</b><div class="small muted">${foodN ? `${foodN} aliment${foodN > 1 ? "s" : ""} noté${foodN > 1 ? "s" : ""} · ${fr(N.dayTotals(d).kcal)} kcal` : "pas encore noté"}</div></div><button class="btn btn-line btn-sm" data-a="go" data-r="food">Noter</button></div>
     <p class="xs muted mt8" style="margin:0">Une journée compte dans la série dès que 3 des 5 cases sont remplies. Le poids se lit en moyenne sur 7 jours : les variations d'un jour à l'autre sont normales.</p></div>`;
 }
+function stallCard() {
+  const st = E.stalls(); if (!st.length) return "";
+  const x = st[0];
+  return `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">📹 Plateau détecté</div><p class="mt8" style="margin-bottom:6px">Ça fait <b>${x.weeks} semaines</b> que tu bloques sur <b>${esc(x.name)}</b> (1RM estimé ${fr(x.best)} kg).</p>
+    <p class="small muted">Souvent, c'est la technique ou la récupération. Envoie une vidéo de profil à Thomas : il te dit quoi corriger.</p>
+    <div class="row mt8" style="gap:8px"><button class="btn btn-red btn-sm grow" data-a="stall-video" data-n="${esc(x.name)}">Envoyer une vidéo</button><button class="btn btn-line btn-sm" data-a="stall-snooze" data-n="${esc(x.name)}">Plus tard</button></div>${st.length > 1 ? `<p class="xs muted mt8" style="margin:8px 0 0">Aussi : ${st.slice(1, 4).map(s => esc(s.name)).join(", ")}.</p>` : ""}</div>`;
+}
 function weekStrip(sel) {
   const mon = addDays(today(), -((new Date().getDay() + 6) % 7));
   const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
@@ -78,6 +86,7 @@ routes.home = async () => {
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
     ${trainingCard(d)}
+    ${d === today() ? stallCard() : ""}
     ${routineCard(d)}
     <h2 class="sec">🔥 Calories du jour <small><a href="#/food" class="link">Nutrition</a></small></h2>
     <button class="card tap" data-a="go" data-r="food">${caloriesCard(d)}</button>
@@ -128,5 +137,5 @@ changes.routine = (el) => {
 };
 actions["free-session"] = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches()]);
-  update(st => st.current = E.freeSession()); sessionStorage.removeItem("cxs.min"); go("workout");
+  durationSheet((min) => { const s = E.freeSession(); s.target = min; update(st => st.current = s); sessionStorage.removeItem("cxs.min"); go("workout"); }, "Séance libre");
 };
