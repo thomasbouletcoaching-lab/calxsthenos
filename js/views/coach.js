@@ -1,8 +1,9 @@
 // Coach : messagerie (avec réactions), offres et démo, candidature, bilans, notifications, espace coach.
-import { S, update, today } from "../store.js";
+import { S, update, today, withState } from "../store.js";
+import * as N from "../nutrition.js";
 import * as E from "../engine.js";
 import { CONFIG, OFFERS, offer } from "../config.js";
-import { $app, esc, num, buzz, toast, ago, routes, R, actions, forms, go, I, header, tabbar, sheet, closeSheet, badges, tier, rank, premium, isCoach, msgQuotaText, cloud, cloudNow, render, onLeave } from "../core.js";
+import { $app, esc, num, fr, buzz, toast, ago, routes, R, actions, forms, go, I, header, tabbar, seg, chips, sheet, closeSheet, badges, fmtDate, addDays, rerender, tier, rank, premium, isCoach, msgQuotaText, cloud, cloudNow, render, onLeave } from "../core.js";
 import { refreshMe, syncProfile } from "../sync.js";
 
 routes.coach = () => {
@@ -191,15 +192,25 @@ let adminFilter = "";
 async function adminHome() {
   $app.innerHTML = header("Espace coach", "Tes membres") + `<main class="page"><p class="empty">Chargement…</p></main>${tabbar("coach")}`;
   const c = await cloud(); let list = [];
-  try { list = await c.members(); window.__members = list; } catch (e) { $app.querySelector(".page").innerHTML = `<p class="empty">Impossible de charger les membres : ${esc(e.message)}</p>`; return; }
+  let sums = [];
+  try { [list, sums] = await Promise.all([c.members(), c.allSummaries().catch(() => [])]); window.__members = list; } catch (e) { $app.querySelector(".page").innerHTML = `<p class="empty">Impossible de charger les membres : ${esc(e.message)}</p>`; return; }
+  const hidden = list.filter(m => !m.name && !m.email).length; list = list.filter(m => m.name || m.email);
+  const SM = Object.fromEntries(sums.map(x => [x.user_id, x])); window.__sums = SM;
   const q = adminFilter.toLowerCase();
   const shown = list.filter(m => !q || (m.name || "").toLowerCase().includes(q) || (m.email || "").toLowerCase().includes(q)).sort((a, b) => b.unread - a.unread);
+  const t = today();
+  const todayRows = list.map(m => ({ m, s: SM[m.id]?.summary })).filter(x => x.s && x.s.today === t && (x.s.session || x.s.inProgress || x.s.meals));
+  const stTxt = (s) => s.inProgress ? `🏋️ en séance · ${esc(s.inProgress.title)} (${s.inProgress.done} séries)` : s.session?.st === "done" ? `✅ ${esc(s.session.title)}` : s.session?.st === "planned" ? `🗓️ prévue : ${esc(s.session.title)}` : s.session?.st === "missed" ? `❌ loupée : ${esc(s.session.title)}` : "😌 repos";
   const page = $app.querySelector(".page"); if (!page) return;
   page.innerHTML = `
     <div class="card"><div class="stat3"><div><b>${list.length}</b><span>membres</span></div><div><b>${list.filter(m => m.tier !== "free").length}</b><span>payants</span></div><div><b>${list.reduce((a, m) => a + m.unread, 0)}</b><span>non lus</span></div></div></div>
-    <div class="chips mt12">${OFFERS.map(o => `<span class="chip">${esc(o.name)} · ${list.filter(m => m.tier === o.id).length}</span>`).join("")}</div>
+    <h2 class="sec">☀️ Aujourd'hui chez tes membres</h2>
+    ${todayRows.length ? `<div class="list">${todayRows.map(({ m, s }) => `<button class="li" data-a="go" data-r="member" data-p="${m.id}"><span class="grow"><b class="small">${esc(m.name || m.email)}</b><br><span class="xs">${stTxt(s)}</span><br><span class="xs muted">🍽️ ${s.meals ? `${fr(s.kcal)} kcal · ${fr(s.prot)} g P` : "rien noté"}${s.weight ? ` · ⚖️ ${fr(s.weight, 1)} kg` : ""}${s.focus ? ` · 🎯 ${esc(s.focus)}` : ""}</span></span>${I.chev}</button>`).join("")}</div>` : `<p class="small muted">Rien encore aujourd'hui. Les données arrivent dès qu'un membre ouvre l'app.</p>`}
+    <h2 class="sec">👥 Tous les membres</h2>
+    <div class="chips">${OFFERS.map(o => `<span class="chip">${esc(o.name)} · ${list.filter(m => m.tier === o.id).length}</span>`).join("")}</div>
     <div class="search mt12">${I.search}<input id="aq" placeholder="Nom ou e-mail" value="${esc(adminFilter)}"></div>
-    <div class="list mt12">${shown.length ? shown.map(m => `<button class="li" data-a="go" data-r="member" data-p="${m.id}"><span class="grow"><b>${esc(m.name || "Sans nom")}</b> <span class="tag ${m.tier !== "free" ? "r" : ""}">${esc(offer(m.tier).name)}</span>${m.onboarding?.application ? ` <span class="tag r">Candidature</span>` : ""}<br><span class="xs muted">${esc(m.email || "e-mail non renseigné")} · vu ${ago(m.last_seen)}</span></span>${m.unread ? `<span class="badge" style="position:static;border:0">${m.unread}</span>` : ""}${I.chev}</button>`).join("") : `<p class="empty small">Aucun membre pour l'instant.</p>`}</div>
+    <div class="list mt12">${shown.length ? shown.map(m => `<button class="li" data-a="go" data-r="member" data-p="${m.id}"><span class="grow"><b>${esc(m.name || "Sans nom")}</b> <span class="tag ${m.tier !== "free" ? "r" : ""}">${esc(offer(m.tier).name)}</span>${m.onboarding?.application ? ` <span class="tag r">Candidature</span>` : ""}<br><span class="xs muted">${esc(m.email || "e-mail non renseigné")} · vu ${ago(m.last_seen)}${SM[m.id]?.summary?.program ? ` · ${esc(SM[m.id].summary.program.split("·")[0])} S${SM[m.id].summary.week}` : ""}</span></span>${m.unread ? `<span class="badge" style="position:static;border:0">${m.unread}</span>` : ""}${I.chev}</button>`).join("") : `<p class="empty small">Aucun membre pour l'instant.</p>`}</div>
+    ${hidden ? `<p class="xs muted mt8">${hidden} compte${hidden > 1 ? "s" : ""} sans prénom ni e-mail masqué${hidden > 1 ? "s" : ""} (onboarding pas terminé ou tests).</p>` : ""}
     <button class="btn btn-line btn-sm mt12" data-a="export-members">⬇️ Exporter les e-mails (CSV)</button>
     <h2 class="sec">📣 Notification à tous</h2>
     <form class="card stack" data-f="broadcast"><label class="field"><span>Titre</span><input name="t" required maxlength="80"></label><label class="field"><span>Message</span><textarea name="b" maxlength="300"></textarea></label><button class="btn btn-red btn-sm">Envoyer à tous les membres</button></form>`;
@@ -216,9 +227,20 @@ routes.member = async () => {
   if (!window.__members) { try { window.__members = await c.members(); } catch { } }
   const m = (window.__members || []).find(x => x.id === R.param); if (!m) return go("coach");
   const o = m.onboarding || {}, ap = o.application, st = m.stats || {};
+  if (mbr.id !== m.id) Object.assign(mbr, { id: m.id, tab: "jour", day: null, data: null });
+  if (!mbr.data) { $app.innerHTML = header(esc(m.name || "Membre"), "", { back: "coach" }) + `<main class="page"><p class="empty">Chargement de ses données…</p></main>`; await Promise.all([E.loadPrograms(), N.loadModels()]); try { mbr.data = (await c.memberData(m.id)) || { data: null }; } catch (e) { mbr.data = { data: null, err: e.message }; } }
+  const tabs = [["jour", "☀️ Journée"], ["seances", "🏋️ Séances"], ["agenda", "🗓️ Agenda"], ["corps", "⚖️ Corps"], ["profil", "👤 Profil"]];
+  const D = mbr.data.data;
+  const top = `<div class="row" style="gap:8px"><a class="btn btn-red btn-sm grow" href="#/chat/${m.id}">💬 Messages${m.unread ? ` · ${m.unread}` : ""}</a>${m.email ? `<a class="btn btn-line btn-sm grow" href="mailto:${esc(m.email)}">✉️ E-mail</a>` : ""}</div>
+    <div class="mt12">${chips(tabs, mbr.tab, "mb-tab")}</div>
+    ${D ? `<p class="xs muted mt4">Données mises à jour ${ago(mbr.data.updated_at)}</p>` : ""}`;
+  if (mbr.tab !== "profil") {
+    const body = !D ? `<p class="empty small">${mbr.data.err ? esc(mbr.data.err) : "Pas encore de données : elles arrivent la prochaine fois que ce membre ouvre l'app (version à jour)."}</p>` : withState(D, () => mbr.tab === "jour" ? memberDay(D) : mbr.tab === "seances" ? memberSessions(D) : mbr.tab === "agenda" ? memberAgenda(D) : memberBody(D));
+    $app.innerHTML = header(esc(m.name || "Membre"), esc(D?.plan ? `${(E.program(D.plan.programId)?.name || "").split("·")[0]} · semaine ${D.plan.week}` : m.email || ""), { back: "coach" }) + `<main class="page">${top}${body}</main>${tabbar("coach")}`;
+    return;
+  }
   const L = { goal: "Objectif", discipline: "Discipline", level: "Niveau", place: "Lieu", days: "Jours / semaine", sex: "Sexe", age: "Âge", height: "Taille", weight: "Poids", diet: "Alimentation", activity: "Activité", backPain: "Gêne lombaire", word: "Parole", news: "Accepte les e-mails" };
-  $app.innerHTML = header(esc(m.name || "Membre"), esc(m.email || ""), { back: "coach" }) + `<main class="page">
-    <div class="row" style="gap:8px"><a class="btn btn-red btn-sm grow" href="#/chat/${m.id}">💬 Messages${m.unread ? ` · ${m.unread}` : ""}</a>${m.email ? `<a class="btn btn-line btn-sm grow" href="mailto:${esc(m.email)}">✉️ E-mail</a>` : ""}</div>
+  $app.innerHTML = header(esc(m.name || "Membre"), esc(m.email || ""), { back: "coach" }) + `<main class="page">${top}
     <h2 class="sec">Formule</h2>
     <div class="card"><div class="row" style="gap:8px"><select id="tier" class="inp grow" style="text-align:left">${OFFERS.map(x => `<option value="${x.id}" ${x.id === m.tier ? "selected" : ""}>${esc(x.name)} · ${esc(x.price)}</option>`).join("")}</select><button class="btn btn-red btn-sm" style="width:auto" data-a="set-tier" data-id="${m.id}">Valider</button></div></div>
     ${ap ? `<h2 class="sec">Candidature <small>${new Date(ap.at).toLocaleDateString("fr-FR")}</small></h2><div class="card small"><b>${esc(offer(ap.offer).name)}</b><p class="mt8"><b>Objectif :</b> ${esc(ap.goal)}</p><p><b>Frein :</b> ${esc(ap.obstacle)}</p><p><b>Temps :</b> ${esc(ap.time)} · <b>Urgence :</b> ${esc(ap.urgency)}/10</p>${ap.phone ? `<p><b>Téléphone :</b> <a href="tel:${esc(ap.phone)}">${esc(ap.phone)}</a></p>` : ""}</div>` : ""}
@@ -238,3 +260,60 @@ actions["set-tier"] = async (b, d) => {
 };
 forms.broadcast = async (v, f) => { const c = await cloud(); try { await c.notify(v.t, v.b, null); f.reset(); toast("Notification envoyée à tous"); } catch (err) { toast(err.message); } };
 forms["notify-one"] = async (v, f) => { const c = await cloud(); try { await c.notify(v.t, v.b, f.dataset.id); f.reset(); toast("Notification envoyée"); } catch (err) { toast(err.message); } };
+
+// ---------- Fiche membre : journée, séances, agenda, corps ----------
+const mbr = { id: null, tab: "jour", day: null, data: null };
+actions["mb-tab"] = (b, d) => { mbr.tab = d.v; rerender(false); };
+actions["mb-day"] = (b, d) => { const n = addDays(mbr.day || today(), +d.v); mbr.day = n > today() ? null : n; rerender(); };
+actions["mb-reload"] = () => { mbr.data = null; rerender(); };
+const setsLine = (e) => e.sets.filter(s => s.done).map(s => `${s.type === "W" ? "é " : ""}${s.kg ? E.fmtKg(s.kg) + "×" : ""}${s.reps ?? "–"}${s.rpe != null ? "@" + String(s.rpe).replace(".", ",") : ""}${s.pain ? " ⚠️" : ""}`).join(" · ");
+function workoutCard(w, open = false) {
+  const mins = Math.round((new Date(w.end || Date.now()) - new Date(w.start)) / 6e4);
+  return `<details class="card mt8" ${open ? "open" : ""}><summary style="list-style:none;cursor:pointer"><div class="row between"><b>${esc(w.title)}</b><span class="xs muted">${fmtDate(today(new Date(w.end || w.start)), { weekday: "short", day: "numeric", month: "short" })}</span></div>
+    <div class="xs muted mt4">${w.end ? "" : "EN COURS · "}${mins} min${w.target ? ` / ${w.target} visées` : ""} · ${w.setsDone ?? w.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0)} séries${w.volume ? ` · ${fr(w.volume / 1000, 1)} t` : ""}${w.week ? ` · semaine ${w.week}` : ""}${w.records?.length ? ` · 🏆 ${w.records.length} record${w.records.length > 1 ? "s" : ""}` : ""}</div></summary>
+    <div class="mt8">${w.exercises.map(e => `<div class="small" style="padding:6px 0;border-top:1px solid var(--line)"><b>${esc(e.name)}</b>${e.name !== e.orig ? ` <span class="xs muted">(remplace ${esc(e.orig)})</span>` : ""}<br><span class="xs">${esc(setsLine(e)) || "<span class='muted'>pas fait</span>"}</span>${e.sets.some(s => s.note) ? `<br><span class="xs muted">📝 ${esc(e.sets.filter(s => s.note).map(s => s.note).join(" · "))}</span>` : ""}${e.myNote ? `<br><span class="xs muted">📝 ${esc(e.myNote)}</span>` : ""}</div>`).join("")}</div></details>`;
+}
+function memberDay(D) {
+  const d = mbr.day || today(), ag = E.agenda(d, d)[d], t = N.targets(), log = N.dayLog(d), tot = N.dayTotals(d), R0 = S().daily[d] || {};
+  const ws = S().workouts.filter(w => today(new Date(w.end)) === d);
+  let sess = "";
+  if (d === today() && S().current) sess = workoutCard(S().current, true);
+  if (ws.length) sess += ws.map(w => workoutCard(w, true)).join("");
+  else if (!sess && ag?.st === "planned") { const ns = E.nextSession(); sess = `<div class="card mt8"><div class="lbl">🗓️ Séance prévue</div><b class="h3">${esc(ag.title)}</b>${ns && d === today() ? `<div class="xs mt8">${ns.exercises.map(r => `<div class="row between"><span>${esc(S().swaps[r[0]] || r[0])}</span><span class="muted">${esc(E.schemeFor(ns.p, r, ns.week).replace(/x/g, "×"))}</span></div>`).join("")}</div>` : ""}</div>`; }
+  else if (!sess) sess = `<div class="card mt8"><p class="small muted" style="margin:0">${ag?.st === "missed" ? `❌ Séance loupée : ${esc(ag.title)}` : "Jour de repos."}</p></div>`;
+  return `<div class="row between mt12"><button class="icon-btn" data-a="mb-day" data-v="-1" aria-label="Jour précédent">${I.back}</button><b class="h3" style="text-transform:capitalize">${d === today() ? "Aujourd'hui" : fmtDate(d)}</b><button class="icon-btn" data-a="mb-day" data-v="1" aria-label="Jour suivant" style="transform:scaleX(-1);${d === today() ? "visibility:hidden" : ""}">${I.back}</button></div>
+    <h2 class="sec">🏋️ Entraînement</h2>${sess}
+    <h2 class="sec">🍽️ Ce qu'il a mangé <small>${fr(tot.kcal)} / ${t ? fr(t.kcal) : "–"} kcal</small></h2>
+    <div class="card"><div class="stat3"><div><b>${fr(tot.p)}</b><span>/ ${t?.prot ?? "–"} g prot.</span></div><div><b>${fr(tot.c)}</b><span>/ ${t?.carbs ?? "–"} g gluc.</span></div><div><b>${fr(tot.f)}</b><span>/ ${t?.fat ?? "–"} g lip.</span></div></div>
+      ${log.length ? N.MEALS.map(m => { const es = log.filter(e => e.meal === m); return es.length ? `<div class="mt12"><b class="small">${m}</b> <span class="xs muted">${es[0].time || ""} · ${fr(es.reduce((a, e) => a + e.kcal, 0))} kcal</span>${es.map(e => `<div class="row between xs" style="padding:2px 0"><span>${e.g ? fr(e.g) + " g " : ""}${esc(e.label)}</span><span class="muted">${e.kcal} kcal · ${fr(e.p)} g P</span></div>`).join("")}</div>` : ""; }).join("") : `<p class="small muted mt8" style="margin-bottom:0">Rien noté ce jour-là.</p>`}</div>
+    <h2 class="sec">📋 Routine</h2>
+    <div class="card"><div class="stat3"><div><b>${R0.weight ? fr(R0.weight, 1) : "–"}</b><span>kg</span></div><div><b>${R0.steps ? fr(R0.steps) : "–"}</b><span>pas</span></div><div><b>${R0.sleep ? fr(R0.sleep, 1) : "–"}</b><span>h de sommeil</span></div></div>
+      <p class="xs muted mt8" style="margin-bottom:0">💧 ${fr((R0.water || 0) * .25, 2)} L d'eau${R0.ritual?.focus ? ` · 🎯 priorité : ${esc(R0.ritual.focus)}` : ""}${(R0.cardio || []).length ? ` · 🏃 ${R0.cardio.map(c => `${esc(c.n)} ${c.min} min`).join(", ")}` : ""}</p></div>
+    ${E.stalls().length ? `<div class="card mt12" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">📹 Plateaux</div><p class="small mt4" style="margin:0">${E.stalls().map(x => `${esc(x.name)} (${x.weeks} sem.)`).join(" · ")}</p></div>` : ""}
+    ${E.injuryAlerts().length ? `<div class="card mt12" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Douleurs signalées</div>${E.injuryAlerts().map(a => `<p class="small mt4" style="margin:0"><b>${esc(a.name)}</b> · ${a.count} fois · ${esc(a.last.note)}</p>`).join("")}</div>` : ""}
+    <button class="btn btn-ghost btn-sm mt12" data-a="mb-reload">🔄 Actualiser</button>`;
+}
+function memberSessions(D) {
+  const ws = S().workouts.slice().reverse();
+  return `${S().current ? `<h2 class="sec">En cours</h2>${workoutCard(S().current, true)}` : ""}<h2 class="sec">Séances faites <small>${S().workouts.length}</small></h2>${ws.length ? ws.map(w => workoutCard(w)).join("") : `<p class="empty small">Aucune séance enregistrée.</p>`}`;
+}
+function memberAgenda(D) {
+  const t = today(), mon = addDays(t, -E.dowOf(t) + 7 * (mbr.wk || 0)), days = Array.from({ length: 7 }, (_, i) => addDays(mon, i)), ag = E.agenda(days[0], days[6]);
+  const ns = E.nextSession();
+  return `<div class="row between mt12"><button class="icon-btn" data-a="mb-wk" data-v="-1" aria-label="Semaine précédente">${I.back}</button><b class="h3">Semaine du ${fmtDate(mon, { day: "numeric", month: "long" })}</b><button class="icon-btn" data-a="mb-wk" data-v="1" aria-label="Semaine suivante" style="transform:scaleX(-1)">${I.back}</button></div>
+    <div class="list mt12">${days.map((k, i) => { const a = ag[k]; return `<div class="li"><span class="em" style="font-size:20px">${a ? { done: "✅", missed: "❌", planned: "🏋️", rest: "😌", away: "↪️" }[a.st] : "·"}</span><span class="grow"><b class="small">${E.DAY_NAMES[i]} ${Number(k.slice(8))}</b><br><span class="xs muted">${a ? esc(a.title || "") : "Repos"}</span></span></div>`; }).join("")}</div>
+    ${ns ? `<div class="card mt12"><div class="lbl">🎯 Programme</div><b>${esc(ns.p.name)}</b><p class="small muted mt4" style="margin:0">Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)} · prochaine séance : ${esc(ns.title)}</p></div>` : ""}
+    ${S().season?.blocks?.length ? `<div class="card mt12"><div class="lbl">🗓️ Saison</div>${E.seasonBlocks().map(b => `<div class="xs mt4">${b.cur ? "👉 " : ""}<b>${esc(E.FOCUS[b.focus]?.[0] || "")}</b> · ${b.weeks} sem. · ${esc((b.p?.name || "").split("·")[0])} · ${fmtDate(b.from, { day: "numeric", month: "short" })} → ${fmtDate(b.to, { day: "numeric", month: "short" })}</div>`).join("")}</div>` : ""}
+    ${(S().goals || []).length ? `<div class="card mt12"><div class="lbl">🎯 Objectifs</div>${S().goals.map(g => { const s2 = E.goalStatus(g); return `<div class="xs mt4"><b>${esc(g.name)}</b> : ${fr(g.kg, 1)} kg × ${g.reps} avant le ${fmtDate(g.date, { day: "numeric", month: "short", year: "numeric" })} · aujourd'hui ${fr(s2.cur, 1)} / ${fr(s2.tgt, 1)} (1RM est.)</div>`; }).join("")}</div>` : ""}`;
+}
+actions["mb-wk"] = (b, d) => { mbr.wk = (mbr.wk || 0) + +d.v; rerender(); };
+function memberBody(D) {
+  const ws = Object.entries(S().daily).filter(([, v]) => v.weight).sort().slice(-30);
+  const ms = (S().measures || []).filter(m => Object.keys(m).some(k => k !== "d" && k !== "weight")).slice(-6).reverse();
+  const L = { neck: "Cou", shoulders: "Épaules", chest: "Poitrine", waistNav: "Taille nombril", waistLow: "Taille basse", waistHigh: "Taille haute", hips: "Hanches", fat: "MG %" };
+  return `<h2 class="sec">⚖️ Poids <small>${ws.length} pesées</small></h2>
+    <div class="card">${ws.length ? `<div class="num" style="font-size:26px">${fr(ws.at(-1)[1].weight, 1)} kg</div><p class="xs muted" style="margin:4px 0 0">${ws.slice(-10).map(([k, v]) => `${k.slice(8)}/${k.slice(5, 7)} : ${fr(v.weight, 1)}`).join(" · ")}</p>` : `<p class="small muted" style="margin:0">Pas de pesée.</p>`}</div>
+    <h2 class="sec">📏 Mensurations</h2>
+    ${ms.length ? ms.map(m => `<div class="card mt8"><b class="small">${fmtDate(m.d, { day: "numeric", month: "long", year: "numeric" })}</b><p class="xs mt4" style="margin:0">${Object.entries(m).filter(([k]) => k !== "d" && k !== "weight").map(([k, v]) => `${L[k] || k.replace(/_l_/, " G ").replace(/_r_/, " D ").replace(/r$/, "rel.").replace(/ c$/, " contr.").replace("forearm", "Avant-bras").replace(/^arm/, "Bras").replace("thigh", "Cuisse").replace("calf", "Mollet")} ${fr(v, 1)}`).join(" · ")}</p></div>`).join("") : `<p class="small muted">Pas de mensurations.</p>`}
+    <p class="xs muted mt12">Les photos restent sur le téléphone du membre : demande-lui de te les envoyer s'il le souhaite.</p>`;
+}

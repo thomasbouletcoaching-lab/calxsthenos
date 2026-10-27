@@ -42,8 +42,18 @@ try { state = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || "{}
 catch { state = blank(); }
 
 export const S = () => state;
+const hooks = new Set();
+export const onSave = (fn) => hooks.add(fn);
+let borrowed = null;
 export function save() {
+  if (borrowed) return; // on lit les données d'un membre : rien n'est écrit sur ce téléphone
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn("Stockage plein", e); }
+  hooks.forEach(f => { try { f(); } catch { } });
+}
+// Exécute fn avec l'état d'un autre membre (espace coach), puis revient à l'état du téléphone
+export function withState(other, fn) {
+  const mine = state; borrowed = true; state = Object.assign(blank(), other || {});
+  try { return fn(); } finally { state = mine; borrowed = null; }
 }
 export function update(fn) { fn(state); save(); }
 export function resetAll() { state = blank(); save(); }

@@ -79,3 +79,18 @@ export async function setTier(id, tier) { const { error } = await sb.rpc("set_ti
 export async function notify(title, body, to = null) {
   const { error } = await sb.from("notifications").insert({ user_id: to, title, body }); if (error) throw error;
 }
+
+// Données du membre pour l'espace coach (séances, journal, agenda, mesures)
+export async function pushData(data, summary) {
+  if (!uid) await ensureSession();
+  const { error } = await sb.from("member_data").upsert({ user_id: uid, data, summary, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+export async function memberData(id) {
+  const { data, error } = await sb.from("member_data").select("data,summary,updated_at").eq("user_id", id).maybeSingle();
+  if (error) throw error; return data;
+}
+export async function allSummaries() {
+  const { data, error } = await sb.from("member_data").select("user_id,summary,updated_at").order("updated_at", { ascending: false }).limit(500);
+  if (error) throw error; return data || [];
+}
