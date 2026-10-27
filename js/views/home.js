@@ -28,12 +28,12 @@ function trainingCard(d) {
   if (ag?.st === "done") return `<div class="card"><div class="lbl">🏋️ Entraînement</div><h2 class="h2 mt8">Séance faite ✅</h2><p class="muted mt4">${esc(ag.title)}</p><button class="btn btn-line btn-sm mt8" data-a="go" data-r="train" data-p="historique">Voir le détail</button><div class="deco">💪</div></div>`;
   if ((ag?.st === "planned" && d === today()) || cur) {
     const blocked = ns && !weekOpen(ns.week);
-    return `<div class="card"><div class="lbl">🏋️ Entraînement · semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}</div><h2 class="h1 mt8">${esc(cur ? cur.title : ns.title)}</h2><p class="small muted mt8">${ns.exercises.length} exercices · ${ns.exercises.slice(0, 3).map(e => esc(S().swaps[e[0]] || e[0])).join(", ")}…</p>
+    return `<div class="card"><div class="lbl">🏋️ Entraînement · semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}</div><h2 class="h1 mt8">${esc(cur ? cur.title : ns.title)}</h2>${!cur && (ag?.time || ag?.place) ? `<button class="link small mt4" data-a="ag-day" data-v="${d}">🕐 ${esc([ag.time, ag.dur ? ag.dur + " min" : "", ag.place].filter(Boolean).join(" · "))} · décaler</button>` : !cur ? `<button class="link small mt4" data-a="ag-day" data-v="${d}">🕐 Fixer l'heure ou décaler</button>` : ""}<p class="small muted mt8">${ns.exercises.length} exercices · ${ns.exercises.slice(0, 3).map(e => esc(S().swaps[e[0]] || e[0])).join(", ")}…</p>
       ${blocked ? `<p class="small mt8">Tes ${FREE_WEEKS} premières semaines sont faites. La suite de ton cycle est prête.</p><button class="btn btn-red mt8" data-a="go" data-r="offers">🔓 Débloquer la suite</button>` : `<button class="btn btn-red mt8" data-a="start">${cur ? "Reprendre la séance" : "Commencer la séance"}</button>`}<div class="deco">🏋️</div></div>`;
   }
   const nx = Object.entries(E.agenda(d, addDays(d, 10))).find(([k, v]) => k > d && v.st === "planned");
   return `<div class="card"><div class="lbl">🏋️ Entraînement</div><h2 class="h1 mt8">${ag?.st === "planned" ? esc(ag.title) : ag?.st === "missed" ? "Séance loupée" : "Jour de repos"}</h2>
-    <p class="muted mt8">${ag?.st === "missed" ? "Pas de rattrapage : on reprend à la prochaine séance." : nx ? `Prochaine séance : <b style="color:var(--ink)">${esc(nx[1].title)}</b> ${nx[0] === addDays(today(), 1) ? "demain" : fmtDate(nx[0], { weekday: "long" })}` : ""}</p>
+    <p class="muted mt8">${ag?.st === "missed" ? "Pas de rattrapage : on reprend à la prochaine séance." : nx ? `Prochaine séance : <b style="color:var(--ink)">${esc(nx[1].title)}</b> ${nx[0] === addDays(today(), 1) ? "demain" : fmtDate(nx[0], { weekday: "long" })}${nx[1].time ? ` à ${nx[1].time}` : ""}` : ""}</p>
     <div class="row mt8"><button class="btn btn-line btn-sm" data-a="home-tab" data-v="week">Voir ma semaine</button>${d === today() ? `<button class="btn btn-line btn-sm" data-a="free-session">Séance libre</button>` : ""}</div><div class="deco">🗓️</div></div>`;
 }
 export function routineCard(d = today()) {
@@ -130,7 +130,7 @@ function weekSummary() {
   const mon = addDays(today(), -((new Date().getDay() + 6) % 7));
   const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   const ag = E.agenda(days[0], days[6]);
-  const done = days.filter(k => ag[k]?.st === "done").length, planned = days.filter(k => ag[k]).length;
+  const done = days.filter(k => ag[k]?.st === "done").length, planned = days.filter(k => ag[k] && !["away", "rest"].includes(ag[k].st)).length;
   const avg = (key) => { const v = days.map(k => S().daily[k]?.[key]).filter(Boolean); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
   const kcal = days.map(k => ({ v: N.dayTotals(k).kcal, l: E.DAY_SHORT[days.indexOf(k)] }));
   const kd = kcal.filter(x => x.v); const t = N.targets();

@@ -290,7 +290,7 @@ function exerciseBlock(ex, xi) {
       return `<div class="set ${s.done ? "done" : ""} ${s.type === "W" ? "w" : ""}"><button class="n" data-a="set-menu" data-x="${xi}" data-s="${si}" aria-label="Options de la série">${lab}${s.type !== "N" ? `<small>${s.type === "W" ? "échauf." : E.SET_TYPES[s.type].split(" ")[0].toLowerCase()}</small>` : ""}</button>
         <input inputmode="decimal" data-i="set" data-k="kg" data-x="${xi}" data-s="${si}" value="${ex.bw ? kgTxt(s.kg || "") : kgTxt(s.kg)}" placeholder="${ex.bw ? "PDC" : "kg"}" aria-label="Charge">
         <input inputmode="numeric" data-i="set" data-k="reps" data-x="${xi}" data-s="${si}" value="${s.reps ?? ""}" placeholder="${s.lo}" aria-label="${unit}">
-        <input inputmode="decimal" data-i="set" data-k="rpe" data-x="${xi}" data-s="${si}" value="${s.rpe != null ? String(s.rpe).replace(".", ",") : ""}" placeholder="${String(s.trpe).replace(".", ",")}" aria-label="RPE">
+        <button class="rpe-btn ${s.rpe == null ? "ph" : ""}" data-a="rpe-pick" data-x="${xi}" data-s="${si}" aria-label="RPE de la série">${s.rpe != null ? String(s.rpe).replace(".", ",") : String(s.trpe).replace(".", ",")}</button>
         <button class="tick" data-a="tick" data-x="${xi}" data-s="${si}" aria-label="Valider la série">${I.check}</button>
         <div class="setmeta">${meta}</div></div>`;
     }).join("")}
@@ -308,6 +308,21 @@ changes["i:set"] = (el) => {
 };
 changes["i:exnote"] = (el) => { S().current.exercises[+el.dataset.x].myNote = el.value; save(); };
 changes["i:setnote"] = (el) => { S().current.exercises[+el.dataset.x].sets[+el.dataset.s].note = el.value; save(); };
+// Effort de la série : on choisit, on n'écrit pas
+export const RPE_INFO = { 6: ["Facile", "4 rép. ou plus en réserve"], 6.5: ["Facile à modéré", "3 à 4 rép. en réserve"], 7: ["Modéré", "3 rép. en réserve"], 7.5: ["Assez dur", "2 à 3 rép. en réserve"], 8: ["Dur", "2 rép. en réserve"], 8.5: ["Très dur", "1 à 2 rép. en réserve"], 9: ["Effort extrême", "1 rép. en réserve"], 9.5: ["Presque maximal", "peut-être 1 rép. de plus"], 10: ["Effort maximal", "aucune rép. en réserve"] };
+const RPE_STEPS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+let rpeSel = null;
+function rpeSheet(xi, si) {
+  const s = S().current.exercises[xi].sets[si], v = rpeSel ?? s.rpe ?? s.trpe ?? 8, info = RPE_INFO[v] || ["", ""];
+  sheet(`<h2 class="h3 center">Effort de la série (RPE)</h2><div class="rpe-big">${String(v).replace(".", ",")}</div><p class="center mt8" style="margin-bottom:0"><b>${info[0]}</b></p><p class="small muted center" style="margin-top:4px">${info[1]}</p>
+    <div class="rpe-seg">${RPE_STEPS.map(r => `<button class="${r === v ? "on" : ""}" data-a="rpe-set" data-x="${xi}" data-s="${si}" data-v="${r}">${String(r).replace(".", ",")}</button>`).join("")}</div>
+    ${s.trpe ? `<p class="xs muted center mt8">Prévu : RPE ${String(s.trpe).replace(".", ",")}</p>` : ""}
+    <div class="row mt16" style="gap:8px"><button class="btn btn-line" style="flex:0 0 34%" data-a="rpe-clear" data-x="${xi}" data-s="${si}">Effacer</button><button class="btn btn-red grow" data-a="rpe-ok" data-x="${xi}" data-s="${si}">Terminé</button></div>`, null, { keep: !!document.getElementById("sheet") });
+}
+actions["rpe-pick"] = (b, d) => { rpeSel = null; rpeSheet(+d.x, +d.s); };
+actions["rpe-set"] = (b, d) => { rpeSel = +d.v; buzz(8); rpeSheet(+d.x, +d.s); };
+actions["rpe-ok"] = (b, d) => { const s = S().current.exercises[+d.x].sets[+d.s]; s.rpe = rpeSel ?? s.rpe ?? s.trpe; rpeSel = null; save(); closeSheet(); rerender(); };
+actions["rpe-clear"] = (b, d) => { S().current.exercises[+d.x].sets[+d.s].rpe = null; rpeSel = null; save(); closeSheet(); rerender(); };
 actions["adv-toggle"] = () => { update(st => st.settings.adv = !adv()); rerender(); };
 actions.tick = (b, d) => {
   const ex = S().current.exercises[+d.x], s = ex.sets[+d.s];
@@ -611,7 +626,7 @@ function setTable(sets, unitS) {
       <input data-c="bx" data-f="reps" data-i="${i}" value="${s.lo}${s.hi && s.hi !== s.lo ? "-" + s.hi : ""}" inputmode="text" aria-label="Répétitions">
       <input data-c="bx" data-f="load" data-i="${i}" value="${fmtN(s.pct ?? s.kg)}" inputmode="decimal" placeholder="auto" aria-label="Charge">
       <select data-c="bx" data-f="unit" data-i="${i}" aria-label="Unité"><option value="pct" ${s.pct != null ? "selected" : ""}>%</option><option value="kg" ${s.kg != null ? "selected" : ""}>kg</option><option value="" ${s.pct == null && s.kg == null ? "selected" : ""}>–</option></select>
-      <input data-c="bx" data-f="rpe" data-i="${i}" value="${fmtN(s.rpe)}" inputmode="decimal" placeholder="–" aria-label="RPE">
+      <select data-c="bx" data-f="rpe" data-i="${i}" aria-label="RPE"><option value="">–</option>${[5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map(r => `<option value="${r}" ${s.rpe === r ? "selected" : ""}>${String(r).replace(".", ",")}</option>`).join("")}</select>
       <button class="icon-btn sm" data-a="bx-del" data-i="${i}" aria-label="Supprimer la série">${I.close}</button>
       ${(s.tech || []).length ? `<div class="stab-t">${s.tech.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}</div>`).join("")}</div>
     <div class="row mt8" style="gap:6px"><button class="btn btn-ghost btn-xs" data-a="bx-add">+ Série</button><button class="btn btn-ghost btn-xs" data-a="bx-add" data-t="W">+ Échauffement</button><button class="btn btn-ghost btn-xs" data-a="bx-tech">⚡ Technique</button></div>`;

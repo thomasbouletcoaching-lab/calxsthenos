@@ -1,7 +1,7 @@
 // Agenda : mois et semaine, séances faites / loupées / prévues, déplacer une séance, vue du cycle.
-import { S, today } from "../store.js";
+import { S, update, today } from "../store.js";
 import * as E from "../engine.js";
-import { $app, esc, fr, routes, actions, go, I, header, tabbar, seg, sheet, closeSheet, toast, fmtDate, addDays, rerender } from "../core.js";
+import { $app, esc, fr, routes, actions, forms, changes, go, I, header, tabbar, seg, sheet, closeSheet, toast, fmtDate, addDays, rerender } from "../core.js";
 
 let mode = "month", cursor = null; // cursor = 1er du mois affiché (YYYY-MM-01) ou lundi de la semaine
 const MK = { done: "✓", missed: "✕", planned: "•", rest: "–", away: "↪" };
@@ -27,8 +27,10 @@ function weekList(mon) {
     const a = ag[k];
     const em = a ? { done: "✅", missed: "❌", planned: "🏋️", rest: "😌", away: "↪️" }[a.st] : "·";
     const sub = !a ? "Repos" : a.st === "done" ? "Faite" : a.st === "missed" ? "Loupée" : a.st === "planned" ? (a.moved ? "Prévue (déplacée)" : "Prévue") : a.st === "away" ? `Déplacée au ${fmtDate(a.to, { weekday: "long", day: "numeric" })}` : "Repos choisi";
-    return `<button class="li" data-a="ag-day" data-v="${k}" style="${k === t ? "box-shadow:0 0 0 2px var(--red) inset;border-radius:14px" : ""}"><span class="em" style="font-size:22px">${em}</span><span class="grow"><b>${E.DAY_NAMES[i]} ${Number(k.slice(8))}</b><br><span class="small muted">${a && a.st !== "rest" && a.st !== "away" ? esc(a.title) + " · " : ""}${sub}</span></span>${I.chev}</button>`;
-  }).join("")}</div>`;
+    return `<button class="li" data-a="ag-day" data-v="${k}" style="${k === t ? "box-shadow:0 0 0 2px var(--red) inset;border-radius:14px" : ""}"><span class="em" style="font-size:22px">${em}</span><span class="grow"><b>${E.DAY_NAMES[i]} ${Number(k.slice(8))}</b><br><span class="small muted">${a && a.st !== "rest" && a.st !== "away" ? esc(a.title) + " · " : ""}${sub}</span>${a && (a.st === "planned" || a.st === "missed") && slotTxt(a) ? `<br><span class="xs muted">🕐 ${esc(slotTxt(a))}</span>` : ""}</span>${a?.st === "planned" && a.time ? `<b class="small" style="color:var(--red)">${a.time}</b>` : ""}${I.chev}</button>`;
+  }).join("")}</div>
+  <button class="btn btn-line btn-sm mt8" data-a="week-plan" style="width:100%">🔁 Ma semaine type : jours, heures, durée, lieu</button>
+  <p class="xs muted center mt8">Touche un jour pour décaler une séance, changer son heure ou prendre un repos.</p>`;
 }
 function cycleBlock() {
   const ns = E.nextSession(); if (!ns) return "";
@@ -78,21 +80,72 @@ actions["ag-nav"] = (b, d) => {
 actions["ag-open-month"] = (b, d) => { AG.month = d.v; go("home", "month"); };
 routes.agenda = () => go("home", "month");
 
+const slotTxt = (a) => [a.time, a.dur ? a.dur + " min" : "", a.place].filter(Boolean).join(" · ");
+const PLACES = ["Salle", "Maison", "Extérieur"];
 actions["ag-day"] = (b, d) => {
   const k = d.v, a = E.agenda(k, k)[k], t = today();
-  const opts = Array.from({ length: 7 }, (_, i) => addDays(k, i - 3)).filter(x => x >= t && x !== k);
-  let html = `<h2 class="h1">${fmtDate(k)}</h2>`;
-  if (a?.st === "done") html += a.w.map(w => `<div class="card mt12"><div class="lbl">✅ Séance faite</div><b class="h3">${esc(w.title)}</b><p class="small muted mt4">${w.setsDone} séries · ${(w.volume / 1000).toFixed(1).replace(".", ",")} t · ${Math.round((new Date(w.end) - new Date(w.start)) / 6e4)} min</p>
+  let html = `<h2 class="h1" style="text-transform:capitalize">${fmtDate(k)}</h2>`;
+  if (a?.st === "done") html += a.w.map(w => `<div class="card mt12"><div class="lbl">✅ Séance faite · ${new Date(w.start).toTimeString().slice(0, 5)}</div><b class="h3">${esc(w.title)}</b><p class="small muted mt4">${w.setsDone} séries · ${(w.volume / 1000).toFixed(1).replace(".", ",")} t · ${Math.round((new Date(w.end) - new Date(w.start)) / 6e4)} min</p>
       <div class="small mt8">${w.exercises.filter(e => e.sets.some(s => s.done)).map(e => `<div class="row between"><span>${esc(e.name)}</span><span class="muted">${e.sets.filter(s => s.done && s.type !== "W").map(s => s.kg ? `${E.fmtKg(s.kg)}×${s.reps}` : s.reps).join(" · ")}</span></div>`).join("")}</div></div>`).join("");
-  else if (a?.st === "planned") html += `<div class="card mt12"><div class="lbl">🏋️ Prévue</div><b class="h3">${esc(a.title)}</b>
+  else if (a?.st === "planned" || (a?.st === "missed")) {
+    const quick = Array.from({ length: 8 }, (_, i) => addDays(k < t ? t : k, i - (k < t ? 0 : 1))).filter(x => x >= t && x !== k).slice(0, 7);
+    html += `<div class="card mt12"><div class="lbl">${a.st === "missed" ? "❌ Séance loupée" : "🏋️ Prévue"}${a.time ? ` · ${a.time}` : ""}</div><b class="h3">${esc(a.title)}</b>${slotTxt(a) ? `<p class="small muted mt4" style="margin-bottom:0">${esc(slotTxt(a))}</p>` : ""}
       ${k === t ? `<button class="btn btn-red mt12" data-a="start">Commencer maintenant</button>` : ""}
-      ${opts.length ? `<h3 class="sec">Déplacer au</h3><div class="chips wrap">${opts.map(x => `<button class="chip" data-a="ag-move" data-f="${k}" data-v="${x}">${fmtDate(x, { weekday: "short", day: "numeric" })}</button>`).join("")}</div>` : ""}
-      <button class="btn btn-line btn-sm mt12" data-a="ag-skip" data-v="${k}">Prendre ce jour en repos</button></div>`;
-  else if (a?.st === "missed") html += `<div class="card mt12"><div class="lbl">❌ Séance loupée</div><b class="h3">${esc(a.title)}</b><p class="small muted mt4">Pas de culpabilité : le programme reprend à la prochaine séance, sans rien sauter.</p></div>`;
-  else if (a?.st === "away") html += `<div class="card mt12"><p>Séance déplacée au <b>${fmtDate(a.to)}</b>.</p><button class="btn btn-line btn-sm mt8" data-a="ag-move" data-f="${k}" data-v="${k}">Annuler le déplacement</button></div>`;
+      ${a.st === "missed" ? `<p class="small muted mt8">Tu peux la rattraper : déplace-la à un autre jour.</p>` : ""}</div>
+      <h3 class="sec">${a.st === "missed" ? "Rattraper le" : "Décaler au"}</h3>
+      <div class="chips wrap">${quick.map(x => `<button class="chip" data-a="mv-day" data-v="${x}">${fmtDate(x, { weekday: "short", day: "numeric" })}</button>`).join("")}</div>
+      <form data-f="ag-move" data-f0="${k}" class="mt12"><div class="grid2"><label class="field"><span>Ou une autre date</span><input type="date" name="to" min="${t}" max="${addDays(t, 120)}" value="${k >= t ? k : t}" required></label><label class="field"><span>Heure</span><input type="time" name="time" value="${a.time || ""}"></label></div>
+      ${k >= t ? `<div class="grid2 mt8"><label class="field"><span>Durée</span><select name="dur">${[30, 40, 45, 50, 60, 75, 90, 120].map(m => `<option ${+a.dur === m ? "selected" : ""} value="${m}">${m} min</option>`).join("")}</select></label><label class="field"><span>Lieu</span><input name="place" value="${esc(a.place || "")}" list="ag-places" placeholder="Salle, maison…"><datalist id="ag-places">${PLACES.map(x => `<option value="${x}">`).join("")}</datalist></label></div>` : ""}
+      <button class="btn btn-red btn-sm mt12" style="width:100%">Enregistrer</button></form>
+      ${k >= t ? `<button class="btn btn-line btn-sm mt8" data-a="ag-skip" data-v="${k}" style="width:100%">Prendre ce jour en repos</button>` : ""}`;
+  }
+  else if (a?.st === "away") html += `<div class="card mt12"><p>Séance déplacée au <b>${fmtDate(a.to)}</b>${E.slotOf(a.to).time ? ` à ${E.slotOf(a.to).time}` : ""}.</p><button class="btn btn-line btn-sm mt8" data-a="ag-move" data-f="${k}" data-v="${k}">Annuler le déplacement</button></div>`;
   else if (a?.st === "rest") html += `<div class="card mt12"><p>Repos choisi ce jour-là.</p><button class="btn btn-line btn-sm mt8" data-a="ag-skip" data-v="${k}">Remettre la séance</button></div>`;
-  else html += `<div class="card mt12"><p class="muted">Jour de repos. Récupérer fait partie du programme.</p>${k === t ? `<button class="btn btn-line btn-sm mt8" data-a="free-session">Faire une séance libre</button>` : ""}</div>`;
-  sheet(html);
+  else html += `<div class="card mt12"><p class="muted">Jour de repos. Récupérer fait partie du programme.</p>${k === t ? `<button class="btn btn-line btn-sm mt8" data-a="free-session">Faire une séance libre</button>` : ""}${k >= t ? `<p class="xs muted mt8" style="margin-bottom:0">Pour t'entraîner ce jour-là, ouvre une séance prévue et décale-la ici.</p>` : ""}</div>`;
+  html += `<button class="btn btn-ghost btn-sm mt12" data-a="week-plan" style="width:100%">🔁 Ma semaine type (jours et heures)</button>`;
+  sheet(html, (w) => { w._from = k; });
+};
+actions["mv-day"] = (b, d) => { const f = document.querySelector('form[data-f="ag-move"]'); f.to.value = d.v; f.querySelectorAll('[data-a="mv-day"]').forEach(() => { }); document.querySelectorAll('[data-a="mv-day"]').forEach(x => x.classList.toggle("on", x === b)); };
+forms["ag-move"] = (v, f) => {
+  const from = f.dataset.f0, to = v.to; if (!to) return;
+  if (to !== from) E.moveSession(from, to, v.time || E.slotOf(from).time);
+  E.setSlot(to, { time: v.time || null, ...(v.dur ? { dur: +v.dur } : {}), ...(v.place !== undefined ? { place: v.place.trim() || null } : {}) });
+  closeSheet(); toast(to === from ? "Séance mise à jour" : `Séance décalée au ${fmtDate(to, { weekday: "long", day: "numeric" })}${v.time ? ` à ${v.time}` : ""}`); rerender();
 };
 actions["ag-move"] = (b, d) => { E.moveSession(d.f, d.v); closeSheet(); toast(d.f === d.v ? "Déplacement annulé" : "Séance déplacée"); rerender(); };
+
+// ---------- Semaine type : récurrence hebdomadaire ----------
+actions["week-plan"] = () => weekPlanSheet();
+function weekPlanSheet() {
+  const ns = E.nextSession(), p = ns?.p, cur = E.schedule();
+  const days = cur ? cur.days : E.DAY_NAMES.map((_, i) => ({ on: !!p?.days?.[i], time: "18:30", dur: S().profile?.sessionMin || 60, place: "Salle" }));
+  const n = days.filter(x => x.on).length, need = p?.s.length || 0;
+  sheet(`<h2 class="h2">🔁 Ma semaine type</h2><p class="small muted mt4">Tes créneaux reviennent chaque semaine. Une séance déplacée garde son nouveau jour.</p>
+    <form data-f="week-plan" class="mt12">${E.DAY_NAMES.map((dn, i) => { const x = days[i]; return `<div class="wkrow ${x.on ? "on" : ""}"><label class="row" style="gap:8px;min-width:104px"><input type="checkbox" name="on${i}" ${x.on ? "checked" : ""} data-c="wk-on"><b class="small">${dn}</b></label>
+      <input type="time" name="time${i}" value="${x.time || ""}" aria-label="Heure ${dn}"><select name="dur${i}" aria-label="Durée ${dn}">${[30, 40, 45, 50, 60, 75, 90, 120].map(m => `<option value="${m}" ${+x.dur === m ? "selected" : ""}>${m}′</option>`).join("")}</select><input name="place${i}" value="${esc(x.place || "")}" list="ag-places2" placeholder="Lieu" aria-label="Lieu ${dn}"></div>`; }).join("")}
+      <datalist id="ag-places2">${PLACES.map(x => `<option value="${x}">`).join("")}</datalist>
+      ${need ? `<p class="xs muted mt8">Ton programme compte <b>${need} séance${need > 1 ? "s" : ""}</b> par semaine${n !== need ? ` : tu as coché ${n} jour${n > 1 ? "s" : ""}.${n < need ? " Les séances restantes passent à la semaine suivante." : " Les jours en trop restent libres."}` : "."}</p>` : ""}
+      <button class="btn btn-red mt12">Enregistrer ma semaine type</button></form>
+    ${cur ? `<button class="btn btn-line btn-sm mt8" data-a="week-ics" style="width:100%">📅 Ajouter mes créneaux à mon calendrier</button><button class="btn btn-ghost btn-sm mt8" data-a="week-reset" style="width:100%">Revenir aux jours du programme</button>` : ""}`);
+}
+changes["wk-on"] = (el) => el.closest(".wkrow").classList.toggle("on", el.checked);
+forms["week-plan"] = (v) => {
+  const days = E.DAY_NAMES.map((_, i) => ({ on: !!v["on" + i], time: v["time" + i] || null, dur: +v["dur" + i] || 60, place: (v["place" + i] || "").trim() || null }));
+  if (!days.some(d => d.on)) return toast("Coche au moins un jour.");
+  update(st => st.schedule = { days });
+  closeSheet(); toast("Semaine type enregistrée"); rerender();
+};
+actions["week-reset"] = () => { update(st => st.schedule = null); closeSheet(); toast("Jours du programme rétablis"); rerender(); };
+// Export .ics avec récurrence hebdomadaire (Apple Calendrier, Google Agenda)
+actions["week-ics"] = () => {
+  const sc = E.schedule(); if (!sc) return;
+  const BY = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"], t = today(), mon = addDays(t, -E.dowOf(t));
+  const pad = (x) => String(x).padStart(2, "0"), stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const ev = sc.days.map((d, i) => { if (!d.on || !d.time) return ""; const day = addDays(mon, i) < t ? addDays(mon, i + 7) : addDays(mon, i); const [h, m] = d.time.split(":").map(Number); const end = new Date(2000, 0, 1, h, m + (d.dur || 60));
+    return `BEGIN:VEVENT\r\nUID:cxs-${i}-${Date.now()}@calxsthenos\r\nDTSTAMP:${stamp}\r\nDTSTART;TZID=Europe/Paris:${day.replace(/-/g, "")}T${pad(h)}${pad(m)}00\r\nDTEND;TZID=Europe/Paris:${day.replace(/-/g, "")}T${pad(end.getHours())}${pad(end.getMinutes())}00\r\nRRULE:FREQ=WEEKLY;BYDAY=${BY[i]}\r\nSUMMARY:Séance CalXsthenos\r\n${d.place ? `LOCATION:${d.place}\r\n` : ""}BEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Séance dans 30 min\r\nEND:VALARM\r\nEND:VEVENT\r\n`; }).join("");
+  if (!ev) return toast("Indique une heure sur tes jours d'entraînement.");
+  const ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//CalXsthenos//FR\r\nCALSCALE:GREGORIAN\r\n${ev}END:VCALENDAR\r\n`;
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = "seances-calxsthenos.ics"; a.click();
+  toast("Ouvre le fichier pour ajouter tes séances au calendrier");
+};
 actions["ag-skip"] = (b, d) => { E.toggleSkip(d.v); closeSheet(); toast("Agenda mis à jour"); rerender(); };

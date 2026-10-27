@@ -397,3 +397,13 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .ritual .rk{flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:var(--paper);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--soft)}
 .ritual .rit.ok .rk{background:var(--gradbtn);color:#fff;border-color:transparent}
 .ritual .rit.ok b{color:var(--soft)}
+.wkrow{display:grid;grid-template-columns:104px 84px 62px 1fr;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--line);opacity:.55}
+.wkrow.on{opacity:1}.wkrow input[type=checkbox]{width:20px;height:20px;accent-color:var(--red)}
+.wkrow input:not([type=checkbox]),.wkrow select{width:100%;min-width:0;box-sizing:border-box;font:inherit;font-size:14px;padding:7px 4px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}
+/* Sélecteur de RPE */
+.rpe-btn{font:inherit;font-size:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);min-height:44px;width:100%}
+.rpe-btn.ph{color:var(--soft)}
+.rpe-big{font:900 76px/1 var(--f);text-align:center;margin-top:10px;font-variant-numeric:tabular-nums}
+.rpe-seg{display:flex;background:var(--line);border-radius:999px;padding:4px;margin-top:18px}
+.rpe-seg button{flex:1;border:0;background:none;font:700 16px var(--f);color:var(--ink);padding:12px 0;border-radius:999px}
+.rpe-seg button.on{background:var(--gradbtn);color:#fff}

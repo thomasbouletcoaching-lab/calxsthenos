@@ -353,11 +353,19 @@ export function nudgeE1rm(name, deltaKg) {
 }
 
 // ---------- Semaine, agenda ----------
+// Semaine type : S().schedule = { days: [{ on, time, dur, place } × 7] } ; sinon les jours du programme
+export const schedule = () => S().schedule?.days?.length === 7 ? S().schedule : null;
 export function weekLayout(p) {
-  const out = []; let k = 0;
-  (p.days || []).forEach((on, i) => { if (on && k < p.s.length) { out.push({ dow: i, s: p.s[k], k }); k++; } });
+  const out = []; let k = 0, days = schedule() ? schedule().days.map(d => d.on) : (p.days || []);
+  days.forEach((on, i) => { if (on && k < p.s.length) { out.push({ dow: i, s: p.s[k], k }); k++; } });
   return out;
 }
+// Heure, durée et lieu d'une séance : réglage du jour, sinon la semaine type
+export function slotOf(dateStr) {
+  const d = schedule()?.days?.[dowOf(dateStr)] || {}, o = S().slots?.[dateStr] || {};
+  return { time: o.time ?? d.time ?? null, dur: o.dur ?? d.dur ?? S().profile?.sessionMin ?? null, place: o.place ?? d.place ?? null };
+}
+export function setSlot(dateStr, fields) { update(st => { st.slots = st.slots || {}; st.slots[dateStr] = { ...(st.slots[dateStr] || {}), ...fields }; }); }
 const iso = (d) => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 6e4); return z.toISOString().slice(0, 10); };
 export const dowOf = (dateStr) => (new Date(dateStr + "T12:00:00").getDay() + 6) % 7;
 // Statut de chaque jour entre deux dates : fait, loupé, prévu (avec la séance prévue), déplacé
@@ -372,13 +380,19 @@ export function agenda(from, to) {
   let idx = pl ? pl.idx : 0;
   const d0 = new Date(from + "T12:00:00"), d1 = new Date(to + "T12:00:00");
   const futureStart = doneBy[t] ? iso(new Date(Date.now() + 864e5)) : t;
-  const seq = [];
-  for (let d = new Date(futureStart + "T12:00:00"); iso(d) <= to; d.setDate(d.getDate() + 1)) {
-    const k = iso(d);
-    const planned = lay.some(l => l.dow === dowOf(k)) && !moves[k] && !skips[k];
-    if ((planned || movedTo[k]) && p) { seq.push([k, p.s[idx % p.s.length][0]]); idx++; }
+  // une séance déplacée reste la même séance : l'ordre est calculé sur les jours d'origine
+  const futureMap = {}, orig = {};
+  if (p) {
+    const end = [to, ...Object.keys(moves)].sort().at(-1);
+    for (let d = new Date(futureStart + "T12:00:00"); iso(d) <= end; d.setDate(d.getDate() + 1)) {
+      const k = iso(d);
+      if (lay.some(l => l.dow === dowOf(k)) && !skips[k]) { orig[k] = p.s[idx % p.s.length][0]; idx++; }
+    }
+    Object.entries(orig).forEach(([k, t0]) => { if (!moves[k]) futureMap[k] = t0; });
+    Object.entries(moves).forEach(([a, b]) => { if (b < futureStart) return;
+      const t0 = orig[a] || (a < futureStart ? p.s[(lay.find(l => l.dow === dowOf(a))?.k) ?? 0]?.[0] : null); if (!t0) return;
+      futureMap[b] = futureMap[b] && futureMap[b] !== t0 ? `${futureMap[b]} + ${t0}` : t0; });
   }
-  const futureMap = Object.fromEntries(seq);
   for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
     const k = iso(d), dow = dowOf(k);
     const plannedDay = p && lay.some(l => l.dow === dow);
@@ -387,10 +401,18 @@ export function agenda(from, to) {
     else if (k < t && k >= start && ((plannedDay && !moves[k] && !skips[k]) || movedTo[k])) out[k] = { st: "missed", title: p?.s[(lay.find(l => l.dow === dow)?.k) ?? 0]?.[0] || "Séance" };
     else if (skips[k] && plannedDay) out[k] = { st: "rest", title: "Repos choisi" };
     if (moves[k]) out[k] = { ...(out[k] || {}), st: out[k]?.st === "done" ? "done" : "away", to: moves[k] };
+    if (out[k] && out[k].st !== "done") Object.assign(out[k], slotOf(k));
   }
   return out;
 }
-export function moveSession(from, to) { update(st => { st.moves = st.moves || {}; if (from === to) delete st.moves[from]; else st.moves[from] = to; }); }
+export function moveSession(from, to, time = null) {
+  update(st => {
+    st.moves = st.moves || {};
+    Object.keys(st.moves).forEach(k => { if (st.moves[k] === from) { st.moves[k] = to; if (k === to) delete st.moves[k]; from = null; } }); // re-déplacer une séance déjà déplacée
+    if (from) { if (from === to) delete st.moves[from]; else st.moves[from] = to; }
+    if (time) { st.slots = st.slots || {}; st.slots[to] = { ...(st.slots[to] || {}), time }; }
+  });
+}
 export function toggleSkip(day) { update(st => { st.skips = st.skips || {}; if (st.skips[day]) delete st.skips[day]; else st.skips[day] = true; }); }
 
 export function workoutsThisWeek() {
