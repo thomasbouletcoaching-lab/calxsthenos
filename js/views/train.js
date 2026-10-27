@@ -61,7 +61,7 @@ function programBody(ns) {
       <p class="xs muted mt8" style="margin-bottom:0">Pendant la séance, le bouton <b>📈 Progression</b> de chaque exercice permet d'ajuster la charge, les reps ou ton 1RM estimé.</p></div>
     ${p.rules?.length ? `<h2 class="sec">📏 Les règles</h2><div class="card"><ul style="margin:0;padding-left:18px" class="small">${p.rules.map(r => `<li style="margin-bottom:8px">${esc(r)}</li>`).join("")}</ul></div>` : ""}
     ${p.desc ? `<p class="small muted mt12">${esc(p.desc)}</p>` : ""}
-    <div class="row mt12" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="go" data-r="kb">📚 Connaissances</button><button class="btn btn-line btn-sm grow" data-a="go" data-r="builder">✏️ Créer mon programme</button></div>`;
+    <div class="row mt12" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="bd-copy" data-id="${p.id}">✏️ ${p.custom ? "Modifier" : "Personnaliser"} ce programme</button><button class="btn btn-line btn-sm grow" data-a="go" data-r="kb">📚 Connaissances</button></div>`;
 }
 actions["cy-week"] = (b, d) => { viewWeek = +d.v; rerender(); };
 actions["cy-place"] = (b, d) => { if (S().current) return toast("Termine d'abord ta séance en cours."); E.placeIn(+d.v); viewWeek = +d.v; toast(`Tu es maintenant en semaine ${d.v}`); rerender(); };
@@ -82,8 +82,9 @@ function progCard(pg, mine = false) {
   const open = programOpen(pg.id), cur = pg.id === S().plan?.programId;
   return `<div class="card ${cur ? "hl" : ""} mt8"><div class="row between"><span>${cur ? '<span class="tag r">En cours</span>' : ""}<span class="tag">${esc(pg.lvl || "Perso")}</span><span class="tag">${pg.days.filter(Boolean).length} j</span>${pg.split ? `<span class="tag">${esc(pg.split)}</span>` : ""}</span>${open ? "" : `<span class="lock">🔒 Premium</span>`}</div>
     <h3 class="h3 mt8">${esc(pg.name)}</h3>${pg.prof ? `<p class="small muted mt4">${esc(pg.prof)}</p>` : ""}
-    <div class="row mt8" style="gap:8px">${cur ? "" : open ? `<button class="btn btn-line btn-sm" data-a="set-program" data-id="${pg.id}">Choisir</button>` : `<button class="btn btn-line btn-sm" data-a="go" data-r="offers">Débloquer</button>`}${mine ? `<button class="btn btn-ghost btn-sm" data-a="go" data-r="builder" data-p="${pg.id}">Modifier</button>` : ""}</div></div>`;
+    <div class="row mt8" style="gap:8px">${cur ? "" : open ? `<button class="btn btn-line btn-sm" data-a="set-program" data-id="${pg.id}">Choisir</button>` : `<button class="btn btn-line btn-sm" data-a="go" data-r="offers">Débloquer</button>`}${mine ? `<button class="btn btn-ghost btn-sm" data-a="go" data-r="builder" data-p="${pg.id}">Modifier</button>` : `<button class="btn btn-ghost btn-sm" data-a="bd-copy" data-id="${pg.id}">Personnaliser</button>`}</div></div>`;
 }
+actions["bd-copy"] = (b, d) => { const p = E.program(d.id); if (p?.custom) return go("builder", p.id); draft = null; location.hash = "#/builder/copie/" + encodeURIComponent(d.id); };
 actions["set-program"] = (b, d) => {
   if (S().current) return toast("Termine d'abord ta séance en cours.");
   if (!programOpen(d.id)) return go("offers");
@@ -536,44 +537,161 @@ routes.done = () => {
 };
 
 // =====================================================================
-// CRÉER SON PROGRAMME
+// CRÉER SON PROGRAMME : séances, exercices, séries écrites une par une, règles de surcharge, cycle entier
 // =====================================================================
 let draft = null;
-const blankRow = (n) => [n, "X", "", null, null, { sets: 3, lo: 8, hi: 12, rpe: 8, pct: null, tech: [], rest: 120 }];
+const KINDS = [["F", "Force"], ["P", "Principal"], ["S", "Secondaire"], ["I", "Isolation"], ["U", "Unilatéral"], ["C", "Gainage"], ["N", "Street"], ["M", "Mobilité"], ["X", "Autre"]];
+const ST_SHORT = { N: "Normale", W: "Échauf.", T: "Top set", B: "Back-off", D: "Dégressive", A: "AMRAP", E: "Échec" };
+const newRow = (n) => { const x = E.migrateRow({ sets: 3, lo: 8, hi: 12, rpe: 8, pct: null, tech: [], rest: 120 }); return [n, "P", "", null, null, x]; };
+const PRESETS = [
+  ["3×8-12", "3x8-12 RPE8"], ["4×6-8", "4x6-8 RPE8"], ["5×5", "5x5 RPE8"], ["3×10-15", "3x10-15 RPE8"],
+  ["Top set + back-off", "1x5@82% + 3x8@72%"], ["Force 5×3", "5x3@85%"], ["Pyramide", "1x10 RPE7 + 1x8 RPE8 + 1x6 RPE9"], ["5/3/1", "1x5@65% + 1x5@75% + 1x5@85% AMRAP"], ["+ dégressive", "3x8-10 RPE9 + 1x10-12 RPE10 DS"],
+];
+// Copie un programme existant en programme modifiable, avec tout le cycle écrit
+function toDraft(p) {
+  const d = JSON.parse(JSON.stringify(p));
+  const W = E.weeksOf(p);
+  d.s.forEach(se => se[2] = se[2].map(r => {
+    if (r[5]?.sets) { E.migrateRow(r[5]); return r; }
+    const weeks = {}; for (let w = 1; w <= W; w++) weeks[w] = E.parseSets(E.schemeFor(p, r, w));
+    const base = weeks[1]; delete weeks[1];
+    return [r[0], r[1], r[2] || "", r[3] || null, r[4] || null, { sets: base, rest: 120, prog: { ...E.DEF_PROG }, weeks, auto: true }];
+  }));
+  if (!d.phases && !p.custom) d.phases = Array.from({ length: W }, (_, i) => E.phaseOf(p, i + 1) === "Allègement" ? "Deload" : E.phaseOf(p, i + 1));
+  return Object.assign(d, { id: "my-" + Date.now(), custom: true, name: p.name + " (perso)", lvl: "Perso", weeks: W, from: p.id });
+}
 routes.builder = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
   if (!premium()) {
-    $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page"><div class="card locked" style="min-height:300px;position:relative"><h2 class="h2">Ton programme, tes règles</h2><p class="small muted">Séances, exercices, séries, fourchettes de reps, RPE, % du 1RM, techniques d'intensification et temps de repos : tout se planifie, puis le carnet calcule tes charges.</p>${lockVeil("Bâtisseur")}</div></main>${tabbar("train")}`;
+    $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page"><div class="card locked" style="min-height:300px;position:relative"><h2 class="h2">Ton programme, tes règles</h2><p class="small muted">Séances, exercices, séries une par une, top set et back-off, % du 1RM ou kg, RPE, règles de surcharge, techniques et tempo semaine par semaine.</p>${lockVeil("Bâtisseur")}</div></main>${tabbar("train")}`;
     return;
   }
+  if (R.param === "copie" && R.param2) { const src = E.program(R.param2); if (src) draft = toDraft(src); history.replaceState(null, "", "#/builder"); R.param = null; }
   if (!draft || (R.param && draft.id !== R.param)) {
     const ex = R.param && (S().customPrograms || []).find(p => p.id === R.param);
-    draft = ex ? JSON.parse(JSON.stringify(ex)) : { id: "my-" + Date.now(), custom: true, name: "Mon programme", lvl: "Perso", split: "Perso", weeks: 8, days: [true, false, true, false, true, false, false], s: [["Séance A", "Lundi", []]], prof: "", desc: "Programme créé par moi." };
+    draft = ex ? JSON.parse(JSON.stringify(ex)) : { id: "my-" + Date.now(), custom: true, name: "Mon programme", lvl: "Perso", split: "Perso", weeks: 8, deload: { every: 4 }, days: [true, false, true, false, true, false, false], s: [["Séance A", "Lundi", []]], prof: "", desc: "Programme créé par moi." };
   }
-  const D = draft;
-  $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page">
-    <label class="field"><span>Nom</span><input data-c="bd" data-k="name" value="${esc(D.name)}" maxlength="60"></label>
-    <div class="stack mt8"><label class="field"><span>Durée du cycle</span><select data-c="bd" data-k="weeks">${[4, 6, 8, 10, 12].map(w => `<option ${D.weeks === w ? "selected" : ""} value="${w}">${w} semaines</option>`).join("")}</select></label><div class="field"><span>Jours d'entraînement</span><div class="row" style="gap:3px">${E.DAY_SHORT.map((l, i) => `<button class="chip sm ${D.days[i] ? "on" : ""}" data-a="bd-day" data-v="${i}" style="padding:6px 8px">${l}</button>`).join("")}</div></div></div>
-    ${D.s.map((s, si) => `<div class="card mt16"><div class="row" style="gap:8px"><input class="inp grow" data-c="bd-s" data-s="${si}" value="${esc(s[0])}" aria-label="Nom de la séance" style="text-align:left;font-weight:800">${D.s.length > 1 ? `<button class="icon-btn" data-a="bd-sdel" data-s="${si}" aria-label="Supprimer la séance">${I.close}</button>` : ""}</div>
-      ${s[2].map((r, ri) => { const x = r[5]; return `<div class="mt12" style="border-top:1px solid var(--line);padding-top:10px"><div class="row between"><b class="small" style="color:var(--red)">${esc(r[0])}</b><button class="link xs" data-a="bd-rdel" data-s="${si}" data-r="${ri}">Retirer</button></div>
-        <div class="grid3 mt8">${[["sets", "Séries"], ["lo", "Reps min"], ["hi", "Reps max"], ["rpe", "RPE"], ["pct", "% 1RM"], ["rest", "Repos (s)"]].map(([k, l]) => `<label class="field"><span>${l}</span><input inputmode="decimal" data-c="bd-r" data-s="${si}" data-r="${ri}" data-k="${k}" value="${x[k] ?? ""}" placeholder="–"></label>`).join("")}</div>
-        <div class="chips mt8">${E.TECHS.slice(1).map(([e, t]) => `<button class="chip sm ${x.tech.includes(t) ? "on" : ""}" data-a="bd-tech" data-s="${si}" data-r="${ri}" data-v="${esc(t)}">${e} ${esc(t)}</button>`).join("")}</div></div>`; }).join("")}
-      <button class="btn btn-line btn-sm mt12" data-a="bd-add" data-s="${si}" style="width:100%">+ Exercice</button></div>`).join("")}
+  const D = draft; D.s.forEach(se => se[2].forEach(r => { r[5] = E.migrateRow(r[5] || { sets: 3 }); }));
+  if (!D.phases && D.deload === undefined) D.deload = { every: 4 };
+  const dl = D.phases ? "phases" : !D.deload ? "none" : D.deload.w ? "last" : String(D.deload.every);
+  $app.innerHTML = header(D.from ? "Personnaliser" : "Créer mon programme", "", { back: "train" }) + `<main class="page">
+    <label class="field"><span>Nom</span><input data-c="bd" data-k="name" value="${esc(D.name)}" maxlength="70"></label>
+    <div class="grid2 mt8"><label class="field"><span>Durée du cycle</span><select data-c="bd" data-k="weeks">${Array.from({ length: 14 }, (_, i) => i + 3).map(w => `<option ${D.weeks === w ? "selected" : ""} value="${w}">${w} semaines</option>`).join("")}</select></label>
+      <label class="field"><span>Semaines d'allègement</span><select data-c="bd-deload">${D.phases ? `<option value="phases" selected>Selon les phases du programme</option>` : ""}<option value="4" ${dl === "4" ? "selected" : ""}>Toutes les 4 semaines</option><option value="5" ${dl === "5" ? "selected" : ""}>Toutes les 5 semaines</option><option value="6" ${dl === "6" ? "selected" : ""}>Toutes les 6 semaines</option><option value="last" ${dl === "last" ? "selected" : ""}>Dernière semaine du cycle</option><option value="none" ${dl === "none" ? "selected" : ""}>Aucune</option></select></label></div>
+    <div class="field mt8"><span>Jours d'entraînement</span><div class="row" style="gap:4px">${E.DAY_SHORT.map((l, i) => `<button class="chip sm ${D.days[i] ? "on" : ""}" data-a="bd-day" data-v="${i}" style="padding:6px 10px">${l}</button>`).join("")}</div></div>
+    ${D.s.map((se, si) => `<div class="card mt16"><div class="row" style="gap:6px"><input class="inp grow" data-c="bd-s" data-s="${si}" value="${esc(se[0])}" aria-label="Nom de la séance" style="text-align:left;font-weight:800">${D.s.length > 1 ? `<button class="icon-btn" data-a="bd-smv" data-s="${si}" data-v="-1" aria-label="Monter la séance" ${si ? "" : "disabled style=\"opacity:.3\""}>↑</button><button class="icon-btn" data-a="bd-sdel" data-s="${si}" aria-label="Supprimer la séance">${I.close}</button>` : ""}</div>
+      ${se[2].map((r, ri) => { const x = r[5], pr = x.prog || {}; const rules = [pr.load !== "auto" ? `${pr.load === "rpe" ? "RPE" : "charge"} +${String(pr.step).replace(".", ",")}${pr.load === "pct" ? " %" : pr.load === "kg" ? " kg" : ""}${pr.every > 1 ? ` / ${pr.every} sem.` : " / sem."}` : "progression auto", pr.addSet?.every ? `+1 série / ${pr.addSet.every} sem.` : "", pr.reps?.every ? `${pr.reps.delta > 0 ? "+" : ""}${pr.reps.delta} rep / ${pr.reps.every} sem.` : "", Object.keys(x.weeks || {}).length ? `${Object.keys(x.weeks).length} sem. écrites` : ""].filter(Boolean).join(" · ");
+        return `<div class="bd-ex"><div class="row" style="gap:6px;align-items:flex-start"><span class="num xs" style="width:18px;padding-top:3px">${ri + 1}</span><button class="grow" style="text-align:left" data-a="bd-edit" data-s="${si}" data-r="${ri}"><b class="small" style="color:var(--red)">${r[3] ? `[${esc(r[3])}] ` : ""}${esc(r[0])}</b><br><span class="xs">S1 : ${esc(E.setsTxt(E.weekPlan(x, 1, D).sets).replace(/x/g, "×") || "aucune série")}</span><br><span class="xs muted">${esc(rules)}</span></button>
+          <div class="col" style="gap:4px"><button class="icon-btn sm" data-a="bd-rmv" data-s="${si}" data-r="${ri}" data-v="-1" aria-label="Monter" ${ri ? "" : "disabled style=\"opacity:.3\""}>↑</button><button class="icon-btn sm" data-a="bd-rmv" data-s="${si}" data-r="${ri}" data-v="1" aria-label="Descendre" ${ri < se[2].length - 1 ? "" : "disabled style=\"opacity:.3\""}>↓</button></div></div></div>`; }).join("")}
+      <button class="btn btn-line btn-sm mt12" data-a="bd-add" data-s="${si}" style="width:100%">+ Exercices</button></div>`).join("")}
     <button class="btn btn-ghost mt12" data-a="bd-sadd">+ Ajouter une séance</button>
-    <p class="xs muted mt12">La semaine ${D.weeks} et chaque 4ᵉ semaine sont des semaines d'allègement conseillées. Les charges sont calculées à partir de tes records et de ton carnet.</p>
+    <p class="xs muted mt12">Touche un exercice pour écrire ses séries, ses règles de surcharge et chaque semaine du cycle. Les charges en % se calculent sur ton 1RM estimé.</p>
     <div class="row mt12" style="gap:8px"><button class="btn btn-red grow" data-a="bd-save">Enregistrer</button><button class="btn btn-line grow" data-a="bd-use">Enregistrer et suivre</button></div>
     ${(S().customPrograms || []).some(p => p.id === D.id) ? `<button class="btn btn-ghost mt8" data-a="bd-del" style="color:var(--red)">Supprimer ce programme</button>` : ""}
   </main>${tabbar("train")}`;
 };
-changes.bd = (el) => { const k = el.dataset.k; draft[k] = k === "weeks" ? +el.value : el.value; };
+changes.bd = (el) => { const k = el.dataset.k; draft[k] = k === "weeks" ? +el.value : el.value; if (k === "weeks" && draft.phases) draft.phases = Array.from({ length: +el.value }, (_, i) => draft.phases[i] || "Accumulation"); rerender(); };
+changes["bd-deload"] = (el) => { const v = el.value; if (v === "phases") return; delete draft.phases; draft.deload = v === "none" ? null : v === "last" ? { w: [draft.weeks] } : { every: +v }; rerender(); };
 changes["bd-s"] = (el) => { draft.s[+el.dataset.s][0] = el.value; };
-changes["bd-r"] = (el) => { const x = draft.s[+el.dataset.s][2][+el.dataset.r][5], v = num(el.value); x[el.dataset.k] = isNaN(v) ? null : v; };
 actions["bd-day"] = (b, d) => { draft.days[+d.v] = !draft.days[+d.v]; rerender(); };
 actions["bd-sadd"] = () => { draft.s.push([`Séance ${String.fromCharCode(65 + draft.s.length)}`, "", []]); rerender(); };
-actions["bd-sdel"] = (b, d) => { draft.s.splice(+d.s, 1); rerender(); };
-actions["bd-rdel"] = (b, d) => { draft.s[+d.s][2].splice(+d.r, 1); rerender(); };
-actions["bd-tech"] = (b, d) => { const x = draft.s[+d.s][2][+d.r][5]; x.tech = x.tech.includes(d.v) ? x.tech.filter(t => t !== d.v) : [...x.tech, d.v]; rerender(); };
-actions["bd-add"] = (b, d) => pickExercise((n) => { draft.s[+d.s][2].push(blankRow(n)); rerender(); });
+actions["bd-sdel"] = (b, d) => { if (!confirm("Supprimer cette séance ?")) return; draft.s.splice(+d.s, 1); rerender(); };
+actions["bd-smv"] = (b, d) => { const a = draft.s, i = +d.s, j = i + +d.v; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; rerender(); };
+actions["bd-rmv"] = (b, d) => { const a = draft.s[+d.s][2], i = +d.r, j = i + +d.v; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; rerender(); };
+actions["bd-add"] = (b, d) => pickExercise((n) => { draft.s[+d.s][2].push(newRow(n)); }, "Ajouter des exercices", { multi: true });
+
+// ---------- Éditeur d'un exercice ----------
+const ed = { si: 0, ri: 0, w: null }; // w = null : séries de base (semaine 1) ; sinon semaine écrite
+const edRow = () => draft.s[ed.si][2][ed.ri];
+const edSets = () => { const x = edRow()[5]; if (ed.w == null) return x.sets; if (!x.weeks?.[ed.w]) { x.weeks = x.weeks || {}; x.weeks[ed.w] = E.weekPlan(x, ed.w, draft).sets; } return x.weeks[ed.w]; };
+const fmtN = (v) => v == null || v === "" ? "" : String(v).replace(".", ",");
+function setTable(sets, unitS) {
+  return `<div class="stab"><div class="stab-h"><span>Type</span><span>${unitS ? "Sec." : "Reps"}</span><span>Charge</span><span></span><span>RPE</span><span></span></div>
+    ${sets.map((s, i) => `<div class="stab-r"><select data-c="bx" data-f="t" data-i="${i}" aria-label="Type de série">${Object.entries(ST_SHORT).map(([k, l]) => `<option value="${k}" ${s.t === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <input data-c="bx" data-f="reps" data-i="${i}" value="${s.lo}${s.hi && s.hi !== s.lo ? "-" + s.hi : ""}" inputmode="text" aria-label="Répétitions">
+      <input data-c="bx" data-f="load" data-i="${i}" value="${fmtN(s.pct ?? s.kg)}" inputmode="decimal" placeholder="auto" aria-label="Charge">
+      <select data-c="bx" data-f="unit" data-i="${i}" aria-label="Unité"><option value="pct" ${s.pct != null ? "selected" : ""}>%</option><option value="kg" ${s.kg != null ? "selected" : ""}>kg</option><option value="" ${s.pct == null && s.kg == null ? "selected" : ""}>–</option></select>
+      <input data-c="bx" data-f="rpe" data-i="${i}" value="${fmtN(s.rpe)}" inputmode="decimal" placeholder="–" aria-label="RPE">
+      <button class="icon-btn sm" data-a="bx-del" data-i="${i}" aria-label="Supprimer la série">${I.close}</button>
+      ${(s.tech || []).length ? `<div class="stab-t">${s.tech.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}</div>`).join("")}</div>
+    <div class="row mt8" style="gap:6px"><button class="btn btn-ghost btn-xs" data-a="bx-add">+ Série</button><button class="btn btn-ghost btn-xs" data-a="bx-add" data-t="W">+ Échauffement</button><button class="btn btn-ghost btn-xs" data-a="bx-tech">⚡ Technique</button></div>`;
+}
+function exEditor(keep = true) {
+  const r = edRow(), x = r[5], pr = x.prog, unitS = E.unitOf(r[0], r[1]) === "s";
+  const W = draft.weeks || 8;
+  sheet(`<div class="row between"><h2 class="h2" style="color:var(--red)">${esc(r[0])}</h2><button class="btn btn-red btn-xs" data-a="bx-close" style="width:auto">OK</button></div>
+    <p class="xs muted">${esc(E.musclesOf(r[0]).join(" · "))} · <button class="link xs" data-a="bx-swap">Remplacer</button> · <button class="link xs" data-a="fiche-sheet" data-n="${esc(r[0])}">Fiche</button> · <button class="link xs" data-a="bx-remove" style="color:var(--red)">Retirer</button></p>
+    <div class="grid3 mt8"><label class="field"><span>Type</span><select data-c="bx-k" data-k="kind">${KINDS.map(([k, l]) => `<option value="${k}" ${r[1] === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><label class="field"><span>Repos (s)</span><input data-c="bx-k" data-k="rest" inputmode="numeric" value="${x.rest ?? 120}"></label><label class="field"><span>Superset</span><input data-c="bx-k" data-k="ss" value="${esc(r[3] || "")}" placeholder="A, B…" maxlength="2"></label></div>
+    <div class="grid2 mt8"><label class="field"><span>Tempo (descente-pause-montée)</span><input data-c="bx-k" data-k="tempo" value="${esc(r[4] || "")}" placeholder="ex. 3-1-1"></label><label class="field"><span>Consigne</span><input data-c="bx-k" data-k="note" value="${esc(r[2] || "")}" placeholder="ex. pause en bas"></label></div>
+    <h3 class="sec">Séries · semaine 1</h3>
+    <div class="chips mt4">${PRESETS.map(([l, v], i) => `<button class="chip sm" data-a="bx-preset" data-i="${i}">${l}</button>`).join("")}</div>
+    <div class="mt8">${setTable(x.sets, unitS)}</div>
+    <p class="xs muted mt4">Reps : « 8 » ou « 8-10 ». Charge vide : calculée sur ton RPE. Top set et back-off : choisis le type de chaque série.</p>
+    <h3 class="sec">Surcharge progressive</h3>
+    <div class="grid3"><label class="field"><span>Charge</span><select data-c="bx-p" data-k="load">${E.LOAD_MODES.map(([k, l]) => `<option value="${k}" ${pr.load === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label class="field"><span>De combien</span><input data-c="bx-p" data-k="step" inputmode="decimal" value="${fmtN(pr.step)}" ${pr.load === "auto" ? "disabled" : ""}></label>
+      <label class="field"><span>Toutes les</span><select data-c="bx-p" data-k="every" ${pr.load === "auto" ? "disabled" : ""}>${[1, 2, 3, 4].map(n => `<option value="${n}" ${pr.every === n ? "selected" : ""}>${n} sem.</option>`).join("")}</select></label></div>
+    <div class="grid3 mt8"><label class="field"><span>+1 série toutes les</span><select data-c="bx-p" data-k="addEvery"><option value="">Jamais</option>${[1, 2, 3, 4].map(n => `<option value="${n}" ${pr.addSet?.every === n ? "selected" : ""}>${n} sem.</option>`).join("")}</select></label>
+      <label class="field"><span>Séries max</span><input data-c="bx-p" data-k="addMax" inputmode="numeric" value="${pr.addSet?.max ?? ""}" placeholder="5" ${pr.addSet ? "" : "disabled"}></label><span></span></div>
+    <div class="grid3 mt8"><label class="field"><span>Reps</span><select data-c="bx-p" data-k="repsDelta"><option value="">Fixes</option><option value="-1" ${pr.reps?.delta === -1 ? "selected" : ""}>−1 rep</option><option value="-2" ${pr.reps?.delta === -2 ? "selected" : ""}>−2 reps</option><option value="1" ${pr.reps?.delta === 1 ? "selected" : ""}>+1 rep</option></select></label>
+      <label class="field"><span>Toutes les</span><select data-c="bx-p" data-k="repsEvery" ${pr.reps ? "" : "disabled"}>${[1, 2, 3, 4, 6].map(n => `<option value="${n}" ${pr.reps?.every === n ? "selected" : ""}>${n} sem.</option>`).join("")}</select></label>
+      <label class="field"><span>Reps min</span><input data-c="bx-p" data-k="repsMin" inputmode="numeric" value="${pr.reps?.min ?? ""}" placeholder="3" ${pr.reps ? "" : "disabled"}></label></div>
+    <h3 class="sec">Tout le cycle · ${W} semaines <small>touche une semaine pour l'écrire</small></h3>
+    <div class="list">${Array.from({ length: W }, (_, i) => i + 1).map(w => { const pl = E.weekPlan(x, w, draft); return `<button class="li" data-a="bx-week" data-w="${w}"><span class="num" style="width:30px">S${w}</span><span class="grow xs"><b>${esc(E.setsTxt(pl.sets).replace(/x/g, "×") || "–")}</b>${pl.tempo || r[4] ? ` · tempo ${esc(pl.tempo || r[4])}` : ""}${x.techW?.[w]?.length ? ` · ${esc(x.techW[w].join(", "))}` : ""}<br><span class="muted">${esc(E.phaseOf(draft, w))}${pl.custom ? " · écrite à la main" : ""}</span></span>${I.chev}</button>`; }).join("")}</div>`, null, { keep });
+}
+function weekEditor(keep = true) {
+  const r = edRow(), x = r[5], w = ed.w, unitS = E.unitOf(r[0], r[1]) === "s", pl = E.weekPlan(x, w, draft);
+  const sets = x.weeks?.[w] || pl.sets;
+  sheet(`<button class="link small" data-a="bx-back">← ${esc(r[0])}</button>
+    <div class="row between mt8"><h2 class="h2">Semaine ${w}</h2><span class="tag ${pl.deload ? "" : "r"}">${esc(E.phaseOf(draft, w))}</span></div>
+    <p class="xs muted">${x.weeks?.[w] ? "Écrite à la main : elle ne suit plus les règles." : "Calculée par tes règles. Modifie une valeur pour l'écrire à la main."}</p>
+    <div class="mt8">${setTable(sets, unitS)}</div>
+    <div class="grid2 mt12"><label class="field"><span>Tempo cette semaine</span><input data-c="bx-wt" value="${esc(x.tempoW?.[w] || "")}" placeholder="${esc(r[4] || "ex. 3-1-1")}"></label><span></span></div>
+    <div class="lbl mt12">Technique d'intensification cette semaine</div>
+    <div class="chips wrap mt8">${E.TECHS.slice(1).map(([e, t]) => `<button class="chip sm ${(x.techW?.[w] || []).includes(t) ? "on" : ""}" data-a="bx-wtech" data-v="${esc(t)}">${e} ${esc(t)}</button>`).join("")}</div>
+    <div class="row mt16" style="gap:8px">${x.weeks?.[w] ? `<button class="btn btn-line btn-sm grow" data-a="bx-wreset">Revenir aux règles</button>` : ""}<button class="btn btn-line btn-sm grow" data-a="bx-wcopy">Copier sur les semaines suivantes</button></div>
+    <div class="row mt8" style="gap:8px">${w > 1 ? `<button class="btn btn-ghost btn-sm grow" data-a="bx-wnav" data-v="-1">← S${w - 1}</button>` : ""}${w < (draft.weeks || 8) ? `<button class="btn btn-ghost btn-sm grow" data-a="bx-wnav" data-v="1">S${w + 1} →</button>` : ""}</div>`, null, { keep });
+}
+// Quand on réécrit les séries de base d'un programme copié, les semaines pré-écrites suivent les nouvelles règles
+function baseChanged() { const x = edRow()[5]; if (ed.w == null && x.auto && Object.keys(x.weeks || {}).length) { x.weeks = {}; delete x.auto; toast("Le cycle suit maintenant tes séries et tes règles"); } }
+const redrawEd = () => { baseChanged(); ed.w == null ? exEditor() : weekEditor(); };
+actions["bd-edit"] = (b, d) => { ed.si = +d.s; ed.ri = +d.r; ed.w = null; exEditor(false); };
+actions["bx-close"] = () => { closeSheet(); rerender(); };
+actions["bx-back"] = () => { ed.w = null; exEditor(); };
+actions["bx-week"] = (b, d) => { ed.w = +d.w; weekEditor(); };
+actions["bx-wnav"] = (b, d) => { ed.w += +d.v; weekEditor(); };
+actions["bx-remove"] = () => { if (!confirm("Retirer cet exercice du programme ?")) return; draft.s[ed.si][2].splice(ed.ri, 1); closeSheet(); rerender(); };
+actions["bx-swap"] = () => pickExercise((n) => { edRow()[0] = n; ed.w = null; exEditor(false); }, "Remplacer par", { mus: E.musclesOf(edRow()[0])[0] || "" });
+changes["bx-k"] = (el) => { const r = edRow(), k = el.dataset.k, v = el.value.trim(); if (k === "kind") r[1] = v; else if (k === "rest") r[5].rest = Math.max(15, Math.round(num(v)) || 120); else if (k === "ss") r[3] = v.toUpperCase() || null; else if (k === "tempo") r[4] = v || null; else if (k === "note") r[2] = v; };
+changes["bx-p"] = (el) => {
+  const pr = edRow()[5].prog, k = el.dataset.k, v = el.value;
+  if (k === "load") pr.load = v; else if (k === "step") pr.step = num(v) || 0; else if (k === "every") pr.every = +v;
+  else if (k === "addEvery") pr.addSet = v ? { every: +v, max: pr.addSet?.max || 5 } : null; else if (k === "addMax" && pr.addSet) pr.addSet.max = Math.round(num(v)) || 5;
+  else if (k === "repsDelta") pr.reps = v ? { delta: +v, every: pr.reps?.every || 4, min: pr.reps?.min || 3 } : null; else if (k === "repsEvery" && pr.reps) pr.reps.every = +v; else if (k === "repsMin" && pr.reps) pr.reps.min = Math.round(num(v)) || 1;
+  if (k === "load" && v === "pct" && !edRow()[5].sets.some(s => s.pct)) toast("Indique un % sur tes séries pour que la charge monte en %.");
+  redrawEd();
+};
+changes.bx = (el) => {
+  const sets = edSets(), s = sets[+el.dataset.i], f = el.dataset.f, v = el.value.trim();
+  if (f === "t") { s.t = v; if (v === "W") { s.rpe = 5; } }
+  else if (f === "reps") { const m = v.match(/(\d+)\s*(?:[-–à]\s*(\d+))?/); if (m) { s.lo = +m[1]; s.hi = +(m[2] || m[1]); } }
+  else if (f === "rpe") s.rpe = v ? Math.min(10, Math.max(4, num(v))) : null;
+  else if (f === "load") { const n = num(v); const unit = s.kg != null ? "kg" : "pct"; s.pct = null; s.kg = null; if (n > 0) s[unit] = n; }
+  else if (f === "unit") { const val = s.pct ?? s.kg; s.pct = null; s.kg = null; if (v && val) s[v] = val; else if (v === "pct") s.pct = 70; else if (v === "kg") s.kg = 20; }
+  redrawEd();
+};
+actions["bx-add"] = (b, d) => { const sets = edSets(), l = sets.filter(s => s.t !== "W").at(-1); if (d.t === "W") sets.splice(sets.filter(s => s.t === "W").length, 0, { t: "W", lo: 8, hi: 8, pct: l?.pct ? Math.round(l.pct * .5) : null, kg: null, rpe: 5, tech: [] }); else sets.push(l ? { ...l, t: l.t === "T" ? "B" : l.t, tech: [...(l.tech || [])] } : { t: "N", lo: 8, hi: 12, rpe: 8, pct: null, kg: null, tech: [] }); redrawEd(); };
+actions["bx-del"] = (b, d) => { const sets = edSets(); if (sets.length <= 1) return toast("Garde au moins une série."); sets.splice(+d.i, 1); redrawEd(); };
+actions["bx-preset"] = (b, d) => { const x = edRow()[5]; x.sets = E.parseSets(PRESETS[+d.i][1]); if (x.sets.some(s => s.pct) && x.prog.load === "auto") x.prog = { ...x.prog, load: "pct", step: 1.5 }; redrawEd(); };
+actions["bx-tech"] = () => sheet(`<button class="link small" data-a="bx-tback">← Retour</button><h2 class="h2 mt8">Technique sur une série</h2><p class="small muted">Choisis la série puis la technique.</p>
+  ${edSets().map((s, i) => `<div class="mt12"><b class="small">Série ${i + 1} · ${ST_SHORT[s.t]}</b><div class="chips wrap mt4">${E.TECHS.slice(1).map(([e, t]) => `<button class="chip sm ${(s.tech || []).includes(t) ? "on" : ""}" data-a="bx-stech" data-i="${i}" data-v="${esc(t)}">${e} ${esc(t)}</button>`).join("")}</div></div>`).join("")}`, null, { keep: true });
+actions["bx-tback"] = () => redrawEd();
+actions["bx-stech"] = (b, d) => { const s = edSets()[+d.i]; s.tech = (s.tech || []).includes(d.v) ? s.tech.filter(t => t !== d.v) : [...(s.tech || []), d.v]; b.classList.toggle("on"); };
+changes["bx-wt"] = (el) => { const x = edRow()[5]; x.tempoW = x.tempoW || {}; if (el.value.trim()) x.tempoW[ed.w] = el.value.trim(); else delete x.tempoW[ed.w]; };
+actions["bx-wtech"] = (b, d) => { const x = edRow()[5]; x.techW = x.techW || {}; const a = x.techW[ed.w] || []; x.techW[ed.w] = a.includes(d.v) ? a.filter(t => t !== d.v) : [...a, d.v]; if (!x.techW[ed.w].length) delete x.techW[ed.w]; weekEditor(); };
+actions["bx-wreset"] = () => { const x = edRow()[5]; delete x.weeks[ed.w]; weekEditor(); };
+actions["bx-wcopy"] = () => { const x = edRow()[5], src = JSON.parse(JSON.stringify(x.weeks?.[ed.w] || E.weekPlan(x, ed.w, draft).sets)); x.weeks = x.weeks || {}; for (let w = ed.w + 1; w <= (draft.weeks || 8); w++) x.weeks[w] = JSON.parse(JSON.stringify(src)); if (x.tempoW?.[ed.w]) for (let w = ed.w + 1; w <= draft.weeks; w++) x.tempoW[w] = x.tempoW[ed.w]; toast(`Copiée sur les semaines ${ed.w + 1} à ${draft.weeks}`); weekEditor(); };
+
 function saveDraft() {
   if (!draft.s.some(s => s[2].length)) { toast("Ajoute au moins un exercice."); return false; }
   const nd = draft.days.filter(Boolean).length; if (!nd) { toast("Choisis au moins un jour."); return false; }
@@ -582,5 +700,10 @@ function saveDraft() {
   return true;
 }
 actions["bd-save"] = () => { if (saveDraft()) { toast("Programme enregistré"); tab = "banque"; draft = null; go("train", "banque"); } };
-actions["bd-use"] = () => { if (!saveDraft()) return; if (S().current) return toast("Enregistré. Termine ta séance en cours pour changer."); update(st => st.plan = { programId: draft.id, startedAt: today(), week: 1, idx: 0, cycle: 1 }); toast("C'est parti avec ton programme"); draft = null; tab = "programme"; pushStats(); go("train", "programme"); };
+actions["bd-use"] = () => {
+  if (!saveDraft()) return; if (S().current) return toast("Enregistré. Termine ta séance en cours pour changer.");
+  const keepWeek = draft.from && draft.from === S().plan?.programId ? Math.min(S().plan.week, draft.weeks) : 1;
+  update(st => st.plan = { programId: draft.id, startedAt: today(), week: keepWeek, idx: 0, cycle: st.plan?.cycle || 1 });
+  toast(keepWeek > 1 ? `C'est parti, tu restes en semaine ${keepWeek}` : "C'est parti avec ton programme"); draft = null; tab = "programme"; pushStats(); go("train", "programme");
+};
 actions["bd-del"] = () => { if (!confirm("Supprimer ce programme ?")) return; const id = draft.id; update(st => { st.customPrograms = st.customPrograms.filter(p => p.id !== id); if (st.plan?.programId === id) st.plan = { programId: st.profile.startProgram || "tb-rep3", startedAt: today(), week: 1, idx: 0, cycle: 1 }; }); draft = null; go("train", "banque"); };

@@ -379,3 +379,12 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .tbar{height:4px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.tbar i{display:block;height:100%;width:0;background:var(--gradbtn);transition:width .5s}
 .set .setmeta .prev{color:var(--soft);font-style:italic}
 .prevbox{margin:8px 0 2px;font-size:13px;color:var(--soft)}.prevbox summary{cursor:pointer;font-weight:600;list-style:none}.prevbox summary::-webkit-details-marker{display:none}.prevbox[open] summary{color:var(--ink)}
+.bd-ex{border-top:1px solid var(--line);padding:10px 0}
+.icon-btn.sm{width:32px;height:32px;border-radius:10px;font-size:14px}
+.col{display:flex;flex-direction:column}
+.stab{display:flex;flex-direction:column;gap:6px}
+.stab-h,.stab-r{display:grid;grid-template-columns:76px 1fr 1fr 46px 46px 32px;gap:4px;align-items:center}
+.stab-h span{font-size:11px;font-weight:600;color:var(--soft);text-align:center}
+.stab-r select,.stab-r input{width:100%;min-width:0;box-sizing:border-box;font:inherit;font-size:14px;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);text-align:center}
+.stab-r select{padding:8px 2px;font-size:12.5px}
+.stab-t{grid-column:1/-1;display:flex;gap:4px;flex-wrap:wrap}

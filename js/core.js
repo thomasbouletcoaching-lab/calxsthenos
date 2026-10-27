@@ -70,7 +70,9 @@ export function toast(msg) {
   const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.append(t);
   clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2600);
 }
-export function sheet(html, onMount) {
+export function sheet(html, onMount, { keep = false } = {}) {
+  const old = document.getElementById("sheet");
+  if (keep && old) { const sh = old.querySelector(".sheet"), y = sh.scrollTop; sh.innerHTML = `<div class="grab" role="button" aria-label="Fermer"></div>${html}`; sh.querySelector(".grab").addEventListener("click", closeSheet); sh.scrollTop = y; onMount?.(old); return old; }
   closeSheet();
   const w = document.createElement("div"); w.className = "sheet-wrap"; w.id = "sheet";
   w.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;

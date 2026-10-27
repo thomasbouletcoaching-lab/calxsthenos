@@ -38,19 +38,80 @@ export function pickProgram(p) {
   if (p.days >= 5 && adv) return "tb-adv5";
   return "tb-int4";
 }
-export function weeksOf(p) { if (p.custom) return p.weeks || 8; const sc = PROG.SC[p.sc]; return sc[Object.keys(sc)[0]].length; }
-export function phaseOf(p, w) { if (p.custom) return w % 4 === 0 ? "Allègement" : "Bloc perso"; return (p.ph || PROG.PH)[w - 1] || ""; }
+export function weeksOf(p) { if (p.weeks) return p.weeks; if (p.custom) return 8; const sc = PROG.SC[p.sc]; return sc[Object.keys(sc)[0]].length; }
+export function phaseOf(p, w) {
+  if (p.phases?.[w - 1]) return p.phases[w - 1] === "Deload" ? "Allègement" : p.phases[w - 1];
+  if (p.custom || p.weeks) return isDeload(p, w) ? "Allègement" : "Bloc perso";
+  return (p.ph || PROG.PH)[w - 1] || "";
+}
 export function schemeFor(p, row, week) {
   const kind = row[1];
-  if (p.custom || row[5]) { const x = row[5] || {}; return `${x.sets || 3}x${x.lo || 8}${x.hi && x.hi !== x.lo ? "-" + x.hi : ""}${x.pct ? "@" + x.pct + "%" : ""} RPE${x.rpe || 8}`; }
+  if (row[5] && (Array.isArray(row[5].sets) || typeof row[5].sets === "number")) return setsTxt(weekPlan(row[5], week, p).sets) || "–";
+  if (p.custom) return "3x8-12 RPE8";
   const sc = PROG.SC[p.sc];
   return (sc[kind] || sc.I || ["3x8-12 RPE8"])[week - 1] || "3x8-12 RPE8";
+}
+
+// ---------- Prescription série par série, règles de surcharge, cycle écrit à l'avance ----------
+// row[5] = { sets: [{ t, lo, hi, rpe, pct, kg, tech }], rest, prog: { load, step, every, addSet, reps }, weeks: { [semaine]: [séries] }, tempoW: { [semaine]: "3-1-1" }, techW: { [semaine]: [techniques] } }
+// load : "auto" (selon le RPE ressenti), "pct" (+step % du 1RM), "kg" (+step kg), "rpe" (+step de RPE), toutes les « every » semaines.
+export const DEF_PROG = { load: "auto", step: 2.5, every: 1, addSet: null, reps: null };
+export const LOAD_MODES = [["auto", "Automatique (selon ton RPE)"], ["pct", "+ % du 1RM"], ["kg", "+ kg"], ["rpe", "+ RPE"]];
+export function migrateRow(x) {
+  if (!x) return x;
+  if (typeof x.sets === "number") {
+    const n = x.sets; x.sets = Array.from({ length: n }, () => ({ t: "N", lo: x.lo || 8, hi: x.hi || x.lo || 12, rpe: x.rpe || 8, pct: x.pct || null, kg: null, tech: [...(x.tech || [])] }));
+    delete x.lo; delete x.hi; delete x.rpe; delete x.pct; x.tech = [];
+  }
+  if (!x.prog) x.prog = { ...DEF_PROG };
+  return x;
+}
+export function isDeload(p, w) { const d = p?.deload; if (p?.phases?.[w - 1]) return p.phases[w - 1] === "Deload"; if (!d) return false; if (d.w?.length) return d.w.includes(w); return d.every ? w % d.every === 0 : false; }
+const cpSet = (s) => ({ t: "N", tech: [], ...s, tech: [...(s.tech || [])] });
+export function weekPlan(x, w, p = null) {
+  x = migrateRow(x);
+  const pr = x.prog || DEF_PROG, deload = isDeload(p, w), test = p?.phases?.[w - 1] === "Test";
+  let sets;
+  if (x.weeks?.[w]) sets = x.weeks[w].map(cpSet);
+  else {
+    let steps = 0; for (let k = 1; k < w; k++) if (!isDeload(p, k) && p?.phases?.[k - 1] !== "Test") steps++;
+    const n = Math.floor(steps / Math.max(1, pr.every || 1));
+    sets = (x.sets || []).map(cpSet);
+    const work = (s) => s.t !== "W";
+    if (pr.load === "pct") sets.forEach(s => { if (s.pct && work(s)) s.pct = Math.round((s.pct + pr.step * n) * 10) / 10; });
+    if (pr.load === "kg") sets.forEach(s => { if (s.kg && work(s)) s.kg = Math.round((s.kg + pr.step * n) * 100) / 100; });
+    if (pr.load === "rpe") sets.forEach(s => { if (s.rpe && work(s)) s.rpe = Math.min(10, Math.round((s.rpe + pr.step * n) * 2) / 2); });
+    if (pr.reps?.every) { const k = Math.floor(steps / pr.reps.every); sets.forEach(s => { if (!work(s)) return; s.lo = Math.max(pr.reps.min || 1, s.lo + pr.reps.delta * k); s.hi = Math.max(s.lo, (s.hi || s.lo) + pr.reps.delta * k); }); }
+    // séries ajoutées : seulement pendant l'accumulation quand le programme a des phases
+    let acc = 0; for (let k = 1; k < w; k++) if (!isDeload(p, k) && (!p?.phases?.length || p.phases[k - 1] === "Accumulation")) acc++;
+    if (pr.addSet?.every) { const k = Math.floor(acc / pr.addSet.every), cur = sets.filter(work).length, max = pr.addSet.max || 99; for (let i = 0; i < k && cur + i < max; i++) { const l = sets.filter(work).at(-1); if (l) sets.push(cpSet({ ...l, t: l.t === "T" ? "B" : l.t })); } }
+    const top = test && sets.find(s => work(s) && s.pct);
+    if (top) sets = [...sets.filter(s => !work(s)), { t: "T", lo: 1, hi: 1, rpe: 9.5, pct: null, kg: null, tech: [], note: "Test : monte par paliers jusqu'à un single propre" }];
+    if ((deload || test) && !top) { const keep = Math.max(1, Math.ceil(sets.filter(work).length * .6)); let c = 0; sets = sets.filter(s => !work(s) || c++ < keep).map(s => !work(s) ? s : { ...s, pct: s.pct ? Math.round(s.pct * .88) : s.pct, kg: s.kg ? Math.round(s.kg * .88 * 4) / 4 : s.kg, rpe: s.rpe ? Math.max(5, s.rpe - 2) : s.rpe, tech: [] }); }
+  }
+  const tech = x.techW?.[w]; if (tech?.length) sets.forEach(s => { if (s.t !== "W") s.tech = [...new Set([...(s.tech || []), ...tech])]; });
+  return { sets, tempo: x.tempoW?.[w] || null, deload, test, custom: !!x.weeks?.[w] };
+}
+export function setsTxt(sets) {
+  const g = []; (sets || []).filter(s => s.t !== "W").forEach(s => { const k = `${s.t}|${s.lo}|${s.hi}|${s.pct}|${s.kg}|${s.rpe}`; const l = g.at(-1); if (l && l.k === k) l.n++; else g.push({ k, n: 1, s }); });
+  return g.map(({ n, s }) => `${n}x${s.lo}${s.hi && s.hi !== s.lo ? "-" + s.hi : ""}${s.pct ? "@" + s.pct + "%" : ""}${s.kg ? "@" + fmtKg(s.kg) + "kg" : ""}${s.rpe ? " RPE" + s.rpe : ""}${s.t === "A" ? " AMRAP" : s.t === "D" ? " DS" : ""}`).join(" + ");
+}
+// "1x5@80% + 3x8@70%", "3x8-10 RPE8", "1x5@76.5%@RPE9", "4x6@60kg RPE8", "3x10 DS" -> séries
+export function parseSets(str) {
+  const out = [];
+  String(str || "").split("+").map(x => x.trim()).filter(Boolean).forEach((part, gi, all) => {
+    const m = part.match(/^(\d+)\s*x\s*(\d+)(?:\s*-\s*(\d+))?/i); if (!m) return;
+    const pct = part.match(/@\s*([\d.,]+)\s*%/), kg = part.match(/@\s*([\d.,]+)\s*kg/i), rpe = part.match(/RPE\s*([\d.,]+)/i);
+    const t = /AMRAP/i.test(part) ? "A" : /\bDS\b/.test(part) ? "D" : all.length > 1 ? (gi === 0 ? "T" : "B") : "N";
+    for (let i = 0; i < +m[1]; i++) out.push({ t, lo: +m[2], hi: +(m[3] || m[2]), pct: pct ? +pct[1].replace(",", ".") : null, kg: kg ? +kg[1].replace(",", ".") : null, rpe: rpe ? +rpe[1].replace(",", ".") : (pct ? null : 8), tech: [] });
+  });
+  return out;
 }
 
 // "3x8-10 RPE8", "1x3@85% + 4x5@75%", "2x10-12 RPE9 + 1x10-12 RPE10 DS"
 export function parseScheme(str) {
   return String(str || "3x8-12 RPE8").split("+").map(s => s.trim()).map(s => {
-    const m = s.match(/^(\d+)\s*x\s*(\d+)(?:-(\d+))?(?:\s*@\s*([\d.]+)%)?(?:\s*RPE\s*([\d.]+))?(\s*DS)?/i);
+    const m = s.match(/^(\d+)\s*x\s*(\d+)(?:-(\d+))?(?:\s*@\s*([\d.]+)%)?(?:\s*@?\s*[\d.,]+\s*kg)?(?:\s*@?\s*RPE\s*([\d.]+))?(\s*(?:DS|AMRAP))?/i);
     if (!m) return { sets: 3, lo: 8, hi: 12, rpe: 8 };
     return { sets: +m[1], lo: +m[2], hi: +(m[3] || m[2]), pct: m[4] ? +m[4] : null, rpe: m[5] ? +m[5] : null, ds: !!m[6] };
   });
@@ -173,12 +234,25 @@ export function buildSession() {
     const orig = row[0], name = S().swaps[orig] || orig, kind = row[1];
     const scheme = schemeFor(p, row, week);
     const groups = parseScheme(scheme);
+    const plan = row[5] && (Array.isArray(row[5].sets) || typeof row[5].sets === "number") ? weekPlan(row[5], week, p) : null;
     const unit = unitOf(name, kind), bw = isBodyweight(name) || unit === "s";
     const e = bw ? 0 : currentE1rm(name), step = stepOf(name);
     const prev = lastPerformance(name);
     const plannedTech = (row[5]?.tech) || [];
     const sets = [];
-    groups.forEach((g, gi) => {
+    if (plan) plan.sets.forEach(sp => {
+      let kg = null;
+      if (!bw || sp.kg) {
+        if (sp.kg) kg = sp.kg;
+        else if (e) kg = (sp.pct ? e * sp.pct / 100 : loadFor(e, sp.lo, sp.rpe || 8)) * (sp.t === "W" ? 1 : pace().f);
+        else if (prev) kg = sp.t === "W" ? prev.kg * .6 : prev.kg;
+        if (kg && comeback) kg *= .9;
+        if (kg && sp.t === "D") kg *= sp.kg ? 1 : .8;
+        if (kg) kg = roundTo(kg, step);
+      }
+      sets.push({ g: sp.t === "W" ? -1 : 0, type: sp.t || "N", kg, reps: sp.lo, lo: sp.lo, hi: sp.hi || sp.lo, rpe: null, trpe: sp.rpe || (sp.t === "W" ? 5 : 8), pct: sp.pct || (e && kg ? Math.round(kg / e * 100) : null), tech: [...(sp.tech || [])], note: sp.note || "", done: false });
+    });
+    else groups.forEach((g, gi) => {
       for (let k = 0; k < g.sets; k++) {
         let kg = null;
         if (!bw) {
@@ -193,12 +267,12 @@ export function buildSession() {
       }
     });
     // Échauffement proposé sur les mouvements de force
-    if (!bw && (kind === "F" || (kind === "P" && i === 0)) && sets[0]?.kg) {
+    if (!bw && !sets.some(s => s.type === "W") && (kind === "F" || (kind === "P" && i === 0)) && sets[0]?.kg) {
       const top = sets[0].kg;
       [[.5, 8], [.7, 4], [.85, 2]].reverse().forEach(([f, r]) => sets.unshift({ g: -1, type: "W", kg: roundTo(top * f, step), reps: r, lo: r, hi: r, trpe: 5, rpe: null, pct: null, tech: [], note: "", done: false }));
     }
     const sug = bw ? null : suggestion(name, groups.at(-1).rpe || 8, groups.at(-1).lo, groups.at(-1).hi, step);
-    return { orig, name, kind, note: row[2] || "", ss: row[3] || null, tempo: row[4] || null, scheme, unit, bw, step, rest: (row[5]?.rest) || REST[kind] || 90, sets, e1: e, sug, myNote: "" };
+    return { orig, name, kind, note: row[2] || "", ss: row[3] || null, tempo: plan?.tempo || row[4] || null, scheme, unit, bw, step, rest: (row[5]?.rest) || REST[kind] || 90, sets, e1: e, sug, myNote: "" };
   });
   return { id: Date.now(), programId: p.id, week, idx: ns.idx % p.s.length, cycle: ns.cycle, title: ns.title, phase: ns.phase, start: new Date().toISOString(), comeback, exercises };
 }
@@ -397,8 +471,8 @@ export function cyclesToGoal(current, target, level = "regular") {
 // ---------- Vue du cycle ----------
 export function cycleOverview(p) {
   const weeks = weeksOf(p), kinds = [...new Set(p.s.flatMap(s => s[2].map(r => r[1])))];
-  const rows = [];
-  for (let w = 1; w <= weeks; w++) rows.push({ w, phase: phaseOf(p, w), schemes: Object.fromEntries(kinds.map(k => [k, p.custom ? "selon le plan" : schemeFor(p, [null, k], w)])) });
+  const rows = [], v2 = p.s.some(s => s[2].some(r => r[5]?.sets));
+  for (let w = 1; w <= weeks; w++) rows.push({ w, phase: phaseOf(p, w), schemes: Object.fromEntries(kinds.map(k => { const r = p.s.flatMap(s => s[2]).find(r => r[1] === k); return [k, v2 && r ? schemeFor(p, r, w) : p.custom ? "selon le plan" : schemeFor(p, [null, k], w)]; })) });
   return { weeks, kinds, rows };
 }
 
