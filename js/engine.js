@@ -58,12 +58,14 @@ export function parseScheme(str) {
 
 // ---------- Exercices ----------
 const BW = /poids de corps|pompes|gainage|planche|plank|dead bug|bird dog|hollow|relev[ée] de jambes(?! .*lest)|hip airplane|stretch|étirement|copenhagen|chaise contre|superman|mobilit|respiration|90\/90|cat camel|McGill|crunch au sol|tractions(?!.*lest)|dips(?!.*lest)|muscle-up|traction australienne/i;
+const exInfo = (name) => FICHES?.ex?.[name] || (S().customExercises || []).find(x => x.n === name) || null;
 export function unitOf(name, kind) {
+  const x = exInfo(name); if (x?.unit) return x.unit;
   if (kind === "M") return "s";
   if (/gainage|planche|plank|chaise contre|copenhagen|hollow|suspension|isom|L-sit|stretch|étirement/i.test(name)) return "s";
   return "reps";
 }
-export const isBodyweight = (name) => BW.test(name) && !/lest/i.test(name);
+export const isBodyweight = (name) => { if (/lest/i.test(name)) return false; const x = exInfo(name); if (x?.eq) return ["Poids de corps", "Anneaux"].includes(x.eq); return BW.test(name); };
 export function stepOf(name) { if (/lest/i.test(name)) return 1.25; if (/kettlebell/i.test(name)) return 4; if (/haltère/i.test(name)) return 2; return 2.5; }
 export const roundTo = (kg, step) => Math.max(0, Math.round(kg / step) * step);
 export const fmtKg = (kg) => (Math.round((kg || 0) * 100) / 100).toString().replace(".", ",");
@@ -315,7 +317,11 @@ export function streakWeeks() {
 }
 
 // ---------- Volume et muscles ----------
+export const MUSCLES = ["Pecs", "Dos-largeur", "Dos-épaisseur", "Épaules-avant", "Épaules-latéral", "Épaules-arrière", "Trapèzes", "Biceps", "Triceps", "Avant-bras", "Abdos", "Lombaires", "Quadriceps", "Ischios", "Fessiers", "Adducteurs", "Mollets", "Cou", "Mobilité", "Cardio"];
+export const EQUIP = ["Barre", "Haltères", "Machine", "Poulie", "Poids de corps", "Lest", "Kettlebell", "Élastique", "Smith", "Anneaux", "Landmine", "Trap bar", "Autre"];
+export const equipOf = (name) => exInfo(name)?.eq || "Autre";
 export function musclesOf(name) {
+  const x = exInfo(name); if (x?.mus?.length) return x.mus;
   const r = LIB?.BASE?.find(x => x[0] === name);
   if (r) return [r[1], r[2], r[3]].filter(Boolean);
   const F = FICHES?.ex?.[name]; return F ? [(FICHES.fam[F.fam]?.nom || F.fam).split("(")[0].trim()] : ["Autre"];
@@ -380,13 +386,15 @@ export function cycleOverview(p) {
 
 // ---------- Exercices : remplacements, fiches ----------
 export function alternatives(name) {
-  const F = FICHES; if (!F?.ex?.[name]) return [];
-  const fam = F.ex[name].fam;
-  return Object.keys(F.ex).filter(n => n !== name && F.ex[n].fam === fam);
+  const F = FICHES, fam = F?.ex?.[name]?.fam, m0 = musclesOf(name)[0];
+  const same = fam ? Object.keys(F.ex).filter(n => n !== name && F.ex[n].fam === fam) : [];
+  const near = allExercises().filter(n => n !== name && !same.includes(n) && musclesOf(n)[0] === m0);
+  return [...same, ...near];
 }
 export function ficheOf(name) {
-  const F = FICHES; const ex = F?.ex?.[name]; if (!ex) return null;
+  const F = FICHES; const ex = F?.ex?.[name] || (S().customExercises || []).find(x => x.n === name); if (!ex) return null;
   const fam = F.fam[ex.fam] || {};
   return { name, ...ex, fam, svg: F.svg[fam.schema] || F.svg[ex.fam] || null };
 }
-export function allExercises() { return Object.keys(FICHES?.ex || {}).sort((a, b) => a.localeCompare(b, "fr")); }
+export function allExercises() { return [...new Set([...Object.keys(FICHES?.ex || {}), ...(S().customExercises || []).map(x => x.n)])].sort((a, b) => a.localeCompare(b, "fr")); }
+export const isCustomExercise = (name) => !FICHES?.ex?.[name] && (S().customExercises || []).some(x => x.n === name);

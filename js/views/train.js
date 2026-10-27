@@ -3,7 +3,7 @@ import { S, update, save, today } from "../store.js";
 import * as E from "../engine.js";
 import * as W from "../word.js";
 import { CONFIG } from "../config.js";
-import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave } from "../core.js";
+import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave } from "../core.js";
 import { pushStats } from "../sync.js";
 
 const kgTxt = (v) => v == null || v === "" ? "" : E.fmtKg(v);
@@ -169,22 +169,22 @@ forms.rec = (v, f) => {
 routes.simu = async () => { await E.loadPrograms(); $app.innerHTML = header("Records et outils", "", { back: S().current ? "workout" : "train" }) + `<main class="page">${toolsBody()}</main>`; };
 
 // ---------- Exercices et fiches techniques ----------
-let exoQ = "", exoFam = "";
+let exoQ = "", exoMus = "", exoEq = "";
 function exosBody() {
-  const F = E.fiches(); const fams = Object.entries(F.fam || {});
-  return `<div class="search mt12">${I.search}<input id="exq" placeholder="Rechercher parmi ${E.allExercises().length} exercices" value="${esc(exoQ)}" autocomplete="off"></div>
-    <div class="mt8">${chips([["", "Tous"], ...fams.map(([k, f]) => [k, esc(f.nom.split("(")[0].trim())])], exoFam, "exo-fam")}</div><div id="exlist" class="mt12">${exoList()}</div>`;
+  return `<div class="search mt12">${I.search}<input id="exq" placeholder="Nom ou muscle parmi ${E.allExercises().length} exercices" value="${esc(exoQ)}" autocomplete="off"></div>
+    <div class="mt8">${chips([["", "Tous les muscles"], ...E.MUSCLES.map(m => [m, m])], exoMus, "exo-mus")}</div>
+    <div class="mt4">${chips([["", "Tout le matériel"], ...E.EQUIP.map(m => [m, m])], exoEq, "exo-eq")}</div><div id="exlist" class="mt12">${exoList()}</div>`;
 }
 function exoList() {
-  const F = E.fiches(), q = exoQ.toLowerCase();
-  const names = E.allExercises().filter(n => (!exoFam || F.ex[n].fam === exoFam) && (!q || n.toLowerCase().includes(q)));
-  return names.length ? `<div class="list">${names.slice(0, 120).map(n => `<button class="li" data-a="go" data-r="fiche" data-p="${esc(n)}"><span class="grow">${esc(n)}<br><span class="xs muted">${esc(E.musclesOf(n).join(" · "))}</span></span>${I.chev}</button>`).join("")}</div>` : `<p class="empty small">Aucun exercice trouvé.</p>`;
+  const names = filterExercises(exoQ, exoMus, exoEq);
+  return `<p class="xs muted">${names.length} exercice${names.length > 1 ? "s" : ""}</p>` + (names.length ? `<div class="list">${names.slice(0, 200).map(n => `<button class="li" ${E.isCustomExercise(n) ? `data-a="fiche-sheet" data-n="${esc(n)}"` : `data-a="go" data-r="fiche" data-p="${esc(n)}"`}><span class="grow"><span class="small"><b>${esc(n)}</b></span><br><span class="xs muted">${esc(E.musclesOf(n).join(" · "))} · ${esc(E.equipOf(n))}</span></span>${I.chev}</button>`).join("")}</div>` : `<p class="empty small">Aucun exercice trouvé.</p>`);
 }
 function bindExoSearch() {
   const i = document.getElementById("exq"); if (!i) return;
   i.addEventListener("input", () => { exoQ = i.value; document.getElementById("exlist").innerHTML = exoList(); });
 }
-actions["exo-fam"] = (b, d) => { exoFam = d.v; rerender(); };
+actions["exo-mus"] = (b, d) => { exoMus = d.v; rerender(); };
+actions["exo-eq"] = (b, d) => { exoEq = d.v; rerender(); };
 
 const FIELD = [["exec", "▶️ Exécution"], ["resp", "🌬️ Respiration"], ["erreurs", "⚠️ Erreurs fréquentes"], ["muscles", "💪 Muscles"], ["artic", "🦴 Articulations"], ["plan", "📐 Plan"], ["type", "🏷️ Type"], ["moment", "⚙️ Biomécanique : moments"], ["courbe", "📈 Courbe de résistance"], ["levier", "📏 Leviers et morphologie"], ["conseils", "💡 Conseils de coach"], ["progresser", "🚀 Progresser"], ["prog", "🪜 Progressions"], ["access", "♿ Adaptations"]];
 const FREE_FIELDS = ["exec", "resp", "erreurs", "muscles"];
@@ -192,7 +192,7 @@ const block = (v) => Array.isArray(v) ? `<ul class="small" style="padding-left:1
 routes.fiche = async () => {
   await Promise.all([E.loadFiches(), E.loadLib()]);
   const f = E.ficheOf(R.param);
-  const back = S().current ? "workout" : "train";
+  const back = "__hist";
   if (!f) { $app.innerHTML = header("Fiche", "", { back }) + `<main class="page"><p class="empty">Fiche introuvable.</p></main>`; return; }
   const fam = f.fam || {}, alts = E.alternatives(f.name).slice(0, 10), deep = premium();
   const recordE = Math.round(E.currentE1rm(f.name));
@@ -353,28 +353,92 @@ actions["set-dup"] = (b, d) => { const a = S().current.exercises[+d.x].sets; a.s
 actions["set-del"] = (b, d) => { S().current.exercises[+d.x].sets.splice(+d.s, 1); save(); closeSheet(); rerender(); };
 actions["set-close"] = () => { closeSheet(); rerender(); };
 
-// Choisir un exercice (séance, programme perso)
-let onPick = null;
-export function pickExercise(cb, title = "Ajouter un exercice") {
-  onPick = cb;
-  sheet(`<h2 class="h2">${esc(title)}</h2><div class="search mt12">${I.search}<input id="pq" placeholder="Rechercher un exercice" autocomplete="off"></div><div id="pl" class="mt12"></div>`, (w) => {
-    const inp = w.querySelector("#pq"), box = w.querySelector("#pl");
-    const draw = () => { const q = inp.value.trim().toLowerCase(); const r = E.allExercises().filter(n => !q || n.toLowerCase().includes(q)).slice(0, 60); box.innerHTML = r.length ? `<div class="list">${r.map(n => `<button class="li" data-a="pick-ex" data-n="${esc(n)}"><span class="grow">${esc(n)}<br><span class="xs muted">${esc(E.musclesOf(n).join(" · "))}</span></span>${I.plus.replace("<svg", '<svg width="20"')}</button>`).join("")}</div>` : `<p class="empty small">Aucun exercice.</p>`; };
-    inp.addEventListener("input", draw); draw();
+// Choisir un exercice : recherche par nom ou par muscle, filtres muscle et matériel, fiche, exercice perso
+const nrm = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/œ/g, "oe").replace(/[-'’]/g, " ");
+// Les mots qu'on tape vraiment pour chercher un muscle
+const MUS_ALIAS = { "Pecs": "pectoraux poitrine pec", "Dos-largeur": "dos dorsaux dorsal grand dorsal lats largeur", "Dos-épaisseur": "dos epaisseur rhomboides milieu du dos", "Épaules-avant": "epaules epaule deltoide anterieur", "Épaules-latéral": "epaules epaule deltoide lateral", "Épaules-arrière": "epaules epaule deltoide posterieur arriere coiffe", "Trapèzes": "trapeze trap", "Biceps": "bras biceps", "Triceps": "bras triceps", "Avant-bras": "avant bras poignet prise grip", "Abdos": "abdominaux abdos ventre sangle gainage obliques core", "Lombaires": "bas du dos lombaires erecteurs", "Quadriceps": "jambes cuisses quadri quads", "Ischios": "jambes ischio jambiers ischios arriere cuisse", "Fessiers": "fesses fessier glutes", "Adducteurs": "adducteurs interieur cuisse", "Mollets": "mollet jambes", "Cou": "cou nuque", "Mobilite": "mobilite etirement souplesse", "Mobilité": "mobilite etirement souplesse echauffement", "Cardio": "cardio endurance conditionnement" };
+const pk = { cb: null, title: "", q: "", mus: "", eq: "", multi: false, added: 0, pre: null };
+export function filterExercises(q, mus, eq, pre = null) {
+  const terms = nrm(q).split(/\s+/).filter(t => t.length > 1);
+  const list = pre || E.allExercises();
+  const score = (n) => { const nn = nrm(n), m0 = E.musclesOf(n)[0]; let s = 0; if (terms.every(t => nn.includes(t))) s += 4; if (terms.some(t => nrm(m0 + " " + (MUS_ALIAS[m0] || "")).includes(t))) s += 2; if (mus && m0 === mus) s += 2; return s; };
+  const out = list.filter(n => {
+    const ms = E.musclesOf(n);
+    if (mus && !ms.includes(mus)) return false;
+    if (eq && E.equipOf(n) !== eq) return false;
+    if (!terms.length) return true;
+    const hay = nrm(n + " " + ms.map(m => m + " " + (MUS_ALIAS[m] || "")).join(" ") + " " + E.equipOf(n));
+    return terms.every(t => hay.includes(t) || hay.includes(t.replace(/s$/, "")));
+  });
+  return terms.length || mus ? out.map(n => [score(n), n]).sort((a, b) => b[0] - a[0] || a[1].localeCompare(b[1], "fr")).map(x => x[1]) : out;
+}
+export function pickExercise(cb, title = "Ajouter un exercice", opts = {}) {
+  Object.assign(pk, { cb, title, multi: !!opts.multi, added: 0, pre: opts.pre || null }, opts.keep ? {} : { q: "", mus: opts.mus || "", eq: "" });
+  drawPicker();
+}
+function drawPicker() {
+  sheet(`<div class="row between"><h2 class="h2">${esc(pk.title)}</h2>${pk.multi ? `<button class="btn btn-red btn-xs" data-a="pick-done" style="width:auto">Terminé${pk.added ? ` (${pk.added})` : ""}</button>` : ""}</div>
+    <div class="search mt12">${I.search}<input id="pq" placeholder="Nom ou muscle : squat, dorsaux, triceps…" autocomplete="off" value="${esc(pk.q)}"></div>
+    <div class="mt8">${chips([["", "Tous les muscles"], ...E.MUSCLES.map(m => [m, m])], pk.mus, "pick-mus")}</div>
+    <div class="mt4">${chips([["", "Tout le matériel"], ...E.EQUIP.map(m => [m, m])], pk.eq, "pick-eq")}</div>
+    <div id="pl" class="mt12"></div>`, (w) => {
+    const inp = w.querySelector("#pq");
+    inp.addEventListener("input", () => { pk.q = inp.value; drawPickList(); });
+    drawPickList();
+    w.querySelectorAll(".chips").forEach(r => { const on = r.querySelector(".chip.on"); if (on) r.scrollLeft = on.offsetLeft - 16; });
   });
 }
-actions["pick-ex"] = (b, d) => { closeSheet(); onPick?.(d.n); };
+function drawPickList() {
+  const box = document.getElementById("pl"); if (!box) return;
+  const r = filterExercises(pk.q, pk.mus, pk.eq, pk.pre);
+  box.innerHTML = `<p class="xs muted">${r.length} exercice${r.length > 1 ? "s" : ""}</p>` + (r.length ? `<div class="list">${r.slice(0, 150).map(n => `<div class="li" style="gap:6px"><button class="grow" style="text-align:left" data-a="pick-ex" data-n="${esc(n)}"><span class="small"><b>${esc(n)}</b></span><br><span class="xs muted">${esc(E.musclesOf(n).join(" · "))} · ${esc(E.equipOf(n))}</span></button><button class="icon-btn" data-a="pick-fiche" data-n="${esc(n)}" aria-label="Fiche technique">📖</button><button class="icon-btn" data-a="pick-ex" data-n="${esc(n)}" aria-label="Choisir">${I.plus.replace("<svg", '<svg width="18"')}</button></div>`).join("")}</div>` : `<p class="empty small">Aucun exercice.</p>`)
+    + `<button class="btn btn-line btn-sm mt12" data-a="pick-new" style="width:100%">＋ Créer mon exercice${pk.q ? ` « ${esc(pk.q)} »` : ""}</button>`;
+}
+actions["pick-mus"] = (b, d) => { pk.mus = d.v; drawPicker(); };
+actions["pick-eq"] = (b, d) => { pk.eq = d.v; drawPicker(); };
+actions["pick-ex"] = (b, d) => {
+  if (pk.multi) { pk.cb?.(d.n); pk.added++; toast(`${d.n} ajouté`); b.closest(".li").style.opacity = ".5"; const t = document.querySelector('[data-a="pick-done"]'); if (t) t.textContent = `Terminé (${pk.added})`; return; }
+  closeSheet(); pk.cb?.(d.n);
+};
+actions["pick-done"] = () => { closeSheet(); rerender(); };
+// Fiche technique dans la fenêtre, avec retour à la liste
+actions["pick-fiche"] = (b, d) => ficheSheet(d.n, true);
+export function ficheSheet(name, backToPicker = false) {
+  const f = E.ficheOf(name), fam = f?.fam || {};
+  const li = (v) => Array.isArray(v) ? `<ul class="small" style="padding-left:18px;margin:6px 0">${v.map(x => `<li>${esc(typeof x === "string" ? x : Object.values(x).join(" : "))}</li>`).join("")}</ul>` : v ? `<p class="small" style="margin:6px 0">${esc(v)}</p>` : "";
+  sheet(`${backToPicker ? `<button class="link small" data-a="pick-back">← Retour à la liste</button>` : ""}
+    <h2 class="h2 mt8" style="color:var(--red)">${esc(name)}</h2><p class="small muted">${esc(E.musclesOf(name).join(" · "))} · ${esc(E.equipOf(name))}${fam.nom ? ` · ${esc(fam.nom.split("(")[0].trim())}` : ""}</p>
+    ${f?.setup ? `<div class="lbl mt12">🛠️ Installation</div>${li(f.setup)}` : ""}${f?.cues?.length ? `<div class="lbl mt12">🎯 Points clés</div>${li(f.cues)}` : ""}
+    ${fam.exec ? `<div class="lbl mt12">▶️ Exécution</div>${li(fam.exec)}` : ""}${fam.erreurs ? `<div class="lbl mt12">⚠️ Erreurs fréquentes</div>${li(fam.erreurs)}` : ""}${fam.resp ? `<div class="lbl mt12">🌬️ Respiration</div>${li(fam.resp)}` : ""}
+    ${!f ? `<p class="small muted mt12">Exercice créé par toi.</p>` : ""}
+    <div class="row mt16" style="gap:8px">${f && !E.isCustomExercise(name) ? `<button class="btn btn-line btn-sm grow" data-a="go" data-r="fiche" data-p="${esc(name)}">Fiche complète</button>` : ""}${backToPicker ? `<button class="btn btn-red btn-sm grow" data-a="pick-ex" data-n="${esc(name)}">Choisir</button>` : ""}</div>`);
+}
+actions["pick-back"] = () => { pickExercise(pk.cb, pk.title, { multi: pk.multi, keep: true, pre: pk.pre }); };
+actions["pick-new"] = () => {
+  sheet(`<button class="link small" data-a="pick-back">← Retour à la liste</button><h2 class="h2 mt8">Créer mon exercice</h2>
+    <form data-f="new-ex" class="mt12"><label class="field"><span>Nom</span><input name="n" value="${esc(pk.q)}" required maxlength="60"></label>
+    <div class="grid2 mt8"><label class="field"><span>Muscle principal</span><select name="m1">${E.MUSCLES.map(m => `<option ${m === pk.mus ? "selected" : ""}>${m}</option>`).join("")}</select></label><label class="field"><span>Muscle secondaire</span><select name="m2"><option value="">Aucun</option>${E.MUSCLES.map(m => `<option>${m}</option>`).join("")}</select></label></div>
+    <div class="grid2 mt8"><label class="field"><span>Matériel</span><select name="eq">${E.EQUIP.map(m => `<option ${m === pk.eq ? "selected" : ""}>${m}</option>`).join("")}</select></label><label class="field"><span>Mesuré en</span><select name="unit"><option value="reps">Répétitions</option><option value="s">Secondes</option></select></label></div>
+    <label class="field mt8"><span>Points clés (facultatif)</span><textarea name="cues" rows="2" placeholder="Un conseil par ligne"></textarea></label>
+    <button class="btn btn-red mt12">Créer et choisir</button></form>`);
+};
+forms["new-ex"] = (v) => {
+  const n = v.n.trim(); if (!n) return;
+  if (E.allExercises().some(x => x.toLowerCase() === n.toLowerCase())) return toast("Cet exercice existe déjà : cherche-le dans la liste.");
+  update(st => (st.customExercises = st.customExercises || []).push({ n, mus: [v.m1, v.m2].filter(Boolean), eq: v.eq, unit: v.unit === "s" ? "s" : undefined, cues: v.cues.split("\n").map(x => x.trim()).filter(Boolean), setup: "" }));
+  toast("Exercice créé"); closeSheet(); pk.cb?.(n); if (pk.multi) pickExercise(pk.cb, pk.title, { multi: true, keep: true });
+};
 actions["add-ex"] = async () => {
   await Promise.all([E.loadFiches(), E.loadLib()]);
   pickExercise((n) => { S().current.exercises.push(E.blankExercise(n)); save(); rerender(); setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 50); });
 };
 actions["ex-swap"] = async (b, d) => {
-  await E.loadFiches();
+  await Promise.all([E.loadFiches(), E.loadLib()]);
   const xi = +d.x, ex = S().current.exercises[xi], alts = E.alternatives(ex.name);
   sheet(`<h2 class="h2">Remplacer</h2><p class="small muted">${esc(ex.name)} · machine prise, douleur, matériel absent : les charges sont recalculées.</p>
-    ${ex.name !== ex.orig ? `<button class="btn btn-line btn-sm mt8" data-a="swap" data-x="${xi}" data-n="${esc(ex.orig)}">Revenir à ${esc(ex.orig)}</button>` : ""}
-    ${alts.length ? `<h3 class="sec">Même mouvement</h3><div class="list">${alts.slice(0, 14).map(n => `<button class="li" data-a="swap" data-x="${xi}" data-n="${esc(n)}"><span class="grow">${esc(n)}</span>${I.chev}</button>`).join("")}</div>` : ""}
-    <button class="btn btn-line mt12" data-a="swap-any" data-x="${xi}">Chercher un autre exercice</button>`);
+    <button class="btn btn-red btn-sm mt8" data-a="swap-any" data-x="${xi}" style="width:100%">🔎 Chercher par nom ou par muscle</button>
+    ${ex.name !== ex.orig ? `<button class="btn btn-line btn-sm mt8" data-a="swap" data-x="${xi}" data-n="${esc(ex.orig)}" style="width:100%">Revenir à ${esc(ex.orig)}</button>` : ""}
+    ${alts.length ? `<h3 class="sec">Variantes proches <small>${esc(E.musclesOf(ex.name)[0] || "")}</small></h3><div class="list">${alts.slice(0, 16).map(n => `<div class="li" style="gap:6px"><button class="grow" style="text-align:left" data-a="swap" data-x="${xi}" data-n="${esc(n)}"><span class="small"><b>${esc(n)}</b></span><br><span class="xs muted">${esc(E.musclesOf(n).join(" · "))} · ${esc(E.equipOf(n))}</span></button><button class="icon-btn" data-a="fiche-sheet" data-n="${esc(n)}" aria-label="Fiche">📖</button></div>`).join("")}</div>` : ""}`);
 };
 function doSwap(xi, n) {
   const cur = S().current, ex = cur.exercises[xi];
@@ -385,7 +449,8 @@ function doSwap(xi, n) {
   save(); closeSheet(); rerender(); toast("Exercice remplacé, charges recalculées");
 }
 actions.swap = (b, d) => doSwap(+d.x, d.n);
-actions["swap-any"] = (b, d) => pickExercise((n) => doSwap(+d.x, n), "Remplacer par");
+actions["swap-any"] = (b, d) => pickExercise((n) => doSwap(+d.x, n), "Remplacer par", { mus: E.musclesOf(S().current.exercises[+d.x].name)[0] || "" });
+actions["fiche-sheet"] = (b, d) => ficheSheet(d.n);
 
 // Minuteur de repos (démarre seul à la validation d'une série)
 function showRest() {

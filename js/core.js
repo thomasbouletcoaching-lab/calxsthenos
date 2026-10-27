@@ -91,7 +91,7 @@ export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bo
 export const badges = { msgs: 0, notifs: 0 };
 export function header(title, sub = "", { back = null, actions = "" } = {}) {
   const demo = S().demoTier ? `<div class="demo-bar"><span class="grow">Démo · <b>${esc(offer(S().demoTier).name)}</b></span><button data-a="demo-choose">Choisir</button><button data-a="demo-exit">Quitter</button></div>` : "";
-  const lead = back ? `<button class="icon-btn" data-a="go" data-r="${back}" aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil"><img src="assets/logo-grec.jpg" alt="" width="40" height="40" style="width:100%;height:100%;border-radius:inherit;display:block"></button>`;
+  const lead = back ? `<button class="icon-btn" ${back === "__hist" ? `data-a="hist-back"` : `data-a="go" data-r="${back}"`} aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil"><img src="assets/logo-grec.jpg" alt="" width="40" height="40" style="width:100%;height:100%;border-radius:inherit;display:block"></button>`;
   return demo + `<header class="top"><div class="row1">${lead}<h1>${title}</h1>
     ${actions}<button class="pill ic" data-a="notifs" aria-label="Notifications">${I.bell}${badges.notifs ? `<span class="badge">${badges.notifs}</span>` : ""}</button>
     ${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
@@ -165,6 +165,7 @@ function centerChips() { document.querySelectorAll(".chips:not(.wrap)").forEach(
 
 // ---------- Actions (délégation d'événements) ----------
 export const actions = {}, forms = {}, changes = {};
+actions["hist-back"] = () => { if (history.length > 1) history.back(); else go("home"); };
 export function installEvents() {
   document.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-a]"); if (!b) return;
