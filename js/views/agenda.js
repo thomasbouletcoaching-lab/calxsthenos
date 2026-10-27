@@ -1,7 +1,7 @@
 // Agenda : mois et semaine, séances faites / loupées / prévues, déplacer une séance, vue du cycle.
 import { S, today } from "../store.js";
 import * as E from "../engine.js";
-import { $app, esc, routes, actions, go, I, header, tabbar, seg, sheet, closeSheet, toast, fmtDate, addDays, rerender } from "../core.js";
+import { $app, esc, fr, routes, actions, go, I, header, tabbar, seg, sheet, closeSheet, toast, fmtDate, addDays, rerender } from "../core.js";
 
 let mode = "month", cursor = null; // cursor = 1er du mois affiché (YYYY-MM-01) ou lundi de la semaine
 const MK = { done: "✓", missed: "✕", planned: "•", rest: "–", away: "↪" };
@@ -40,36 +40,44 @@ function cycleBlock() {
     <p class="xs muted mt8">Les séries, répétitions et RPE changent chaque semaine. Tes charges suivent tes performances réelles.</p></div>`;
 }
 
-routes.agenda = async () => {
-  await E.loadPrograms();
-  const t = today();
-  if (!cursor) cursor = mode === "month" ? t.slice(0, 8) + "01" : addDays(t, -E.dowOf(t));
-  let body, title;
-  if (mode === "month") {
-    const d0 = new Date(cursor + "T12:00:00");
-    title = d0.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-    const g = monthGrid(cursor);
-    body = `<div class="card">${g.html}<div class="legend"><span><i style="background:var(--good)"></i>Faite ${g.stats.done || 0}</span><span><i style="background:var(--red)"></i>Loupée ${g.stats.missed || 0}</span><span><i style="background:#2563EB"></i>Prévue ${g.stats.planned || 0}</span></div></div>`;
-  } else {
-    title = `Semaine du ${fmtDate(cursor, { day: "numeric", month: "long" })}`;
-    body = weekList(cursor);
-  }
-  const ns = E.nextSession();
-  $app.innerHTML = header("Agenda", ns ? `Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : "") + `<main class="page">
-    ${seg([["month", "Mois"], ["week", "Semaine"]], mode, "ag-mode")}
-    <div class="row between mt16"><button class="icon-btn" data-a="ag-nav" data-v="-1" aria-label="Précédent">${I.back}</button><b class="h3" style="text-transform:capitalize">${esc(title)}</b><button class="icon-btn" data-a="ag-nav" data-v="1" aria-label="Suivant" style="transform:scaleX(-1)">${I.back}</button></div>
-    <div class="mt12">${body}</div>
-    <p class="small muted center mt8">Touche un jour pour déplacer une séance ou prendre un jour de repos.</p>
-    ${cycleBlock()}
-  </main>${tabbar("agenda")}`;
-};
-
-actions["ag-mode"] = (b, d) => { mode = d.v; cursor = null; routes.agenda(); };
+// Les vues de l'agenda vivent maintenant dans l'accueil (Semaine, Mois, Année)
+export const AG = { week: null, month: null, year: null };
+export function agendaWeekView() {
+  const t = today(); if (!AG.week) AG.week = addDays(t, -E.dowOf(t));
+  return `${navRow("week", `Semaine du ${fmtDate(AG.week, { day: "numeric", month: "long" })}`)}<div class="mt12">${weekList(AG.week)}</div>`;
+}
+export function agendaMonthView() {
+  const t = today(); if (!AG.month) AG.month = t.slice(0, 8) + "01";
+  const g = monthGrid(AG.month), title = new Date(AG.month + "T12:00:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  return `${navRow("month", title)}<div class="card mt12">${g.html}<div class="legend"><span><i style="background:var(--good)"></i>Faite ${g.stats.done || 0}</span><span><i style="background:var(--red)"></i>Loupée ${g.stats.missed || 0}</span><span><i style="background:#2563EB"></i>Prévue ${g.stats.planned || 0}</span></div></div>
+    <p class="small muted center mt8">Touche un jour pour voir la séance, la déplacer ou prendre un jour de repos.</p>${cycleBlock()}`;
+}
+export function agendaYearView(extra = "") {
+  const y = AG.year || new Date().getFullYear(), t = today();
+  const months = Array.from({ length: 12 }, (_, m) => `${y}-${String(m + 1).padStart(2, "0")}-01`);
+  const ag = E.agenda(`${y}-01-01`, `${y}-12-31`);
+  const all = Object.values(ag), done = all.filter(a => a.st === "done").length, missed = all.filter(a => a.st === "missed").length;
+  const ws = S().workouts.filter(w => w.end.slice(0, 4) === String(y));
+  const ton = ws.reduce((a, w) => a + (w.volume || 0), 0);
+  const mini = (first) => { const d0 = new Date(first + "T12:00:00"), last = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate(), lead = E.dowOf(first);
+    let c = ""; for (let i = 0; i < lead; i++) c += `<i class="e"></i>`;
+    for (let n = 1; n <= last; n++) { const k = first.slice(0, 8) + String(n).padStart(2, "0"), a = ag[k]; c += `<i class="${a ? CLS[a.st] : ""} ${k === t ? "t" : ""}"></i>`; }
+    const n = Object.entries(ag).filter(([k, a]) => k.startsWith(first.slice(0, 7)) && a.st === "done").length;
+    return `<button class="ymon" data-a="ag-open-month" data-v="${first}"><b>${d0.toLocaleDateString("fr-FR", { month: "short" })}</b><span class="xs muted">${n ? n + " séance" + (n > 1 ? "s" : "") : ""}</span><div class="ygrid">${c}</div></button>`; };
+  return `${navRow("year", String(y))}<div class="card mt12"><div class="stat3"><div><b>${done}</b><span>séances faites</span></div><div><b>${fr(ton / 1000, 1)}</b><span>tonnes soulevées</span></div><div><b>${done + missed ? Math.round(done / (done + missed) * 100) + " %" : "–"}</b><span>régularité</span></div></div></div>
+    ${extra}<div class="yeargrid mt12">${months.map(mini).join("")}</div>`;
+}
+function navRow(m, title) { return `<div class="row between mt16"><button class="icon-btn" data-a="ag-nav" data-m="${m}" data-v="-1" aria-label="Précédent">${I.back}</button><b class="h3" style="text-transform:capitalize">${esc(title)}</b><button class="icon-btn" data-a="ag-nav" data-m="${m}" data-v="1" aria-label="Suivant" style="transform:scaleX(-1)">${I.back}</button></div>`; }
 actions["ag-nav"] = (b, d) => {
-  if (mode === "month") { const x = new Date(cursor + "T12:00:00"); x.setMonth(x.getMonth() + +d.v, 1); cursor = today(x).slice(0, 8) + "01"; }
-  else cursor = addDays(cursor, 7 * +d.v);
-  routes.agenda();
+  const m = d.m, v = +d.v;
+  if (m === "month") { const x = new Date(AG.month + "T12:00:00"); x.setMonth(x.getMonth() + v, 1); AG.month = today(x).slice(0, 8) + "01"; }
+  else if (m === "week") AG.week = addDays(AG.week, 7 * v);
+  else AG.year = (AG.year || new Date().getFullYear()) + v;
+  rerender();
 };
+actions["ag-open-month"] = (b, d) => { AG.month = d.v; go("home", "month"); };
+routes.agenda = () => go("home", "month");
+
 actions["ag-day"] = (b, d) => {
   const k = d.v, a = E.agenda(k, k)[k], t = today();
   const opts = Array.from({ length: 7 }, (_, i) => addDays(k, i - 3)).filter(x => x >= t && x !== k);

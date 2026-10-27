@@ -28,7 +28,7 @@ routes.train = async () => {
   $app.innerHTML = header("Entraînement", ns ? esc(ns.p.name.split("·")[0].trim()) : "") + `<main class="page">${chips(TABS, tab, "train-tab")}${body}</main>${tabbar("train")}`;
   if (tab === "exos") bindExoSearch();
 };
-actions["train-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/train/" + d.v); routes.train(); };
+actions["train-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/train/" + d.v); rerender(false); window.scrollTo(0, 0); };
 
 let viewWeek = null;
 function programBody(ns) {
@@ -392,7 +392,8 @@ function showRest() {
   document.querySelector(".rest")?.remove();
   const v = wordOn("rest") && restTotal >= 60 ? W.verseFor("repos", Math.floor(restEnd / 1000)) : null;
   const el = document.createElement("div"); el.className = "rest";
-  el.innerHTML = `<div class="row between"><div><div class="xs" style="opacity:.8">⏱️ Repos</div><div class="t" id="rest-t"></div></div><div class="row" style="gap:6px"><button class="btn btn-xs" data-a="rest-add" data-v="-15">−15 s</button><button class="btn btn-xs" data-a="rest-add" data-v="30">+30 s</button><button class="btn btn-xs" data-a="rest-skip">Passer</button></div></div><div class="bar"><i id="rest-bar"></i></div>${v ? W.wordCard(v, "small") : ""}`;
+  el.className = "rest" + (sessionStorage.getItem("cxs.restBig") === "1" ? " big" : "");
+  el.innerHTML = `<div class="row between" style="gap:8px"><div class="row" style="gap:8px;align-items:baseline"><span class="xs" style="opacity:.8">⏱️</span><span class="t" id="rest-t"></span></div><div class="row" style="gap:5px">${v ? `<button class="xp" data-a="rest-big" aria-label="Afficher le verset">${sessionStorage.getItem("cxs.restBig") === "1" ? "▾" : "✝ ▴"}</button>` : ""}<button class="btn btn-xs" data-a="rest-add" data-v="-15">−15</button><button class="btn btn-xs" data-a="rest-add" data-v="30">+30</button><button class="btn btn-xs" data-a="rest-skip">Passer</button></div></div><div class="bar"><i id="rest-bar"></i></div>${v ? `<div class="wv">${W.wordCard(v, "small")}</div>` : ""}`;
   document.body.append(el);
   const tick = () => {
     const left = Math.max(0, Math.ceil((restEnd - Date.now()) / 1000)), t = document.getElementById("rest-t"), b = document.getElementById("rest-bar");
@@ -404,6 +405,7 @@ function showRest() {
 }
 function startRest(sec) { restTotal = sec; restEnd = Date.now() + sec * 1000; showRest(); }
 actions["rest-add"] = (b, d) => { restEnd += +d.v * 1000; restTotal = Math.max(1, restTotal + +d.v); };
+actions["rest-big"] = () => { const big = sessionStorage.getItem("cxs.restBig") !== "1"; sessionStorage.setItem("cxs.restBig", big ? "1" : "0"); showRest(); };
 actions["rest-skip"] = () => { restEnd = 0; clearInterval(restT); document.querySelector(".rest")?.remove(); };
 onLeave(() => { });
 

@@ -35,7 +35,7 @@ routes.word = async () => {
   $app.innerHTML = header("Parole", "Pour l'âme et l'esprit · gratuit, pour toujours") + `<main class="page">${chips([["jour", "☀️ Aujourd'hui"], ["bible", "📖 Bible"], ["affirm", "💬 Affirmations"], ["favoris", "❤️ Favoris"], ["apres", "✝ Et après ?"]], tab, "word-tab")}${body}</main>${tabbar("word")}`;
   if (tab === "bible") afterBible();
 };
-actions["word-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/word/" + d.v); routes.word(); };
+actions["word-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/word/" + d.v); rerender(false); window.scrollTo(0, 0); };
 actions["aff-cat"] = (b, d) => { affCat = d.v; tab = "affirm"; R.param = "affirm"; routes.word(); };
 
 function dayBody() {

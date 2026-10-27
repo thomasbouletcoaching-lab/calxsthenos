@@ -75,6 +75,12 @@ export function sheet(html, onMount) {
   const w = document.createElement("div"); w.className = "sheet-wrap"; w.id = "sheet";
   w.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   w.addEventListener("click", e => { if (e.target === w) closeSheet(); });
+  const g = w.querySelector(".grab"), sh = w.querySelector(".sheet");
+  g.setAttribute("role", "button"); g.setAttribute("aria-label", "Fermer"); g.addEventListener("click", closeSheet);
+  let y0 = null; // glisser vers le bas depuis le haut de la fenêtre
+  sh.addEventListener("touchstart", e => { y0 = sh.scrollTop <= 0 && e.touches[0].clientY - sh.getBoundingClientRect().top < 90 ? e.touches[0].clientY : null; }, { passive: true });
+  sh.addEventListener("touchmove", e => { if (y0 == null) return; const dy = e.touches[0].clientY - y0; if (dy > 0) sh.style.transform = `translateY(${dy}px)`; }, { passive: true });
+  sh.addEventListener("touchend", e => { if (y0 == null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null; if (dy > 90) closeSheet(); else sh.style.transform = ""; });
   document.body.append(w); onMount?.(w); return w;
 }
 export function closeSheet() { const s = document.getElementById("sheet"); if (!s) return; s.remove(); if (s.dataset.rr) rerender(); }
@@ -91,8 +97,8 @@ export function header(title, sub = "", { back = null, actions = "" } = {}) {
     ${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
 }
 export function tabbar(active) {
-  const t = [["home", "Accueil", I.home], ["agenda", "Agenda", I.cal], ["train", "Entraînement", I.bar], ["food", "Nutrition", I.fork], ["word", "Parole", I.book], ["coach", isCoach() ? "Membres" : "Coach", I.coach]];
-  const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;max-width:616px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
+  const t = [["home", "Accueil", I.home], ["train", "Entraînement", I.bar], ["food", "Nutrition", I.fork], ["word", "Parole", I.book], ["coach", isCoach() ? "Membres" : "Coach", I.coach]];
+  const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;width:auto;max-width:616px;margin:0 auto;box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:12px;text-align:left;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
   return cur + `<nav class="tabbar" aria-label="Navigation">${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === active ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }
 export const lockVeil = (label = "Bâtisseur", why = "") => `<div class="veil"><span class="lock">🔒 ${esc(label)}</span>${why ? `<p class="small muted" style="max-width:280px;margin:0">${esc(why)}</p>` : ""}<button class="btn btn-red btn-sm" data-a="go" data-r="offers">Voir les offres</button></div>`;
@@ -148,7 +154,12 @@ export function render() {
   Promise.resolve((routes[R.route] || routes.home)()).then(centerChips);
   window.scrollTo(0, 0);
 }
-export function rerender() { const y = window.scrollY; Promise.resolve((routes[R.route] || routes.home)()).then(() => { centerChips(); window.scrollTo(0, y); }); window.scrollTo(0, y); }
+// Redessine la page sans la faire sauter : position de défilement et rangées de menus conservées
+export function rerender(keepY = true) {
+  const y = window.scrollY, rows = [...document.querySelectorAll(".chips:not(.wrap)")].map(r => r.scrollLeft);
+  const restore = () => { document.querySelectorAll(".chips:not(.wrap)").forEach((r, i) => { if (rows[i] != null) r.scrollLeft = rows[i]; const on = r.querySelector(".chip.on"); if (on && (on.offsetLeft < r.scrollLeft || on.offsetLeft + on.offsetWidth > r.scrollLeft + r.clientWidth)) r.scrollTo({ left: on.offsetLeft - 16, behavior: "smooth" }); }); if (keepY) window.scrollTo(0, y); };
+  const p = Promise.resolve((routes[R.route] || routes.home)()); restore(); p.then(restore);
+}
 // Fait apparaître la puce active dans les rangées qui défilent
 function centerChips() { document.querySelectorAll(".chips:not(.wrap)").forEach(row => { const on = row.querySelector(".chip.on"); if (on && row.scrollWidth > row.clientWidth) row.scrollLeft = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2; }); }
 

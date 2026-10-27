@@ -3,8 +3,9 @@ import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as W from "../word.js";
 import * as EN from "../energy.js";
-import { $app, esc, num, fr, toast, buzz, routes, actions, changes, go, I, header, tabbar, seg, ring, gradDef, lineChart, barChart, greet, wordOn, fmtDate, addDays, isCoach, rank, premium, badges, msgQuotaText, weekOpen, rerender } from "../core.js";
+import { $app, esc, num, fr, toast, buzz, routes, R, actions, changes, go, I, header, tabbar, seg, ring, gradDef, lineChart, barChart, greet, wordOn, fmtDate, addDays, isCoach, rank, premium, badges, msgQuotaText, weekOpen, rerender } from "../core.js";
 import { pushStats } from "../sync.js";
+import { agendaWeekView, agendaMonthView, agendaYearView } from "./agenda.js";
 import { FREE_WEEKS } from "../config.js";
 
 let homeTab = "today", homeDay = null;
@@ -31,7 +32,7 @@ function trainingCard(d) {
   const nx = Object.entries(E.agenda(d, addDays(d, 10))).find(([k, v]) => k > d && v.st === "planned");
   return `<div class="card"><div class="lbl">🏋️ Entraînement</div><h2 class="h1 mt8">${ag?.st === "planned" ? esc(ag.title) : ag?.st === "missed" ? "Séance loupée" : "Jour de repos"}</h2>
     <p class="muted mt8">${ag?.st === "missed" ? "Pas de rattrapage : on reprend à la prochaine séance." : nx ? `Prochaine séance : <b style="color:var(--ink)">${esc(nx[1].title)}</b> ${nx[0] === addDays(today(), 1) ? "demain" : fmtDate(nx[0], { weekday: "long" })}` : ""}</p>
-    <div class="row mt8"><button class="btn btn-line btn-sm" data-a="go" data-r="agenda">Voir ma semaine</button>${d === today() ? `<button class="btn btn-line btn-sm" data-a="free-session">Séance libre</button>` : ""}</div><div class="deco">🗓️</div></div>`;
+    <div class="row mt8"><button class="btn btn-line btn-sm" data-a="home-tab" data-v="week">Voir ma semaine</button>${d === today() ? `<button class="btn btn-line btn-sm" data-a="free-session">Séance libre</button>` : ""}</div><div class="deco">🗓️</div></div>`;
 }
 export function routineCard(d = today()) {
   const D = S().daily[d] || {}, foodN = N.dayLog(d).length;
@@ -69,7 +70,10 @@ routes.home = async () => {
   const af = W.affirmationOfDay();
   const fs = EN.fastState();
   let body;
-  if (homeTab === "week") body = weekSummary();
+  if (R.param && ["today", "week", "month", "year"].includes(R.param)) { homeTab = R.param; R.param = null; }
+  if (homeTab === "week") body = agendaWeekView() + `<h2 class="sec">📊 Bilan de la semaine</h2>` + weekSummary();
+  else if (homeTab === "month") body = agendaMonthView();
+  else if (homeTab === "year") body = agendaYearView(yearExtra());
   else body = `${weekStrip(d)}
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
@@ -87,7 +91,7 @@ routes.home = async () => {
     <div class="row between" style="padding-top:var(--safe-t)"><div></div><div class="row">${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Mon coaching" : "Passer au coaching"}</button>`}<button class="pill ic" data-a="notifs" aria-label="Notifications">${I.bell}${badges.notifs ? `<span class="badge">${badges.notifs}</span>` : ""}</button></div></div>
     <p class="kicker mt12">${fmtDate(today())}${ns ? ` · semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : ""}</p>
     <div class="row between" style="align-items:flex-end"><h1 class="hello">${greet()}<br>${esc(pr.name)}</h1><button class="pill ic" style="width:56px;height:56px;border-radius:50%;font-weight:800;font-size:20px" data-a="go" data-r="profile" aria-label="Profil">${esc(pr.name[0].toUpperCase())}</button></div>
-    <div class="mt16">${seg([["today", "Aujourd'hui"], ["week", "Semaine"]], homeTab, "home-tab")}</div>
+    <div class="mt16">${seg([["today", "Aujourd'hui"], ["week", "Semaine"], ["month", "Mois"], ["year", "Année"]], homeTab, "home-tab")}</div>
     ${body}</main>${tabbar("home")}`;
 };
 function weekSummary() {
@@ -103,8 +107,10 @@ function weekSummary() {
     <div class="card"><div class="lbl">📋 Routine</div><div class="stat3 mt12"><div><b>${avg("steps") ? fr(avg("steps")) : "–"}</b><span>pas / jour</span></div><div><b>${avg("sleep") ? fr(avg("sleep"), 1) : "–"}</b><span>h de sommeil</span></div><div><b>${avg("water") ? fr(avg("water") * .25, 1) : "–"}</b><span>L d'eau</span></div></div></div>`;
 }
 
-actions["home-tab"] = (b, d) => { homeTab = d.v; routes.home(); };
-actions["home-day"] = (b, d) => { homeDay = d.v === today() ? null : d.v; homeTab = "today"; routes.home(); };
+actions["home-tab"] = (b, d) => { homeTab = d.v; history.replaceState(null, "", "#/home/" + d.v); rerender(false); };
+export let yearExtra = () => "";
+export const setYearExtra = (f) => { yearExtra = f; };
+actions["home-day"] = (b, d) => { homeDay = d.v === today() ? null : d.v; homeTab = "today"; rerender(); };
 actions.water = (b, d) => {
   update(st => { const x = st.daily[d.d] = st.daily[d.d] || {}; x.water = Math.max(0, (x.water || 0) + +d.v); });
   buzz(); rerender();

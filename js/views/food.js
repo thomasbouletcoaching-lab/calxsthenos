@@ -33,7 +33,7 @@ routes.food = async () => {
   if (tab === "recettes") bindRecipeSearch();
   if (tab === "budget") { const i = document.getElementById("prq"); i?.addEventListener("input", () => { prQ = i.value; document.getElementById("prl").innerHTML = priceRows(N.norm(prQ)); }); }
 };
-actions["food-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); routes.food(); };
+actions["food-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); rerender(false); window.scrollTo(0, 0); };
 actions["food-day"] = (b, d) => { const n = addDays(D(), +d.v); day = n >= today() ? null : n; rerender(); };
 
 // ---------- Journal ----------
@@ -47,13 +47,13 @@ function journalBody(t) {
     ${N.MEALS.map(m => {
       const es = log.filter(e => e.meal === m).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
       const k = es.reduce((a, e) => a + e.kcal, 0);
-      return `<div class="card mt12"><div class="row between"><div><b class="h3">${{ "Petit-déjeuner": "🥣", "Déjeuner": "🍛", "Collation": "🍎", "Dîner": "🍲" }[m]} ${m}</b>${es.length ? `<div class="xs muted">${es[0].time || ""} · ${fr(k)} kcal · ${fr(es.reduce((a, e) => a + e.p, 0))} g prot.</div>` : ""}</div><button class="btn btn-red btn-xs" data-a="add-food" data-m="${m}">+ Ajouter</button></div>
-        ${es.length ? `<div class="list mt8">${es.map(e => `<div class="li" style="gap:8px"><input type="time" class="inp" style="width:98px;font-size:14px;padding:4px" value="${e.time || ""}" data-c="ftime" data-id="${e.id}" data-d="${d}" aria-label="Heure du repas"><span class="grow small">${esc(e.label)}<br><span class="xs muted">${e.g ? e.g + " g · " : ""}${e.kcal} kcal · P ${fr(e.p)} · G ${fr(e.c)} · L ${fr(e.f)}</span></span><button class="icon-btn" data-a="del-food" data-id="${e.id}" data-d="${d}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>
+      return `<div class="card mt12"><div class="row between"><div><b class="h3">${{ "Petit-déjeuner": "🥣", "Déjeuner": "🍛", "Collation": "🍎", "Dîner": "🍲" }[m]} ${m}</b>${es.length ? `<div class="xs muted">${fr(k)} kcal · ${fr(es.reduce((a, e) => a + e.p, 0))} g prot.</div>` : ""}</div><button class="btn btn-red btn-xs" data-a="add-food" data-m="${m}">+ Ajouter</button></div>
+        ${es.length ? `<div class="row mt8" style="gap:8px"><span class="xs muted">🕐 Heure du repas</span><input type="time" class="inp" style="width:116px;font-size:14px;padding:4px 8px" value="${es[0].time || ""}" data-c="mtime" data-m="${m}" data-d="${d}" aria-label="Heure du repas"></div><div class="list mt8">${es.map(e => `<div class="li" style="gap:8px"><span class="grow small">${esc(e.label)}<br><span class="xs muted">${e.g ? e.g + " g · " : ""}${e.kcal} kcal · P ${fr(e.p)} · G ${fr(e.c)} · L ${fr(e.f)}</span></span><button class="icon-btn" data-a="del-food" data-id="${e.id}" data-d="${d}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>
           <button class="link xs mt8" data-a="save-meal" data-m="${m}" data-d="${d}">⭐ Enregistrer ce repas pour le refaire</button>` : ""}</div>`;
     }).join("")}
     <p class="xs muted mt12">Les heures servent à suivre tes fenêtres de repas et ton jeûne. Valeurs nutritionnelles : table Ciqual (Anses) et Open Food Facts.</p>`;
 }
-changes.ftime = (el) => { N.setEntryTime(+el.dataset.id, el.value, el.dataset.d); toast("Heure enregistrée"); };
+changes.mtime = (el) => { const m = el.dataset.m, d = el.dataset.d; update(st => (st.food[d] || []).forEach(e => { if (e.meal === m) e.time = el.value; })); toast("Heure du repas enregistrée"); };
 actions["del-food"] = (b, d) => { N.removeEntry(+d.id, d.d); rerender(); };
 actions["save-meal"] = (b, d) => {
   const es = N.dayLog(d.d).filter(e => e.meal === d.m);
@@ -68,8 +68,8 @@ let afs = { meal: "Déjeuner", tab: "search", date: null, time: "" };
 const afsTime = () => document.getElementById("afs-time")?.value || afs.time;
 async function addFoodSheet(meal) {
   afs.meal = meal; afs.date = D(); afs.tab = afs.tab || "search";
-  afs.time = afs.date === today() ? hhmm() : N.MEAL_TIMES[meal] || "12:00";
-  const w = sheet(`<div class="row between" style="gap:10px"><h2 class="h2">${esc(meal)}</h2><label class="row xs muted" style="gap:6px">Heure <input id="afs-time" class="inp" type="time" style="width:116px" value="${afs.time}"></label></div>
+  afs.time = N.dayLog(afs.date).find(e => e.meal === meal)?.time || (afs.date === today() ? hhmm() : N.MEAL_TIMES[meal] || "12:00");
+  const w = sheet(`<div class="row between" style="gap:10px"><h2 class="h2">${esc(meal)}</h2><label class="row xs muted" style="gap:6px">Heure du repas <input id="afs-time" class="inp" type="time" style="width:116px" value="${afs.time}"></label></div>
     <div id="afs-sum" class="mt8"></div>
     <div class="mt12">${seg([["search", "Chercher"], ["fav", "Favoris"], ["recent", "Récents"], ["dishes", "Mes repas"], ["rec", "Recettes"]], afs.tab, "afs-tab")}</div><div id="afsb" class="mt12"></div>
     <button class="btn btn-red mt16" data-a="afs-done" style="position:sticky;bottom:12px;width:100%">Terminé</button>`, (w) => { drawSum(); drawAfs(w); });
@@ -87,7 +87,7 @@ function drawSum() {
 }
 actions["afs-del"] = (b, d) => { N.removeEntry(+d.id, afs.date); drawSum(); };
 actions["afs-done"] = () => closeSheet();
-function addedToMeal(e, label = "Ajouté") { N.addEntry({ ...e, meal: afs.meal, time: afsTime() }, afs.date); buzz(); toast(label); drawSum(); }
+function addedToMeal(e, label = "Ajouté") { afs.time = afsTime(); update(st => (st.food[afs.date] || []).forEach(x => { if (x.meal === afs.meal) x.time = afs.time; })); N.addEntry({ ...e, meal: afs.meal, time: afs.time }, afs.date); buzz(); toast(label); drawSum(); }
 function drawAfs(w = document.getElementById("sheet")) {
   const box = w.querySelector("#afsb");
   w.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.v === afs.tab));
