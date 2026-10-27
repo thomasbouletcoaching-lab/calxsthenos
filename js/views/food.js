@@ -1,6 +1,6 @@
 // Nutrition : journal (heures des repas), favoris, repas enregistrés, plan écrit, recettes, batch cooking,
 // jeûne, dépense calorique (MB, NEAT, EAT, TEF, TDEE), corps (poids, projection, mensurations, photos).
-import { S, update, today, addPhoto, listPhotos, deletePhoto } from "../store.js";
+import { S, update, today, addPhoto, listPhotos, deletePhoto, updatePhoto } from "../store.js";
 import * as N from "../nutrition.js";
 import * as RC from "../recipes.js";
 import * as EN from "../energy.js";
@@ -377,7 +377,17 @@ forms.cardio = (v) => { const c = EN.CARDIO[+v.t], min = Math.round(num(v.min)),
 actions["cardio-del"] = (b, d) => { update(st => st.daily[D()].cardio.splice(+d.i, 1)); rerender(); };
 
 // ---------- Corps : poids, projection, mensurations, photos ----------
-const MS = [["waist", "Tour de taille"], ["hips", "Hanches"], ["chest", "Poitrine"], ["arm", "Bras"], ["thigh", "Cuisse"], ["calf", "Mollet"], ["neck", "Cou"], ["fat", "Masse grasse (%)"]];
+// Tronc : une mesure. Membres : gauche et droite, relâché et contracté.
+const TRUNK = [["neck", "Cou"], ["shoulders", "Épaules"], ["chest", "Poitrine"], ["waistNav", "Taille au nombril"], ["waistLow", "Taille, au plus large sous le nombril"], ["waistHigh", "Taille, au plus fin au-dessus du nombril"], ["hips", "Hanches"], ["fat", "Masse grasse (%)"]];
+const LIMBS = [["arm", "Bras"], ["forearm", "Avant-bras"], ["thigh", "Cuisse"], ["calf", "Mollet"]];
+const SIDES = [["l_r", "G relâché"], ["l_c", "G contracté"], ["r_r", "D relâché"], ["r_c", "D contracté"]];
+const MS = [...TRUNK, ...LIMBS.flatMap(([k, l]) => SIDES.map(([s, sl]) => [`${k}_${s}`, `${l} ${sl}`]))];
+const LEGACY = { waist: "waistNav", arm: "arm_r_r", thigh: "thigh_r_r", calf: "calf_r_r" };
+function migrateMeasures() {
+  if (!S().measures.some(m => Object.keys(LEGACY).some(k => m[k] != null))) return;
+  update(st => st.measures.forEach(m => Object.entries(LEGACY).forEach(([o, n]) => { if (m[o] != null) { if (m[n] == null) m[n] = m[o]; delete m[o]; } })));
+}
+let msDate = null, msChart = "waistNav", phDate = null, phView = "face";
 async function bodyBody() {
   const ws = Object.entries(S().daily).filter(([, v]) => v.weight).sort().map(([d, v]) => ({ d, w: v.weight }));
   const avg = ws.map((m, i) => { const win = ws.slice(Math.max(0, i - 6), i + 1); return { d: m.d, y: win.reduce((a, b) => a + b.w, 0) / win.length, l: m.d.slice(8, 10) + "/" + m.d.slice(5, 7) }; });
@@ -387,7 +397,8 @@ async function bodyBody() {
     const days = (new Date(recent.at(-1).d) - new Date(recent[0].d)) / 864e5;
     if (days >= 6) { rate = (recent.at(-1).y - recent[0].y) / days * 7; proj = [2, 4, 6, 8].map(k => ({ y: recent.at(-1).y + rate * k, l: `+${k} sem.` })); }
   }
-  const ms = S().measures.filter(m => MS.some(([k]) => m[k]));
+  migrateMeasures();
+  const ms = S().measures.filter(m => MS.some(([k]) => m[k] != null)).sort((a, b) => a.d.localeCompare(b.d));
   const lastM = [...ms].reverse()[0], firstM = ms[0];
   const photos = premium() ? await listPhotos() : [];
   const goal = S().profile?.goal;
@@ -396,14 +407,41 @@ async function bodyBody() {
       <div class="mt8">${lineChart(avg.slice(-60), { proj: premium() ? proj : null, yfmt: (v) => fr(v, 1) })}</div>
       ${rate != null ? premium() ? `<div class="card soft mt8"><b>📉 À ce rythme</b> (${rate > 0 ? "+" : ""}${fr(rate, 2)} kg / semaine) : <b>${fr(proj.at(-1).y, 1)} kg dans 8 semaines</b>.<br><span class="xs muted">${goal === "fat" ? (rate > -.2 ? "Un peu lent : vise −0,3 à −0,7 kg par semaine (baisse de 150 kcal ou +2 000 pas)." : rate < -1 ? "Rapide : attention à ta masse musculaire, remonte de 150 kcal." : "Rythme idéal pour perdre du gras en gardant ton muscle.") : goal === "muscle" ? (rate < .1 ? "Trop lent pour prendre du muscle : ajoute 150 kcal." : rate > .5 ? "Rapide : une partie sera du gras, baisse de 100 kcal." : "Bon rythme de prise de muscle.") : "La moyenne compte, pas la pesée du jour."}</span></div>` : `<p class="small mt8">🔒 Courbe de projection « à ce rythme » avec Premium.</p>` : `<p class="xs muted mt8">La projection apparaît après une semaine de pesées.</p>`}
       <form class="row mt12" data-f="weight" style="gap:8px"><input name="w" class="inp grow" inputmode="decimal" placeholder="Pesée du jour (kg)" required><button class="btn btn-red btn-sm" style="width:auto">Enregistrer</button></form></div>
-    <div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="lbl">📏 Mensurations (cm)</div>
-      ${lastM ? `<div class="mt8">${MS.filter(([k]) => lastM[k]).map(([k, l]) => { const f = ms.find(m => m[k]), dlt = lastM[k] - f[k]; return `<div class="row between small"><span>${l}</span><span><b>${fr(lastM[k], 1)}</b> ${f !== lastM && dlt ? `<span class="xs ${dlt < 0 ? "" : "red"}">${dlt > 0 ? "+" : ""}${fr(dlt, 1)}</span>` : ""}</span></div>`; }).join("")}<p class="xs muted">Dernière mesure : ${fmtDate(lastM.d, { day: "numeric", month: "long" })}${firstM !== lastM ? ` · écart depuis le ${fmtDate(firstM.d, { day: "numeric", month: "short" })}` : ""}</p></div>` : ""}
-      <form data-f="measures" class="mt12"><div class="grid2">${MS.map(([k, l]) => `<label class="field"><span>${l}</span><input name="${k}" inputmode="decimal" placeholder="${lastM?.[k] ?? ""}"></label>`).join("")}</div><button class="btn btn-line btn-sm mt12" style="width:100%">Enregistrer les mesures du jour</button></form>
-      ${premium() ? "" : lockVeil("Bâtisseur")}</div>
-    <div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="row between"><span class="lbl">📸 Photos de progrès</span><label class="link" style="cursor:pointer">+ Ajouter<input type="file" accept="image/*" data-c="photo" hidden></label></div>
-      <p class="xs muted">Datées et reliées à tes mesures du jour. Elles restent sur ce téléphone.</p>
-      ${photos.length ? `<div class="photo-grid mt12">${photos.map(p => { const m = S().measures.find(x => x.d === p.d) || {}; const w = S().daily[p.d]?.weight || m.weight; return `<figure><button data-a="photo" data-id="${p.id}" style="display:block;width:100%"><img alt="Photo du ${p.d}" src="${URL.createObjectURL(p.blob)}"></button><figcaption>${fmtDate(p.d, { day: "numeric", month: "short", year: "2-digit" })}${w ? ` · ${fr(w, 1)} kg` : ""}${m.waist ? ` · taille ${fr(m.waist)}` : ""}</figcaption></figure>`; }).join("")}</div>` : `<p class="empty small">Une photo par mois, même lumière, même tenue, même heure.</p>`}
-      ${premium() ? "" : lockVeil("Bâtisseur")}</div>`;
+    ${measuresCard(ms, lastM, firstM)}
+    ${photosCard(photos)}`;
+}
+function measuresCard(ms, lastM, firstM) {
+  const d = msDate || today(), cur = S().measures.find(m => m.d === d) || {};
+  const val = (k) => cur[k] != null ? String(cur[k]).replace(".", ",") : "";
+  const ph = (k) => lastM?.[k] != null ? String(lastM[k]).replace(".", ",") : "";
+  const delta = (k) => { const f = ms.find(m => m[k] != null), l = [...ms].reverse().find(m => m[k] != null); if (!l) return ""; const dl = f && f !== l ? l[k] - f[k] : 0; return `<b>${fr(l[k], 1)}</b>${dl ? ` <span class="xs ${dl < 0 ? "" : "red"}">${dl > 0 ? "+" : ""}${fr(dl, 1)}</span>` : ""}`; };
+  const has = (k) => ms.some(m => m[k] != null);
+  const series = ms.filter(m => m[msChart] != null).map(m => ({ y: m[msChart], l: m.d.slice(8, 10) + "/" + m.d.slice(5, 7) }));
+  const dates = [...ms].reverse().slice(0, 12);
+  return `<div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="lbl">📏 Mensurations (cm)</div>
+    ${lastM ? `<div class="mt8">${TRUNK.filter(([k]) => has(k)).map(([k, l]) => `<div class="row between small"><span>${l}</span><span>${delta(k)}</span></div>`).join("")}
+      ${LIMBS.some(([k]) => SIDES.some(([s]) => has(`${k}_${s}`))) ? `<table class="mtab mt8"><tr><th></th>${SIDES.map(([, l]) => `<th>${l.replace("relâché", "rel.").replace("contracté", "contr.")}</th>`).join("")}</tr>${LIMBS.filter(([k]) => SIDES.some(([s]) => has(`${k}_${s}`))).map(([k, l]) => `<tr><td>${l}</td>${SIDES.map(([s]) => `<td>${delta(`${k}_${s}`) || "–"}</td>`).join("")}</tr>`).join("")}</table>` : ""}
+      <p class="xs muted mt8">Dernière mesure : ${fmtDate(lastM.d, { day: "numeric", month: "long", year: "numeric" })}${firstM !== lastM ? ` · écart depuis le ${fmtDate(firstM.d, { day: "numeric", month: "short", year: "numeric" })}` : ""}</p>
+      <div class="mt8">${chips(MS.filter(([k]) => has(k)).map(([k, l]) => [k, l.replace(", au plus large sous le nombril", " basse").replace(", au plus fin au-dessus du nombril", " haute")]), msChart, "ms-chart")}</div>
+      <div class="mt8">${lineChart(series, { yfmt: (v) => fr(v, 1) })}</div></div>` : ""}
+    <form data-f="measures" class="mt12"><label class="field"><span>Date des mesures</span><input type="date" name="d" value="${d}" max="${today()}" data-c="ms-date"></label>
+      ${cur.d ? `<p class="xs muted mt4">Mesures déjà saisies ce jour-là : tu peux les corriger.</p>` : ""}
+      <div class="lbl mt12">Tronc</div><div class="grid2 mt4">${TRUNK.map(([k, l]) => `<label class="field"><span>${l}</span><input name="${k}" inputmode="decimal" value="${val(k)}" placeholder="${ph(k)}"></label>`).join("")}</div>
+      <div class="lbl mt12">Membres · gauche et droite, relâché et contracté</div>
+      <table class="mtab in mt4"><tr><th></th>${SIDES.map(([, l]) => `<th>${l.replace(" ", "<br>")}</th>`).join("")}</tr>${LIMBS.map(([k, l]) => `<tr><td>${l}</td>${SIDES.map(([s, sl]) => `<td><input name="${k}_${s}" inputmode="decimal" value="${val(`${k}_${s}`)}" placeholder="${ph(`${k}_${s}`)}" aria-label="${l} ${sl}"></td>`).join("")}</tr>`).join("")}</table>
+      <p class="xs muted mt8">Relâché : bras le long du corps, muscle détendu. Contracté : muscle serré au maximum, au point le plus large. Mesure toujours au même endroit, le matin.</p>
+      <button class="btn btn-line btn-sm mt12" style="width:100%">Enregistrer les mesures du ${fmtDate(d, { day: "numeric", month: "long" })}</button></form>
+    ${dates.length ? `<div class="lbl mt16">Historique</div><div class="chips wrap mt8">${dates.map(m => `<button class="chip ${m.d === d ? "on" : ""}" data-a="ms-pick" data-v="${m.d}">${fmtDate(m.d, { day: "numeric", month: "short", year: "2-digit" })}</button>`).join("")}</div>` : ""}
+    ${premium() ? "" : lockVeil("Bâtisseur")}</div>`;
+}
+function photosCard(photos) {
+  const VIEWS = [["face", "Face"], ["profil", "Profil"], ["dos", "Dos"], ["autre", "Autre"]];
+  return `<div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><span class="lbl">📸 Photos de progrès</span>
+    <div class="grid2 mt8"><label class="field"><span>Date de la photo</span><input type="date" value="${phDate || today()}" max="${today()}" data-c="ph-date"></label><label class="field"><span>Vue</span><select data-c="ph-view">${VIEWS.map(([k, l]) => `<option value="${k}" ${k === phView ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+    <label class="btn btn-line btn-sm mt8" style="width:100%;cursor:pointer">+ Ajouter une photo<input type="file" accept="image/*" data-c="photo" hidden></label>
+    <p class="xs muted mt8">Chaque photo garde sa date et se relie à ton poids et tes mesures de ce jour-là. Elles restent sur ce téléphone.</p>
+    ${photos.length ? `<div class="photo-grid mt12">${photos.map(p => { const m = S().measures.find(x => x.d === p.d) || {}; const w = S().daily[p.d]?.weight || m.weight; return `<figure><button data-a="photo" data-id="${p.id}" style="display:block;width:100%"><img alt="Photo du ${p.d}" src="${URL.createObjectURL(p.blob)}"></button><figcaption><b>${fmtDate(p.d, { day: "numeric", month: "short", year: "numeric" })}</b>${p.view && p.view !== "autre" ? ` · ${VIEWS.find(v => v[0] === p.view)?.[1] || ""}` : ""}${w ? `<br>${fr(w, 1)} kg` : ""}${m.waistNav ? ` · taille ${fr(m.waistNav)} cm` : ""}</figcaption></figure>`; }).join("")}</div>` : `<p class="empty small">Une photo par mois, même lumière, même tenue, même heure.</p>`}
+    ${premium() ? "" : lockVeil("Bâtisseur")}</div>`;
 }
 forms.weight = (v) => {
   const w = num(v.w); if (!(w > 30 && w < 250)) return toast("Poids invalide");
@@ -412,11 +450,24 @@ forms.weight = (v) => {
 };
 forms.measures = (v) => {
   if (!premium()) return go("offers");
-  let any = false; update(st => { let m = st.measures.find(x => x.d === today()); if (!m) { m = { d: today() }; st.measures.push(m); } MS.forEach(([k]) => { const x = num(v[k]); if (x > 0) { m[k] = x; any = true; } }); });
-  toast(any ? "Mesures enregistrées" : "Aucune mesure saisie"); rerender();
+  const d = v.d && v.d <= today() ? v.d : today();
+  let any = false; update(st => { let m = st.measures.find(x => x.d === d); if (!m) { m = { d }; st.measures.push(m); } MS.forEach(([k]) => { if (!(k in v)) return; const x = num(v[k]); if (x > 0 && x < 300) { m[k] = x; any = true; } else if (!String(v[k]).trim()) delete m[k]; }); });
+  msDate = d; toast(any ? `Mesures du ${fmtDate(d, { day: "numeric", month: "long" })} enregistrées` : "Aucune mesure saisie"); rerender();
 };
-changes.photo = async (el) => { if (!premium()) return go("offers"); const f = el.files?.[0]; if (!f) return; await addPhoto(f); toast("Photo ajoutée"); rerender(); };
-actions.photo = async (b, d) => { if (confirm("Supprimer cette photo ?")) { await deletePhoto(+d.id); rerender(); } };
+changes["ms-date"] = (el) => { msDate = el.value || null; rerender(); };
+actions["ms-pick"] = (b, d) => { msDate = d.v; rerender(); };
+actions["ms-chart"] = (b, d) => { msChart = d.v; rerender(); };
+changes["ph-date"] = (el) => { phDate = el.value || null; };
+changes["ph-view"] = (el) => { phView = el.value; };
+changes.photo = async (el) => { if (!premium()) return go("offers"); const f = el.files?.[0]; if (!f) return; await addPhoto(f, phDate || today(), phView); toast(`Photo du ${fmtDate(phDate || today(), { day: "numeric", month: "long" })} ajoutée`); rerender(); };
+actions.photo = async (b, d) => {
+  const p = (await listPhotos()).find(x => x.id === +d.id); if (!p) return;
+  sheet(`<h2 class="h2">Photo</h2><img src="${URL.createObjectURL(p.blob)}" alt="" style="width:100%;border-radius:14px;margin-top:8px">
+    <label class="field mt12"><span>Date</span><input type="date" id="pdate" value="${p.d}" max="${today()}"></label>
+    <div class="row mt12" style="gap:8px"><button class="btn btn-red grow" data-a="photo-date" data-id="${p.id}">Enregistrer la date</button><button class="btn btn-line grow" data-a="photo-del" data-id="${p.id}" style="color:var(--red)">Supprimer</button></div>`);
+};
+actions["photo-date"] = async (b, d) => { const v = document.getElementById("pdate").value; if (!v) return; await updatePhoto(+d.id, { d: v }); closeSheet(); toast("Date modifiée"); rerender(); };
+actions["photo-del"] = async (b, d) => { if (!confirm("Supprimer cette photo ?")) return; await deletePhoto(+d.id); closeSheet(); rerender(); };
 
 // ---------- Budget des courses (Premium) ----------
 const eur = (v) => (Math.round((v || 0) * 100) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });

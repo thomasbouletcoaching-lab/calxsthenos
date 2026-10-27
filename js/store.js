@@ -67,11 +67,11 @@ function db() {
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
-export async function addPhoto(blob) {
+export async function addPhoto(blob, day = today(), view = "face") {
   const d = await db();
   return new Promise((res, rej) => {
     const tx = d.transaction("p", "readwrite");
-    tx.objectStore("p").put({ id: Date.now(), d: today(), blob });
+    tx.objectStore("p").put({ id: Date.now(), d: day, view, blob });
     tx.oncomplete = res; tx.onerror = () => rej(tx.error);
   });
 }
@@ -80,11 +80,18 @@ export async function listPhotos() {
     const d = await db();
     return await new Promise((res) => {
       const r = d.transaction("p").objectStore("p").getAll();
-      r.onsuccess = () => res(r.result.sort((a, b) => b.id - a.id)); r.onerror = () => res([]);
+      r.onsuccess = () => res(r.result.sort((a, b) => b.d.localeCompare(a.d) || b.id - a.id)); r.onerror = () => res([]);
     });
   } catch { return []; }
 }
 export async function deletePhoto(id) {
   const d = await db();
   d.transaction("p", "readwrite").objectStore("p").delete(id);
+}
+export async function updatePhoto(id, fields) {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const st = d.transaction("p", "readwrite").objectStore("p"), g = st.get(id);
+    g.onsuccess = () => { if (!g.result) return res(); const r = st.put({ ...g.result, ...fields }); r.onsuccess = res; r.onerror = () => rej(r.error); };
+  });
 }
