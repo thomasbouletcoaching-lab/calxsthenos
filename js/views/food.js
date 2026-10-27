@@ -140,7 +140,7 @@ function planBody(t) {
     return `<div class="card mt12 ${open ? "" : "locked"}" style="position:relative${open ? "" : ";min-height:150px"}"><div class="row between"><div class="lbl">🕐 ${esc(x.time || "")} · ${esc(x.meal)}</div><span class="xs muted">${fr(x.m.kcal)} kcal · ${fr(x.m.p)} g P</span></div>
       <h3 class="h3 mt4">${esc(x.n)}</h3><ul class="small" style="padding-left:18px;margin:8px 0">${x.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
       <div class="row" style="gap:8px"><button class="btn btn-red btn-xs" data-a="eat-plan" data-i="${i}">✓ J'ai mangé ça</button>${!mine && x.poolSize > 1 ? `<button class="btn btn-ghost btn-xs" data-a="swap-dish" data-m="${esc(x.meal)}">🔄 Autre plat</button>` : ""}</div>
-      ${open ? "" : lockVeil("Premium", "Ton plan complet, écrit en vrais plats, ajusté à tes calories.")}</div>`;
+      ${open ? "" : lockVeil("Bâtisseur", "Ton plan complet, écrit en vrais plats, ajusté à tes calories.")}</div>`;
   }).join("");
   return `<div class="card grad mt12"><div class="lbl">📋 ${mine ? "Mon plan alimentaire" : "Plan proposé pour toi"}</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
     ${cards}
@@ -246,7 +246,7 @@ actions["nr-save"] = () => {
 // ---------- Batch cooking ----------
 let cart = [];
 function batchBody() {
-  if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:260px"><h2 class="h2">🥡 Batch cooking</h2><p class="small muted">Choisis tes recettes et tes portions : l'app calcule la liste de courses par rayon, et tes portions prêtes se mangent en un geste dans le journal.</p>${lockVeil("Premium")}</div>`;
+  if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:260px"><h2 class="h2">🥡 Batch cooking</h2><p class="small muted">Choisis tes recettes et tes portions : l'app calcule la liste de courses par rayon, et tes portions prêtes se mangent en un geste dans le journal.</p>${lockVeil("Bâtisseur")}</div>`;
   const stock = (S().batches || []).flatMap((b, bi) => b.items.map((it, ii) => ({ ...it, bi, ii, d: b.d }))).filter(x => x.left > 0);
   const { byAisle: list, total: cost } = RC.shoppingListPriced(cart.map(c => ({ r: allRecipes().find(r => r.id === c.id), portions: c.portions })), S().prices);
   const tot = cart.reduce((a, c) => a + c.portions, 0);
@@ -301,7 +301,7 @@ actions["fast-stop"] = () => { update(st => { st.fasts = [...(st.fasts || []), {
 function burnBody() {
   const d = D(), b = EN.breakdown(d), bn = EN.burnedNow(d), p = S().profile, t = N.targets();
   if (!premium()) return `<div class="card mt12"><div class="lbl">🔥 Brûlées aujourd'hui</div><b class="num" style="font-size:34px">${fr(bn.now)} kcal</b><p class="small muted">à cette heure, sur environ ${fr(bn.total)} kcal prévues</p></div>
-    <div class="card mt12 locked" style="position:relative;min-height:240px"><h3 class="h3">Le calcul complet</h3><p class="small muted">Métabolisme de base, NEAT (pas et mouvements), EAT (séances et cardio), effet thermique des aliments, TDEE.</p>${lockVeil("Premium", "Le détail de ta dépense et l'ajout de ton cardio.")}</div>`;
+    <div class="card mt12 locked" style="position:relative;min-height:240px"><h3 class="h3">Le calcul complet</h3><p class="small muted">Métabolisme de base, NEAT (pas et mouvements), EAT (séances et cardio), effet thermique des aliments, TDEE.</p>${lockVeil("Bâtisseur", "Le détail de ta dépense et l'ajout de ton cardio.")}</div>`;
   const stepTxt = b.activitySteps ? `${fr(b.steps)} pas hors activité (${fr(b.totalSteps)} au total, dont ${fr(b.activitySteps)} déjà comptés dans ton sport)` : `${fr(b.steps)} pas`;
   const rows = [["MB", "Métabolisme de base", b.bmr, "L'énergie pour vivre au repos : cœur, cerveau, organes (Mifflin-St Jeor)."],
     ["NEAT", "Activité du quotidien", b.neat, `Ton mode de vie et ${stepTxt}.`],
@@ -357,11 +357,11 @@ async function bodyBody() {
     <div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="lbl">📏 Mensurations (cm)</div>
       ${lastM ? `<div class="mt8">${MS.filter(([k]) => lastM[k]).map(([k, l]) => { const f = ms.find(m => m[k]), dlt = lastM[k] - f[k]; return `<div class="row between small"><span>${l}</span><span><b>${fr(lastM[k], 1)}</b> ${f !== lastM && dlt ? `<span class="xs ${dlt < 0 ? "" : "red"}">${dlt > 0 ? "+" : ""}${fr(dlt, 1)}</span>` : ""}</span></div>`; }).join("")}<p class="xs muted">Dernière mesure : ${fmtDate(lastM.d, { day: "numeric", month: "long" })}${firstM !== lastM ? ` · écart depuis le ${fmtDate(firstM.d, { day: "numeric", month: "short" })}` : ""}</p></div>` : ""}
       <form data-f="measures" class="mt12"><div class="grid2">${MS.map(([k, l]) => `<label class="field"><span>${l}</span><input name="${k}" inputmode="decimal" placeholder="${lastM?.[k] ?? ""}"></label>`).join("")}</div><button class="btn btn-line btn-sm mt12" style="width:100%">Enregistrer les mesures du jour</button></form>
-      ${premium() ? "" : lockVeil("Premium")}</div>
+      ${premium() ? "" : lockVeil("Bâtisseur")}</div>
     <div class="card mt12 ${premium() ? "" : "locked"}" style="position:relative"><div class="row between"><span class="lbl">📸 Photos de progrès</span><label class="link" style="cursor:pointer">+ Ajouter<input type="file" accept="image/*" data-c="photo" hidden></label></div>
       <p class="xs muted">Datées et reliées à tes mesures du jour. Elles restent sur ce téléphone.</p>
       ${photos.length ? `<div class="photo-grid mt12">${photos.map(p => { const m = S().measures.find(x => x.d === p.d) || {}; const w = S().daily[p.d]?.weight || m.weight; return `<figure><button data-a="photo" data-id="${p.id}" style="display:block;width:100%"><img alt="Photo du ${p.d}" src="${URL.createObjectURL(p.blob)}"></button><figcaption>${fmtDate(p.d, { day: "numeric", month: "short", year: "2-digit" })}${w ? ` · ${fr(w, 1)} kg` : ""}${m.waist ? ` · taille ${fr(m.waist)}` : ""}</figcaption></figure>`; }).join("")}</div>` : `<p class="empty small">Une photo par mois, même lumière, même tenue, même heure.</p>`}
-      ${premium() ? "" : lockVeil("Premium")}</div>`;
+      ${premium() ? "" : lockVeil("Bâtisseur")}</div>`;
 }
 forms.weight = (v) => {
   const w = num(v.w); if (!(w > 30 && w < 250)) return toast("Poids invalide");
@@ -382,7 +382,7 @@ const mondayOf = (d) => addDays(d, -((new Date(d + "T12:00:00").getDay() + 6) % 
 function budgetLine(cost) { const w = S().budget?.weekly; return w ? ` · ${Math.round(cost / w * 100)} % de ton budget de la semaine` : ""; }
 let prQ = "";
 function budgetBody() {
-  if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:300px"><h2 class="h2">💶 Budget des courses</h2><p class="small muted">Fixe ton budget, note tes tickets, vois le prix de chaque recette et de ta liste de courses, et repère les protéines les moins chères.</p>${lockVeil("Premium", "Le budget des courses fait partie de Premium.")}</div>`;
+  if (!premium()) return `<div class="card mt12 locked" style="position:relative;min-height:300px"><h2 class="h2">💶 Budget des courses</h2><p class="small muted">Fixe ton budget, note tes tickets, vois le prix de chaque recette et de ta liste de courses, et repère les protéines les moins chères.</p>${lockVeil("Bâtisseur", "Le budget des courses fait partie de Premium.")}</div>`;
   const B = S().budget || {}, RCP = S().receipts || [], mon = mondayOf(today());
   const weekSpent = RCP.filter(r => r.d >= mon).reduce((a, r) => a + r.amount, 0);
   const weeks = Array.from({ length: 8 }, (_, i) => addDays(mon, -7 * (7 - i)));

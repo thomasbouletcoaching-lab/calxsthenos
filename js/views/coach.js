@@ -53,7 +53,7 @@ function chooseOffer(id) {
   if (o.rank === 1) {
     const link = o.pay?.month;
     if (link) { const u = new URL(link); const c = cloudNow()?.userId?.(); if (c) u.searchParams.set("client_reference_id", c); if (S().profile?.email) u.searchParams.set("prefilled_email", S().profile.email); location.href = u.toString(); return; }
-    sheet(`<h2 class="h1">Premium</h2><p class="mt12">Le paiement en ligne ouvre très bientôt. En attendant, écris-moi : je t'active Premium moi-même.</p><button class="btn btn-red mt12" data-a="prefill" data-t="Bonjour Thomas, je veux passer à Premium.">Écrire à Thomas</button>`);
+    sheet(`<h2 class="h1">Bâtisseur</h2><p class="mt12">Le paiement en ligne ouvre très bientôt. En attendant, écris-moi : je t'active la formule Bâtisseur moi-même.</p><button class="btn btn-red mt12" data-a="prefill" data-t="Bonjour Thomas, je veux passer à la formule Bâtisseur.">Écrire à Thomas</button>`);
     return;
   }
   AP.i = 0; AP.a = { offer: id }; go("apply");

@@ -124,7 +124,7 @@ function statsBody() {
       <div class="row between mt12"><b class="num" style="font-size:28px">${fr(h.at(-1)?.e1rm, 1)} kg</b><span class="small muted">meilleur ${fr(Math.max(...h.map(x => x.e1rm)), 1)} kg</span></div>
       <div class="mt8">${lineChart(h.map(x => ({ y: x.e1rm, l: x.d.slice(8, 10) + "/" + x.d.slice(5, 7) })), { yfmt: (x) => fr(x) })}</div><p class="xs muted" style="margin:0">1RM estimé à partir de tes séries (charge, reps et RPE).</p></div>` : `<p class="empty small">Tes courbes apparaissent après tes premières séances.</p>`}
     ${recs.length ? `<h2 class="sec">🏆 Records</h2><div class="list">${recs.map(([n, x]) => `<div class="li"><span class="grow small">${esc(n)}</span><span class="num">${fr(x)} kg</span></div>`).join("")}</div>` : ""}
-    ${locked ? lockVeil("Premium", "Volume par muscle, par exercice, par séance, par semaine et par mois, courbes de force et records.") : ""}</div>`;
+    ${locked ? lockVeil("Bâtisseur", "Volume par muscle, par exercice, par séance, par semaine et par mois, courbes de force et records.") : ""}</div>`;
 }
 actions["st-period"] = (b, d) => { period = d.v; rerender(); };
 actions["st-vol"] = (b, d) => { volView = d.v; rerender(); };
@@ -201,7 +201,7 @@ routes.fiche = async () => {
     ${recordE ? `<div class="card mt12"><div class="lbl">📈 Ton 1RM estimé</div><b class="num" style="font-size:26px">${recordE} kg</b></div>` : ""}
     <div class="card mt12">${f.setup ? `<div class="lbl">🛠️ Installation</div><p class="small mt4">${esc(f.setup)}</p>` : ""}${f.cues?.length ? `<div class="lbl mt12">🎯 Points clés</div>${block(f.cues)}` : ""}${f.note ? `<p class="small muted mt8" style="margin-bottom:0">${esc(f.note)}</p>` : ""}</div>
     ${FIELD.filter(([k]) => fam[k] && (deep || FREE_FIELDS.includes(k))).map(([k, l]) => `<div class="card mt12"><div class="lbl">${l}</div>${block(fam[k])}</div>`).join("")}
-    ${deep ? "" : (() => { const lk = FIELD.filter(([k]) => fam[k] && !FREE_FIELDS.includes(k)); return lk.length ? `<div class="card mt12 locked" style="position:relative;min-height:220px"><div class="lbl">🔬 Biomécanique complète</div><p class="small muted mt4">${lk.map(([, l]) => l).join(" · ")}</p>${lockVeil("Premium", "Moments, courbe de résistance, leviers, conseils de coach et progressions.")}</div>` : ""; })()}
+    ${deep ? "" : (() => { const lk = FIELD.filter(([k]) => fam[k] && !FREE_FIELDS.includes(k)); return lk.length ? `<div class="card mt12 locked" style="position:relative;min-height:220px"><div class="lbl">🔬 Biomécanique complète</div><p class="small muted mt4">${lk.map(([, l]) => l).join(" · ")}</p>${lockVeil("Bâtisseur", "Moments, courbe de résistance, leviers, conseils de coach et progressions.")}</div>` : ""; })()}
     ${alts.length ? `<h2 class="sec">🔄 Variantes du même mouvement</h2><div class="list">${alts.map(n => `<button class="li" data-a="go" data-r="fiche" data-p="${esc(n)}"><span class="grow">${esc(n)}</span>${I.chev}</button>`).join("")}</div>` : ""}
   </main>`;
 };
@@ -438,7 +438,7 @@ const blankRow = (n) => [n, "X", "", null, null, { sets: 3, lo: 8, hi: 12, rpe: 
 routes.builder = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
   if (!premium()) {
-    $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page"><div class="card locked" style="min-height:300px;position:relative"><h2 class="h2">Ton programme, tes règles</h2><p class="small muted">Séances, exercices, séries, fourchettes de reps, RPE, % du 1RM, techniques d'intensification et temps de repos : tout se planifie, puis le carnet calcule tes charges.</p>${lockVeil("Premium")}</div></main>${tabbar("train")}`;
+    $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page"><div class="card locked" style="min-height:300px;position:relative"><h2 class="h2">Ton programme, tes règles</h2><p class="small muted">Séances, exercices, séries, fourchettes de reps, RPE, % du 1RM, techniques d'intensification et temps de repos : tout se planifie, puis le carnet calcule tes charges.</p>${lockVeil("Bâtisseur")}</div></main>${tabbar("train")}`;
     return;
   }
   if (!draft || (R.param && draft.id !== R.param)) {

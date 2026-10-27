@@ -95,8 +95,8 @@ export function tabbar(active) {
   const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;max-width:616px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
   return cur + `<nav class="tabbar" aria-label="Navigation">${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === active ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }
-export const lockVeil = (label = "Premium", why = "") => `<div class="veil"><span class="lock">🔒 ${esc(label)}</span>${why ? `<p class="small muted" style="max-width:280px;margin:0">${esc(why)}</p>` : ""}<button class="btn btn-red btn-sm" data-a="go" data-r="offers">Voir les offres</button></div>`;
-export const lockBtn = (label = "Premium") => `<button class="lock" data-a="go" data-r="offers">🔒 ${esc(label)}</button>`;
+export const lockVeil = (label = "Bâtisseur", why = "") => `<div class="veil"><span class="lock">🔒 ${esc(label)}</span>${why ? `<p class="small muted" style="max-width:280px;margin:0">${esc(why)}</p>` : ""}<button class="btn btn-red btn-sm" data-a="go" data-r="offers">Voir les offres</button></div>`;
+export const lockBtn = (label = "Bâtisseur") => `<button class="lock" data-a="go" data-r="offers">🔒 ${esc(label)}</button>`;
 export const seg = (opts, cur, action) => `<div class="seg">${opts.map(([v, l]) => `<button data-a="${action}" data-v="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("")}</div>`;
 export const chips = (opts, cur, action, extra = "") => `<div class="chips ${extra}">${opts.map(([v, l]) => `<button class="chip ${cur === v ? "on" : ""}" data-a="${action}" data-v="${esc(v)}">${l}</button>`).join("")}</div>`;
 
