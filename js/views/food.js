@@ -8,18 +8,19 @@ import { $app, esc, num, fr, buzz, toast, routes, R, actions, forms, changes, go
 import { caloriesCard } from "./home.js";
 import { pushStats } from "../sync.js";
 import * as ML from "./meals.js";
+import * as SP from "./supps.js";
 
 let tab = "journal", day = null;
-const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["budget", "🛒 Courses"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"]];
+const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["complements", "💊 Compléments"], ["budget", "🛒 Courses"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"], ["learn", "📚 Apprendre"]];
 const D = () => day || today();
 const FREE_RECIPES = 10;
 const recipeOpen = (r) => premium() || r.mine || RC.RECIPES.indexOf(r) < FREE_RECIPES;
-const myRecipes = () => (S().myRecipes || []).map(r => ({ ...r, mine: true, m: RC.macros(r.ing, r.portions) }));
+const myRecipes = () => (S().myRecipes || []).map(r => { RC.registerIng(r.ingDef); return { ...r, mine: true, m: RC.macros(r.ing, r.portions) }; });
 const allRecipes = () => [...myRecipes(), ...RC.RECIPES];
 export const recipePool = () => allRecipes().filter(recipeOpen);
 
 routes.food = async () => {
-  await N.loadModels();
+  await N.loadModels(); N.loadCiqual().catch(() => { });
   if (R.param && TABS.some(t => t[0] === R.param)) tab = R.param;
   const t = N.targets();
   let body;
@@ -30,12 +31,13 @@ routes.food = async () => {
   else if (tab === "jeune") body = fastBody();
   else if (tab === "budget") body = ML.shopBody() + (premium() ? `<h2 class="sec">💶 Mes dépenses réelles</h2>` + budgetBody() : "");
   else if (tab === "depense") body = burnBody();
+  else if (tab === "complements") { await N.loadCiqual(); await N.loadMicro(); body = SP.suppsBody(); }
   else body = await bodyBody();
   $app.innerHTML = header("Nutrition", t ? `${fr(t.kcal)} kcal · ${t.prot} g de protéines` : "") + `<main class="page">${chips(TABS, tab, "food-tab")}${body}</main>${tabbar("food")}`;
   if (tab === "recettes") bindRecipeSearch();
   if (tab === "budget") { const i = document.getElementById("prq"); i?.addEventListener("input", () => { prQ = i.value; document.getElementById("prl").innerHTML = priceRows(N.norm(prQ)); }); }
 };
-actions["food-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); rerender(false); window.scrollTo(0, 0); };
+actions["food-tab"] = (b, d) => { if (d.v === "learn") return go("kb"); tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); rerender(false); window.scrollTo(0, 0); };
 actions["food-day"] = (b, d) => { const n = addDays(D(), +d.v); day = n >= today() ? null : n; rerender(); };
 
 // ---------- Journal ----------
@@ -47,6 +49,7 @@ function journalBody(t) {
     <div class="card"><div class="rt" style="border:0;padding:0"><span class="em">💧</span><div class="grow"><b>Eau</b><div class="small muted">${fr(water * .25, 2)} L · 1 verre = 25 cl</div></div><div class="water"><button data-a="water" data-v="-1" data-d="${d}" aria-label="Retirer un verre">−</button><b>${water}</b><button data-a="water" data-v="1" data-d="${d}" aria-label="Ajouter un verre">+</button></div></div></div>
     ${fs ? `<button class="card tap" data-a="food-tab" data-v="jeune" style="display:flex;gap:12px;align-items:center"><span style="font-size:26px">${fs.stage[1]}</span><span class="grow"><b>Jeûne en cours · ${Math.floor(fs.hours)} h</b><br><span class="small muted">${esc(fs.stage[2])}</span></span>${I.chev}</button>` : ""}
     ${ML.mealCards(t, d)}
+    ${SP.suppsMini(d)}
     <p class="xs muted mt12">Les heures servent à suivre tes fenêtres de repas et ton jeûne. Valeurs nutritionnelles : table Ciqual (Anses) et Open Food Facts.</p>`;
 }
 changes.mtime = (el) => { const m = el.dataset.m, d = el.dataset.d; update(st => (st.food[d] || []).forEach(e => { if (e.meal === m) e.time = el.value; })); toast("Heure du repas enregistrée"); };
@@ -87,12 +90,14 @@ function addedToMeal(e, label = "Ajouté") { afs.time = afsTime(); update(st => 
 function drawAfs(w = document.getElementById("sheet")) {
   const box = w.querySelector("#afsb");
   w.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.v === afs.tab));
-  const foodLi = (f, src, i) => `<div class="li" data-li="${src}-${i}"><button class="grow" style="text-align:left" data-a="pick-food" data-src="${src}" data-i="${i}"><span class="small">${esc(f.n)}</span><br><span class="xs muted">${f.kcal} kcal · ${fr(f.p, 1)} g prot. / 100 g</span></button><button class="icon-btn" data-a="fav-food" data-src="${src}" data-i="${i}" aria-label="Favori" style="color:${N.isFavFood(f.n) ? "var(--gold)" : "var(--soft)"}">${N.isFavFood(f.n) ? "★" : "☆"}</button></div>`;
+  const foodLi = (f, src, i) => `<div class="li" data-li="${src}-${i}"><button class="grow" style="text-align:left" data-a="pick-food" data-src="${src}" data-i="${i}"><span class="small">${esc(f.n)}</span><br><span class="xs muted">${f.kcal} kcal · ${fr(f.p, 1)} g prot.${f.fib != null ? ` · ${fr(f.fib, 1)} g fibres` : ""} / 100 g</span></button><button class="icon-btn" data-a="fav-food" data-src="${src}" data-i="${i}" aria-label="Favori" style="color:${N.isFavFood(f.n) ? "var(--gold)" : "var(--soft)"}">${N.isFavFood(f.n) ? "★" : "☆"}</button></div>`;
   if (afs.tab === "search") {
     box.innerHTML = `<div class="search">${I.search}<input id="fq" placeholder="riz, poulet, skyr…" autocomplete="off" enterkeyhint="search"></div>
-      ${"BarcodeDetector" in window ? `<button class="btn btn-line btn-sm mt8" data-a="scan" style="width:100%">${I.scan.replace("<svg", '<svg width="20"')} Scanner un code-barres</button>` : ""}<div id="fr" class="mt12"><p class="empty small">Tape le nom d'un aliment.</p></div>`;
+      <button class="btn btn-line btn-sm mt8" data-a="scan" style="width:100%">${I.scan.replace("<svg", '<svg width="20"')} ${"BarcodeDetector" in window ? "Scanner" : "Entrer"} un code-barres</button><div id="fr" class="mt12"><p class="empty small">Tape le nom d'un aliment.</p></div>`;
     const inp = box.querySelector("#fq"), out = box.querySelector("#fr"); let ready = false, deb;
-    const run = () => { const q = inp.value.trim(); if (!q) { out.innerHTML = `<p class="empty small">Tape le nom d'un aliment.</p>`; return; } if (!ready) { out.innerHTML = `<p class="empty small">Chargement des aliments…</p>`; return; } const r = N.searchFoods(q); window.__fr = r; out.innerHTML = r.length ? `<div class="list">${r.map((f, i) => foodLi(f, "search", i)).join("")}</div>` : `<p class="empty small">Rien pour « ${esc(q)} ». Essaie un seul mot, par exemple « ${esc(N.norm(q).split(/[^a-z0-9]+/).filter(x => x.length > 2).pop() || "riz")} ».</p>`; };
+    const run = () => { const q = inp.value.trim(); if (!q) { out.innerHTML = `<p class="empty small">Tape le nom d'un aliment.</p>`; return; } if (!ready) { out.innerHTML = `<p class="empty small">Chargement des aliments…</p>`; return; } const r = N.searchFoods(q); window.__fr = r;
+      const draw = (off) => { out.innerHTML = (r.length ? `<div class="list">${r.map((f, i) => foodLi(f, "search", i)).join("")}</div>` : `<p class="empty small">Rien dans la table Ciqual pour « ${esc(q)} ».</p>`) + `<div class="lbl mt16">🏷️ Produits de marque</div>` + (off == null ? `<p class="xs muted mt4">Recherche dans Open Food Facts…</p>` : off.length ? `<div class="list mt4">${off.map((f, i) => foodLi(f, "search", r.length + i)).join("")}</div>` : `<p class="xs muted mt4">Aucun produit de marque (ou pas de connexion).</p>`); };
+      draw(null); N.searchBrands(q).then(off => { if (inp.value.trim() !== q) return; window.__fr = [...r, ...off]; draw(off); }); };
     inp.addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(run, 140); });
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } });
     N.loadCiqual().then(() => { ready = true; if (inp.value.trim()) run(); });
@@ -247,19 +252,36 @@ function recipeForm() {
     <div class="lbl mt12">Emoji</div><div class="chips wrap mt8">${["🍽️", "🍗", "🥩", "🐟", "🥚", "🍝", "🍚", "🥗", "🍲", "🥣", "🥞", "🍰"].map(e => `<button class="chip ${newR.e === e ? "on" : ""}" data-a="nr-e" data-v="${e}">${e}</button>`).join("")}</div>
     <div class="lbl mt12">Ingrédients (poids total, pesés cuits)</div>
     ${Object.entries(newR.ing).map(([k, g]) => `<div class="row between small mt8"><span>${g} g ${esc(RC.ingLabel(k))}</span><button class="icon-btn" data-a="nr-del" data-k="${k}" aria-label="Retirer">${I.close}</button></div>`).join("") || `<p class="xs muted">Aucun ingrédient.</p>`}
-    <div class="row mt8" style="gap:6px"><select id="nri" class="inp grow" style="text-align:left">${Object.entries(RC.ING).sort((a, b) => a[1][0].localeCompare(b[1][0], "fr")).map(([k, v]) => `<option value="${k}">${esc(v[0])}</option>`).join("")}</select><input id="nrg" class="inp" style="width:80px" inputmode="numeric" placeholder="g"><button class="btn btn-red btn-xs" data-a="nr-add">+</button></div>
+    <div class="search mt8">${I.search}<input id="nrq" placeholder="Ajouter un aliment : riz, poulet, une marque…" autocomplete="off"></div><div id="nrr"></div>
     <div class="card soft mt12 center"><b>${m.kcal} kcal</b> · ${m.p} g P · ${m.c} g G · ${m.f} g L <span class="xs muted">par portion</span></div>
     <label class="field mt12"><span>Étapes (une par ligne)</span><textarea rows="4" data-c="nr" data-k="steps">${esc(newR.steps)}</textarea></label>
-    <button class="btn btn-red mt12" data-a="nr-save">Enregistrer la recette</button>`);
+    <button class="btn btn-red mt12" data-a="nr-save">Enregistrer la recette</button>`, (w) => {
+    const q = w.querySelector("#nrq"), out = w.querySelector("#nrr"); let tm;
+    q.addEventListener("input", () => { clearTimeout(tm); tm = setTimeout(async () => { await N.loadCiqual(); const v = q.value.trim(); if (v.length < 2) { out.innerHTML = ""; return; }
+      let r = N.searchFoods(v, 12); window.__nrf = r;
+      const draw = () => out.innerHTML = `<div class="list mt8">${window.__nrf.map((f, i) => `<button class="li" data-a="nr-pick" data-i="${i}"><span class="grow small">${esc(f.n)}<br><span class="xs muted">${f.kcal} kcal · P ${fr(f.p, 1)} · G ${fr(f.c, 1)} · L ${fr(f.f, 1)} g / 100 g${f.brand ? " · " + esc(f.brand) : ""}</span></span>${I.plus.replace("<svg", '<svg width="18"')}</button>`).join("") || `<p class="xs muted">Aucun aliment.</p>`}</div>`;
+      draw(); const more = await N.searchBrands(v).catch(() => []); if (q.value.trim() !== v || !more.length) return; window.__nrf = [...r, ...more]; draw(); }, 220); });
+  }, { keep: true });
 }
+actions["nr-pick"] = (b, d) => {
+  const f = window.__nrf[+d.i]; let g = 100;
+  sheet(`<h2 class="h2">${esc(f.n)}</h2><p class="xs muted">${f.kcal} kcal / 100 g · poids total dans la recette</p><div class="row mt12" style="gap:8px"><input id="nrg" class="inp grow" inputmode="decimal" value="100" style="font-size:22px"><span>g</span></div>
+    <div class="chips wrap mt8">${[50, 100, 150, 200, 300, 500].map(x => `<button class="chip" data-g="${x}" type="button">${x} g</button>`).join("")}</div><button class="btn btn-red mt12" id="nrok">Ajouter à la recette</button><button class="btn btn-line mt8" id="nrback">Retour</button>`, (w) => {
+    const inp = w.querySelector("#nrg"); inp.focus(); inp.select();
+    w.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => { inp.value = c.dataset.g; }));
+    w.querySelector("#nrback").addEventListener("click", recipeForm);
+    w.querySelector("#nrok").addEventListener("click", () => { g = num(inp.value); if (!(g > 0)) return toast("Indique un poids");
+      const k = "c:" + N.norm(f.n).slice(0, 60); const def = [f.n.charAt(0).toLowerCase() + f.n.slice(1), f.kcal, f.p, f.c, f.f, f.cat || "Divers"];
+      newR.ingDef = { ...(newR.ingDef || {}), [k]: def }; RC.registerIng({ [k]: def }); newR.ing[k] = (newR.ing[k] || 0) + g; recipeForm(); });
+  }, { keep: true });
+};
 changes.nr = (el) => { const k = el.dataset.k; newR[k] = ["portions", "min"].includes(k) ? Math.max(1, Math.round(num(el.value)) || 1) : el.value; if (k === "portions") recipeForm(); };
 actions["nr-e"] = (b, d) => { newR.e = d.v; recipeForm(); };
-actions["nr-add"] = () => { const k = document.getElementById("nri").value, g = num(document.getElementById("nrg").value); if (!(g > 0)) return toast("Indique un poids en grammes"); newR.ing[k] = (newR.ing[k] || 0) + g; recipeForm(); };
 actions["nr-del"] = (b, d) => { delete newR.ing[d.k]; recipeForm(); };
 actions["nr-save"] = () => {
   if (!newR.n.trim()) return toast("Donne un nom à ta recette");
   if (!Object.keys(newR.ing).length) return toast("Ajoute au moins un ingrédient");
-  const r = { id: "my-" + Date.now(), n: newR.n.trim(), cat: newR.cat, e: newR.e, min: newR.min, portions: newR.portions, ing: newR.ing, steps: newR.steps.split("\n").map(s => s.trim()).filter(Boolean), batch: newR.portions >= 3 };
+  const r = { id: "my-" + Date.now(), n: newR.n.trim(), cat: newR.cat, e: newR.e, min: newR.min, portions: newR.portions, ing: newR.ing, ingDef: Object.fromEntries(Object.entries(newR.ingDef || {}).filter(([k]) => newR.ing[k] != null)), steps: newR.steps.split("\n").map(s => s.trim()).filter(Boolean), batch: newR.portions >= 3 };
   if (nrSave) { const f = nrSave; nrSave = null; return f(r); }
   update(st => st.myRecipes = [r, ...(st.myRecipes || [])]); closeSheet(); toast("Recette enregistrée"); rcat = "mine"; rerender();
 };

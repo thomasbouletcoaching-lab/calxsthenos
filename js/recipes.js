@@ -87,6 +87,8 @@ export function macros(ing, portions = 1) {
 export const RECIPES = R.map(([id, n, cat, e, min, portions, ing, steps, batch]) => ({ id, n, cat, e, min, portions, ing, steps, batch: !!batch, m: macros(ing, portions) }));
 export const recipe = (id, mine = []) => [...RECIPES, ...mine].find(r => r.id === id);
 export const ingLabel = (k) => ING[k]?.[0] || k;
+// Aliments ajoutés aux recettes depuis la base complète (Ciqual, Open Food Facts) : gardés dans la recette (ingDef)
+export function registerIng(defs = {}) { for (const [k, v] of Object.entries(defs)) if (!ING[k]) ING[k] = v; }
 // Liste de courses : agrège les ingrédients, regroupés par rayon
 export function shoppingList(items) {
   const tot = {};

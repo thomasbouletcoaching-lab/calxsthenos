@@ -70,7 +70,7 @@ async function building() {
   profile.nutritionModel = N.pickModel(profile);
   profile.startProgram = E.pickProgram(profile);
   update(st => {
-    st.profile = profile; st.settings.word = a.word || "daily"; st.synced = false;
+    st.profile = profile; st.trialStart = st.trialStart || today(); st.settings.word = a.word || "daily"; st.synced = false;
     st.plan = { programId: profile.startProgram, startedAt: today(), week: 1, idx: 0, cycle: 1 };
     st.measures.push({ d: today(), weight: profile.weight });
     st.daily[today()] = { ...(st.daily[today()] || {}), weight: profile.weight };

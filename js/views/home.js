@@ -6,6 +6,7 @@ import * as EN from "../energy.js";
 import { $app, esc, num, fr, toast, buzz, routes, R, actions, changes, go, I, header, tabbar, seg, ring, gradDef, lineChart, barChart, greet, wordOn, fmtDate, addDays, isCoach, rank, premium, badges, msgQuotaText, weekOpen, rerender } from "../core.js";
 import { pushStats } from "../sync.js";
 import { agendaWeekView, agendaMonthView, agendaYearView } from "./agenda.js";
+import { sabbatOn, sabbatCard } from "./parole.js";
 import { durationSheet } from "./train.js";
 import { seasonTimeline, goalsMini } from "./season.js";
 import { FREE_WEEKS } from "../config.js";
@@ -20,12 +21,13 @@ export function caloriesCard(d = today(), compact = false) {
   const big = `<div class="ring-big"><svg viewBox="0 0 170 170">${gradDef("rg")}${ring(b.now / Math.max(b.total, 1), 170, 9, "#FF9F43", "transparent")}<g transform="translate(14 14)">${ring(tot.kcal / t.kcal, 142, 13, left < -t.kcal * .05 ? "var(--warn)" : "url(#rg)")}</g></svg><div class="c"><b>${fr(Math.abs(left))}</b><span>kcal ${left < 0 ? "en trop" : "restantes"}</span></div></div>`;
   const mini = (l, a, g, col) => `<div><div class="mini"><svg viewBox="0 0 66 66">${ring(a / g, 66, 7, col)}</svg><b>${Math.round(a / g * 100)}%</b></div><div class="v">${Math.round(a)} / ${g} g</div><div class="l">${l}</div></div>`;
   return `<div class="ringwrap"><div class="side">🍽️<b>${fr(tot.kcal)}</b><span>mangées</span><span>objectif ${fr(t.kcal)}</span></div>${big}<div class="side">🔥<b>${fr(b.now)}</b><span>brûlées ${d === today() ? "à cette heure" : "dans la journée"}</span><span>sur ${fr(b.total)} prévues</span></div></div>
-    ${compact ? "" : `<div class="minis">${mini("Protéines", tot.p, t.prot, "#B3263A")}${mini("Glucides", tot.c, t.carbs, "#E0A93B")}${mini("Lipides", tot.f, t.fat, "#4F5D2A")}</div>`}`;
+    ${compact ? "" : `<div class="minis">${mini("Protéines", tot.p, t.prot, "#B3263A")}${mini("Glucides", tot.c, t.carbs, "#E0A93B")}${mini("Lipides", tot.f, t.fat, "#4F5D2A")}</div>
+      <div class="row between xs mt8" style="gap:8px"><span>🌾 Fibres <b style="color:var(--ink)">${fr(tot.fib || 0)} / ${Math.max(25, Math.round(t.kcal / 1000 * 14))} g</b></span><div class="gauge grow" style="max-width:55%"><i style="width:${Math.min(100, Math.round((tot.fib || 0) / Math.max(25, t.kcal / 1000 * 14) * 100))}%;background:#6B8E23"></i></div></div>`}`;
 }
 function trainingCard(d) {
   const ag = E.agenda(d, d)[d], ns = E.nextSession();
   const cur = S().current;
-  if (ag?.st === "done") return `<div class="card"><div class="lbl">🏋️ Entraînement</div><h2 class="h2 mt8">Séance faite ✅</h2><p class="muted mt4">${esc(ag.title)}</p><button class="btn btn-line btn-sm mt8" data-a="go" data-r="train" data-p="historique">Voir le détail</button><div class="deco">💪</div></div>`;
+  if (ag?.st === "done") return `<div class="card"><div class="lbl">🏋️ Entraînement</div><h2 class="h2 mt8">Séance faite ✅</h2><p class="muted mt4">${esc(ag.title)}</p><button class="btn btn-line btn-sm mt8" data-a="go" data-r="carnet">Voir le détail</button><div class="deco">💪</div></div>`;
   if ((ag?.st === "planned" && d === today()) || cur) {
     const blocked = ns && !weekOpen(ns.week);
     return `<div class="card"><div class="lbl">🏋️ Entraînement · semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}</div><h2 class="h1 mt8">${esc(cur ? cur.title : ns.title)}</h2>${!cur && (ag?.time || ag?.place) ? `<button class="link small mt4" data-a="ag-day" data-v="${d}">🕐 ${esc([ag.time, ag.dur ? ag.dur + " min" : "", ag.place].filter(Boolean).join(" · "))} · décaler</button>` : !cur ? `<button class="link small mt4" data-a="ag-day" data-v="${d}">🕐 Fixer l'heure ou décaler</button>` : ""}<p class="small muted mt8">${ns.exercises.length} exercices · ${ns.exercises.slice(0, 3).map(e => esc(S().swaps[e[0]] || e[0])).join(", ")}…</p>
@@ -70,6 +72,11 @@ actions.rit = (b, d) => { const r = S().daily[today()]?.ritual || {}; ritSet(d.k
 actions["rit-chip"] = (b, d) => { const i = document.querySelector('[data-c="rit-focus"]'); const ex = { famille: "Un vrai moment avec ma famille ce soir", travail: "Finir la tâche la plus importante avant midi", sante: "Ma séance, mes protéines et 8 000 pas", foi: "Prier 10 minutes et lire un chapitre" }[d.v]; if (i) { i.value = ex; i.focus(); } };
 changes["rit-focus"] = (el) => { ritSet("focus", el.value.trim() || null); buzz(); rerender(); };
 actions["rit-reset"] = () => { ritSet("focus", null); rerender(); };
+// Bilan du soir (Journal du Bâtisseur) : 30 secondes, après 18 h
+function eveningCard() {
+  if (new Date().getHours() < 18 || S().journal?.[today()]?.heart || S().settings.word === "off") return "";
+  return `<button class="card tap" data-a="go" data-r="word" data-p="journal" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">🌙</span><span class="grow"><b>Bilan du soir · 30 s</b><br><span class="small muted">As-tu honoré ton corps aujourd'hui ? Où en est ton cœur face à Dieu ?</span></span>${I.chev}</button>`;
+}
 function stallCard() {
   const st = E.stalls(); if (!st.length) return "";
   const x = st[0];
@@ -107,15 +114,18 @@ routes.home = async () => {
   else body = `${weekStrip(d)}
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
+    ${d === today() && sabbatOn() ? sabbatCard() : ""}
     ${d === today() ? ritualCard() : ""}
+    ${d === today() ? eveningCard() : ""}
     ${trainingCard(d)}
-    ${d === today() ? stallCard() + goalsMini() : ""}
+    ${d === today() && !sabbatOn() ? stallCard() + goalsMini() : ""}
     ${routineCard(d)}
     <h2 class="sec">🔥 Calories du jour <small><a href="#/food" class="link">Nutrition</a></small></h2>
     <button class="card tap" data-a="go" data-r="food">${caloriesCard(d)}</button>
     ${fs ? `<button class="card tap mt12" data-a="go" data-r="food" data-p="jeune"><div class="row"><span style="font-size:30px">${fs.stage[1]}</span><div class="grow"><div class="lbl">⏳ Jeûne en cours</div><b class="h3">${Math.floor(fs.hours)} h ${String(Math.floor(fs.hours % 1 * 60)).padStart(2, "0")} · ${esc(fs.stage[2])}</b></div>${I.chev}</div></button>` : ""}
     ${wordOn("home") ? `<button class="daycard mt16" data-a="go" data-r="word" style="display:block;width:100%;text-align:left"><div class="deco">✝</div><p class="affirm">${esc(af.t)}</p><div class="aref">${esc(af.ref)}</div></button>` : ""}
     ${progressCard()}
+    <button class="card tap mt12" data-a="go" data-r="kb" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">📚</span><span class="grow"><b>Apprendre</b><br><span class="small muted">Surcharge progressive, protéines, compléments, récupération : comprendre pour progresser</span></span>${I.chev}</button>
     <h2 class="sec">💬 Ton coach</h2>
     <button class="card tap" data-a="go" data-r="${isCoach() ? "coach" : "chat"}" style="display:flex;align-items:center;gap:12px"><span style="width:46px;height:46px;border-radius:50%;background:var(--paper);display:grid;place-items:center;flex:none;border:1px solid var(--line)">${I.x(26)}</span>
       <span class="grow"><b>${isCoach() ? "Espace coach" : "Écrire à Thomas"}</b><br><span class="small muted">${isCoach() ? "Tes membres et leurs messages" : badges.msgs ? `${badges.msgs} nouveau${badges.msgs > 1 ? "x" : ""} message${badges.msgs > 1 ? "s" : ""}` : msgQuotaText()}</span></span>${I.chev}</button>`;

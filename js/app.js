@@ -2,6 +2,7 @@
 import * as E from "./engine.js";
 import * as N from "./nutrition.js";
 import { R, render, installEvents } from "./core.js";
+import { S, update, today } from "./store.js";
 import { refreshMe } from "./sync.js";
 import { refreshLibrary } from "./library.js";
 import "./views/onboarding.js";
@@ -22,6 +23,7 @@ window.addEventListener("hashchange", render);
 (async () => {
   try { applyTheme(); } catch { }
   await Promise.all([E.loadPrograms(), N.loadModels()]).catch(() => { });
+  if (S().profile && !S().trialStart) update(st => st.trialStart = today());
   render();
   refreshMe().then(() => { if (["home", "coach"].includes(R.route) && !document.querySelector(".sheet-wrap, .composer, input:focus, textarea:focus")) render(); });
   setInterval(refreshMe, 60000);

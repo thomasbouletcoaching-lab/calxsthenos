@@ -126,7 +126,7 @@ const exInfo = (name) => FICHES?.ex?.[name] || extra.exercises[name] || (S().cus
 export function unitOf(name, kind) {
   const x = exInfo(name); if (x?.unit) return x.unit;
   if (kind === "M") return "s";
-  if (/gainage|planche|plank|chaise contre|copenhagen|hollow|suspension|isom|L-sit|stretch|étirement/i.test(name)) return "s";
+  if (/gainage|planche|plank|chaise contre|copenhagen|hollow|suspension|isom|L-sit|stretch|étirement|marche active|marche inclinée|vélo|rameur|corde à sauter|équilibre sur|tenu|porté|carry|farmers|spanish squat/i.test(name)) return "s";
   return "reps";
 }
 export const isBodyweight = (name) => { if (/lest/i.test(name)) return false; const x = exInfo(name); if (x?.eq) return ["Poids de corps", "Anneaux"].includes(x.eq); return BW.test(name); };
@@ -175,11 +175,33 @@ export function setRecord(key, kg, reps, rpe = 10) {
 }
 
 // ---------- Plan et séance du jour ----------
-export function nextSession() {
+export function nextSession(at = null) {
   const pl = S().plan; if (!pl) return null;
   const p = program(pl.programId); if (!p) return null;
-  const s = p.s[pl.idx % p.s.length];
-  return { p, week: pl.week, idx: pl.idx, title: s[0], day: s[1], exercises: s[2], phase: phaseOf(p, pl.week), weeks: weeksOf(p), cycle: pl.cycle || 1 };
+  const idx = at ?? pl.idx, s = p.s[idx % p.s.length];
+  return { p, week: pl.week, idx, title: s[0], day: s[1], exercises: s[2], phase: phaseOf(p, pl.week), weeks: weeksOf(p), cycle: pl.cycle || 1 };
+}
+// Rattrapage : la séance suivante pas encore faite de la même semaine (pour fusionner deux séances le même jour)
+export function mergeCandidate() {
+  const pl = S().plan; if (!pl) return null; const p = program(pl.programId); if (!p) return null;
+  const done = doneIn(pl.programId, pl.cycle || 1, pl.week);
+  const i = p.s.findIndex((_, k) => k !== pl.idx % p.s.length && !done.has(k) && k > pl.idx % p.s.length);
+  return i < 0 ? null : { idx: i, title: p.s[i][0] };
+}
+// Deux séances en une : mouvements en double regroupés ; version « adaptée » = environ un tiers de séries en moins
+export function buildMerged(adapt = true) {
+  const a = buildSession(), m = mergeCandidate(); if (!a || !m) return a;
+  const b = buildSession(m.idx);
+  const ex = [...a.exercises];
+  b.exercises.forEach(e => { const same = ex.find(x => x.name === e.name); if (same) { if (!adapt) same.sets.push(...e.sets.filter(s => s.type !== "W")); } else ex.push(e); });
+  if (adapt) {
+    // version adaptée : au plus 9 exercices (on retire d'abord les isolations de la séance rattrapée), environ un tiers de séries en moins
+    const minor = (e) => ["I", "A", "X", "C", "G"].includes(e.kind);
+    for (let i = ex.length - 1; ex.length > 9 && i >= a.exercises.length; i--) if (minor(ex[i])) ex.splice(i, 1);
+    for (let i = ex.length - 1; ex.length > 9 && i >= 0; i--) if (minor(ex[i])) ex.splice(i, 1);
+    ex.forEach(e => { const work = e.sets.filter(s => s.type !== "W"), keep = Math.max(2, Math.ceil(work.length * 2 / 3)); let n = 0; e.sets = e.sets.filter(s => s.type === "W" || ++n <= keep); });
+  }
+  return { ...a, idx2: m.idx, title: `${a.title} + ${b.title}`, merged: adapt ? "adaptée" : "complète", exercises: ex };
 }
 export function daysSinceLast() { const w = S().workouts; if (!w.length) return null; return Math.floor((Date.now() - new Date(w.at(-1).end).getTime()) / 864e5); }
 
@@ -228,8 +250,8 @@ export function suggestion(name, targetRpe = 8, lo = 8, hi = 10, step = 2.5) {
   return { txt, kg, last: `${fmtKg(best.kg)} kg × ${best.reps} à RPE ${fmtKg(best.rpe ?? best.trpe ?? 8)}`, date: l.date };
 }
 
-export function buildSession() {
-  const ns = nextSession(); if (!ns) return null;
+export function buildSession(at = null) {
+  const ns = nextSession(at); if (!ns) return null;
   const { p, week } = ns;
   const gap = daysSinceLast();
   const comeback = gap !== null && gap >= 14;
@@ -332,9 +354,27 @@ export function finishSession(cur) {
   return cur;
 }
 
+// Corriger une séance faite : séries, charges, date ; ou la supprimer
+export function recomputeWorkout(w) {
+  let volume = 0, sets = 0;
+  w.exercises.forEach(ex => { const done = ex.sets.filter(s => s.done && s.type !== "W"); sets += done.length; done.forEach(s => { if (s.kg && ex.unit === "reps") volume += s.kg * s.reps; }); });
+  w.volume = Math.round(volume); w.setsDone = sets; return w;
+}
+export function saveWorkout(w) { update(st => { const i = st.workouts.findIndex(x => x.id === w.id); if (i >= 0) st.workouts[i] = recomputeWorkout(w); st.workouts.sort((a, b) => a.end.localeCompare(b.end)); }); }
+export function deleteWorkout(id) {
+  update(st => {
+    const w = st.workouts.find(x => x.id === id); if (!w) return;
+    st.workouts = st.workouts.filter(x => x.id !== id);
+    const d = iso(new Date(w.end));
+    if (!st.workouts.some(x => iso(new Date(x.end)) === d)) w.exercises.forEach(ex => { const h = st.lifts[ex.name]; if (h) st.lifts[ex.name] = h.filter(x => x.d !== d || x.manual); });
+    // la séance redevient à faire si elle était dans la semaine en cours
+    if (!w.free && st.plan && w.programId === st.plan.programId && (w.cycle || 1) === (st.plan.cycle || 1) && w.week === st.plan.week) st.plan.idx = Math.min(st.plan.idx, w.idx);
+  });
+}
+
 // Séances faites dans une semaine donnée du cycle (indices des séances du programme)
 export function doneIn(programId, cycle, week) {
-  return new Set(S().workouts.filter(w => !w.free && w.programId === programId && (w.cycle || 1) === cycle && w.week === week && w.idx != null).map(w => w.idx));
+  return new Set(S().workouts.filter(w => !w.free && w.programId === programId && (w.cycle || 1) === cycle && w.week === week && w.idx != null).flatMap(w => w.idx2 != null ? [w.idx, w.idx2] : [w.idx]));
 }
 // Se placer dans le cycle : semaine et séance choisies
 export function placeIn(week, idx = null) {

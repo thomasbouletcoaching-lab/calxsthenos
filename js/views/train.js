@@ -10,7 +10,9 @@ import { seasonBody } from "./season.js";
 const kgTxt = (v) => v == null || v === "" ? "" : E.fmtKg(v);
 const adv = () => S().settings.adv ?? (S().profile?.level === "advanced");
 let tab = "programme";
-const TABS = [["programme", "🎯 Programme"], ["saison", "🗓️ Saison et objectifs"], ["stats", "📈 Stats"], ["outils", "🧮 Records et outils"], ["exos", "📖 Exercices"], ["banque", "🗂️ Banque"], ["historique", "🕘 Historique"]];
+const TABS = [["programme", "🎯 Programme"], ["saison", "🗓️ Saison et objectifs"], ["outils", "🧮 Records et outils"], ["exos", "📖 Exercices"], ["banque", "🗂️ Banque"], ["stats", "📈 Statistiques"], ["historique", "🕘 Historique"]];
+const MAIN = [["mine", "Mes entraînements"], ["banque", "Banque"], ["stats", "Statistiques"]];
+const mainOf = (t) => t === "banque" ? "banque" : t === "stats" ? "stats" : "mine";
 
 // =====================================================================
 // PAGE ENTRAÎNEMENT
@@ -18,6 +20,7 @@ const TABS = [["programme", "🎯 Programme"], ["saison", "🗓️ Saison et obj
 routes.train = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
   if (R.param && TABS.some(t => t[0] === R.param)) tab = R.param;
+  if (tab === "historique") { carnetTab = "faites"; carnetMain = "seances"; return go("carnet"); }
   const ns = E.nextSession();
   let body = "";
   if (tab === "programme") body = programBody(ns);
@@ -27,10 +30,23 @@ routes.train = async () => {
   else if (tab === "banque") body = bankBody();
   else if (tab === "saison") body = seasonBody();
   else body = historyBody();
-  $app.innerHTML = header("Entraînement", ns ? esc(ns.p.name.split("·")[0].trim()) : "") + `<main class="page">${chips(TABS, tab, "train-tab")}${body}</main>${tabbar("train")}`;
+  $app.innerHTML = header("Entraînement", ns ? esc(ns.p.name.split("·")[0].trim()) : "") + `<main class="page"><div class="mt12">${seg(MAIN, mainOf(tab), "train-main")}</div>${mainOf(tab) === "mine" ? `<div class="mt8">${chips([...TABS.slice(0, 4), ["learn", "📚 Apprendre"]], tab, "train-tab")}</div>` : ""}${body}</main>${tabbar("train")}`;
   if (tab === "exos") bindExoSearch();
+  if (tab === "banque") bindBankSearch();
 };
-actions["train-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/train/" + d.v); rerender(false); window.scrollTo(0, 0); };
+actions["train-main"] = (b, d) => actions["train-tab"](b, { v: d.v === "mine" ? "programme" : d.v });
+// ---------- Carnet : séances à remplir, séances faites, progrès ----------
+let carnetMain = "seances", carnetTab = "remplir";
+routes.carnet = async () => {
+  await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
+  const ns = E.nextSession();
+  const body = carnetMain === "progres" ? statsBody() : carnetTab === "faites" ? historyBody() : programBody(ns);
+  $app.innerHTML = header("Carnet", ns ? `Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : "") + `<main class="page"><div class="mt12">${seg([["seances", "Séances"], ["progres", "Progrès"]], carnetMain, "carnet-main")}</div>
+    ${carnetMain === "seances" ? `<div class="mt8">${chips([["remplir", "✍️ À remplir"], ["faites", "✅ Séances faites"]], carnetTab, "carnet-tab")}</div>` : ""}${body}</main>${tabbar("carnet")}`;
+};
+actions["carnet-main"] = (b, d) => { carnetMain = d.v; rerender(false); window.scrollTo(0, 0); };
+actions["carnet-tab"] = (b, d) => { carnetTab = d.v; rerender(false); };
+actions["train-tab"] = (b, d) => { if (d.v === "learn") return go("kb"); tab = d.v; R.param = d.v; history.replaceState(null, "", "#/train/" + d.v); rerender(false); window.scrollTo(0, 0); };
 
 let viewWeek = null;
 function programBody(ns) {
@@ -73,31 +89,60 @@ actions["cy-do"] = async (b, d) => {
 };
 actions["pace-set"] = (b, d) => { update(st => st.settings.pace = d.v); toast(`Rythme ${E.PROG_PACE[d.v].n.toLowerCase()} : appliqué dès ta prochaine séance`); rerender(); };
 
+// Banque : plus de 100 programmes, filtrés par type, niveau, public, durée et jours
+const BF = { cat: "", lvl: "", pub: "", dur: 0, days: 0, q: "" };
+const BCATS = ["Bodybuilding", "Powerbuilding", "Powerlifting", "Street lifting", "Street workout", "CrossFit & fonctionnel", "Maison", "Femmes", "Grossesse & post-partum", "Parents", "Santé", "Perte de poids", "Vacances & voyage"];
+const BCAT_E = { "Bodybuilding": "💪", "Powerbuilding": "🏋️", "Powerlifting": "🥇", "Street lifting": "⛓️", "Street workout": "🤸", "CrossFit & fonctionnel": "🔥", "Maison": "🏠", "Femmes": "🍑", "Grossesse & post-partum": "🤰", "Parents": "👨‍👩‍👧", "Santé": "🩺", "Perte de poids": "📉", "Vacances & voyage": "🏖️" };
+function bankList() {
+  const q = (BF.q || "").toLowerCase();
+  return E.programs().filter(p => !p.custom && !p.lib)
+    .filter(p => !BF.cat || p.cat === BF.cat).filter(p => !BF.lvl || p.lvl === BF.lvl || p.lvl === "Tous niveaux")
+    .filter(p => !BF.pub || (p.pub || ["Tous"]).includes(BF.pub)).filter(p => !BF.dur || (p.dur || 60) === BF.dur)
+    .filter(p => !BF.days || p.days.filter(Boolean).length === BF.days).filter(p => !q || (p.name + " " + (p.prof || "") + " " + (p.cat || "")).toLowerCase().includes(q));
+}
 function bankBody() {
-  const mine = S().customPrograms || [];
-  return `<p class="small muted mt12">Les programmes de ${esc(CONFIG.coachName)}, testés en salle. Changer de programme repart en semaine 1 ; tes charges sont conservées.</p>
-    <button class="card tap mt8" data-a="go" data-r="builder" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">✏️</span><span class="grow"><b>Créer mon programme</b><br><span class="small muted">Séances, séries, RPE, techniques, temps de repos${premium() ? "" : " · Premium"}</span></span>${premium() ? I.chev : `<span class="lock">🔒</span>`}</button>
+  const mine = S().customPrograms || [], l = bankList(), all = E.programs().filter(p => !p.custom && !p.lib);
+  const sel = (k, opts, lab) => `<label class="field"><span>${lab}</span><select data-c="bf" data-k="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(BF[k]) === String(v) ? "selected" : ""}>${t}</option>`).join("")}</select></label>`;
+  return `<p class="small muted mt12">${all.length} programmes de ${esc(CONFIG.coachName)}. Changer de programme repart en semaine 1 ; tes charges sont conservées.</p>
+    <button class="card tap mt8" data-a="go" data-r="builder" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">✏️</span><span class="grow"><b>Créer mon programme</b><br><span class="small muted">Tes séances, tes séries, ta progression</span></span>${I.chev}</button>
     ${mine.length ? `<h2 class="sec">Mes programmes</h2>${mine.map(pg => progCard(pg, true)).join("")}` : ""}
     ${E.extra.programs.length ? `<h2 class="sec">Nouveaux programmes de Thomas</h2>${E.extra.programs.map(pg => progCard(pg)).join("")}` : ""}
-    <h2 class="sec">La banque</h2>${E.programs().filter(p => !p.custom && !p.lib).map(pg => progCard(pg)).join("")}`;
+    <h2 class="sec">🗂️ La banque</h2>
+    <div class="catgrid">${BCATS.map(c => `<button class="chip ${BF.cat === c ? "on" : ""}" data-a="bf-cat" data-v="${esc(c)}">${BCAT_E[c]} ${esc(c)} <span class="muted xs">${all.filter(p => p.cat === c).length}</span></button>`).join("")}</div>
+    <div class="search mt12">${I.search}<input id="bfq" placeholder="Chercher : dos, TRX, muscle-up…" value="${esc(BF.q)}" autocomplete="off"></div>
+    <div class="grid2 mt8">${sel("lvl", [["", "Tous"], ["Débutant", "Débutant"], ["Intermédiaire", "Intermédiaire"], ["Avancé", "Avancé"]], "Niveau")}${sel("pub", [["", "Tout le monde"], ["Femme", "Femmes"], ["Papa", "Papas"], ["Maman", "Mamans"], ["Femme enceinte", "Femmes enceintes"], ["Post-partum", "Post-partum"], ["Senior", "Seniors"]], "Pour qui")}
+      ${sel("dur", [[0, "Toutes"], [20, "20 min"], [30, "30 min"], [45, "45 min"], [60, "1 h"], [75, "1 h 15"]], "Durée d'une séance")}${sel("days", [[0, "Tous"], [2, "2 jours"], [3, "3 jours"], [4, "4 jours"], [5, "5 jours"], [6, "6 jours"]], "Jours par semaine")}</div>
+    <div class="row between mt12"><b class="small">${l.length} programme${l.length > 1 ? "s" : ""}</b>${BF.cat || BF.lvl || BF.pub || BF.dur || BF.days || BF.q ? `<button class="link xs" data-a="bf-reset">Tout effacer</button>` : ""}</div>
+    <div id="bfl">${l.slice(0, bankN).map(pg => progCard(pg)).join("") || `<p class="empty small">Aucun programme avec ces filtres.</p>`}</div>
+    ${l.length > bankN ? `<button class="btn btn-line btn-sm mt12" data-a="bf-more" style="width:100%">Voir ${Math.min(20, l.length - bankN)} de plus</button>` : ""}`;
 }
+let bankN = 20;
+actions["bf-cat"] = (b, d) => { BF.cat = BF.cat === d.v ? "" : d.v; bankN = 20; rerender(); };
+actions["bf-reset"] = () => { Object.assign(BF, { cat: "", lvl: "", pub: "", dur: 0, days: 0, q: "" }); bankN = 20; rerender(); };
+actions["bf-more"] = () => { bankN += 20; rerender(); };
+changes.bf = (el) => { const k = el.dataset.k; BF[k] = ["dur", "days"].includes(k) ? +el.value : el.value; bankN = 20; rerender(); };
+function bindBankSearch() { const i = document.getElementById("bfq"); let t; i?.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { BF.q = i.value; const l = bankList(); document.getElementById("bfl").innerHTML = l.slice(0, 40).map(pg => progCard(pg)).join("") || `<p class="empty small">Aucun programme.</p>`; }, 200); }); }
 function progCard(pg, mine = false) {
   const open = programOpen(pg.id), cur = pg.id === S().plan?.programId;
-  return `<div class="card ${cur ? "hl" : ""} mt8"><div class="row between"><span>${cur ? '<span class="tag r">En cours</span>' : ""}<span class="tag">${esc(pg.lvl || "Perso")}</span><span class="tag">${pg.days.filter(Boolean).length} j</span>${pg.split ? `<span class="tag">${esc(pg.split)}</span>` : ""}</span>${open ? "" : `<span class="lock">🔒 Premium</span>`}</div>
-    <h3 class="h3 mt8">${esc(pg.name)}</h3>${pg.prof ? `<p class="small muted mt4">${esc(pg.prof)}</p>` : ""}
+  return `<div class="card ${cur ? "hl" : ""} mt8"><div class="row between"><span>${cur ? '<span class="tag r">En cours</span>' : ""}<span class="tag">${esc(pg.lvl || "Perso")}</span><span class="tag">${pg.days.filter(Boolean).length} j</span>${pg.dur ? `<span class="tag">⏱️ ${pg.dur} min</span>` : ""}${pg.cat ? `<span class="tag">${BCAT_E[pg.cat] || ""} ${esc(pg.cat)}</span>` : ""}</span>${open ? "" : `<span class="lock">🔒 Premium</span>`}</div>
+    <h3 class="h3 mt8">${esc(pg.name)}</h3>${pg.prof ? `<p class="small muted mt4">${esc(pg.prof)}</p>` : ""}${pg.equip?.length ? `<p class="xs muted" style="margin:2px 0 0">Matériel : ${esc(pg.equip.join(", "))}</p>` : ""}<button class="link xs mt4" data-a="pg-see" data-id="${pg.id}">Voir les séances</button>
     <div class="row mt8" style="gap:8px">${cur ? "" : open ? `<button class="btn btn-line btn-sm" data-a="set-program" data-id="${pg.id}">Choisir</button>` : `<button class="btn btn-line btn-sm" data-a="go" data-r="offers">Débloquer</button>`}${mine ? `<button class="btn btn-ghost btn-sm" data-a="go" data-r="builder" data-p="${pg.id}">Modifier</button>` : `<button class="btn btn-ghost btn-sm" data-a="bd-copy" data-id="${pg.id}">Personnaliser</button>`}</div></div>`;
 }
+actions["pg-see"] = (b, d) => { const p = E.program(d.id); if (!p) return;
+  sheet(`<h2 class="h2">${esc(p.name)}</h2>${p.desc ? `<p class="small muted mt4">${esc(p.desc)}</p>` : ""}${p.s.map(se => `<div class="card mt12"><div class="row between"><b>${esc(se[0])}</b><span class="xs muted">${esc(se[1] || "")}</span></div>${se[2].map(e => `<div class="row between xs" style="padding:3px 0;gap:8px"><span class="grow muted">${esc(e[0])}</span><span style="white-space:nowrap">${esc(E.schemeFor(p, e, 1).replace(/x/i, "×"))}</span></div>`).join("")}</div>`).join("")}
+    ${p.rules?.length ? `<h3 class="sec">Règles</h3><ul class="small" style="padding-left:18px">${p.rules.map(r => `<li style="margin-bottom:6px">${esc(r)}</li>`).join("")}</ul>` : ""}
+    ${programOpen(p.id) ? (p.id === S().plan?.programId ? "" : `<button class="btn btn-red mt12" data-a="set-program" data-id="${p.id}">Choisir ce programme</button>`) : `<button class="btn btn-red mt12" data-a="go" data-r="offers">🔓 Débloquer</button>`}`); };
 actions["bd-copy"] = (b, d) => { const p = E.program(d.id); if (p?.custom && (S().customPrograms || []).some(x => x.id === p.id)) return go("builder", p.id); draft = null; location.hash = "#/builder/copie/" + encodeURIComponent(d.id); };
 actions["set-program"] = (b, d) => {
   if (S().current) return toast("Termine d'abord ta séance en cours.");
   if (!programOpen(d.id)) return go("offers");
   update(st => st.plan = { programId: d.id, startedAt: today(), week: 1, idx: 0, cycle: 1 });
-  tab = "programme"; toast("Programme changé"); pushStats(); routes.train();
+  tab = "programme"; closeSheet(); toast("Programme changé"); pushStats(); routes.train();
 };
 
 function historyBody() {
   const ws = S().workouts.slice().reverse();
-  return ws.length ? `<div class="list mt12">${ws.slice(0, 60).map(w => `<button class="li" data-a="ag-day" data-v="${today(new Date(w.end))}"><span class="em">${w.free ? "🤸" : "🏋️"}</span><span class="grow"><b>${esc(w.title)}</b><br><span class="xs muted">${new Date(w.end).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · ${w.setsDone} séries · ${(w.volume / 1000).toFixed(1).replace(".", ",")} t</span></span><span class="small muted">${Math.round((new Date(w.end) - new Date(w.start)) / 6e4)} min</span></button>`).join("")}</div>` : `<p class="empty">Tes séances terminées apparaîtront ici.</p>`;
+  return ws.length ? `<div class="list mt12">${ws.slice(0, 60).map(w => `<button class="li" data-a="ag-day" data-v="${today(new Date(w.end))}"><span class="em">${w.free ? "🤸" : "🏋️"}</span><span class="grow"><b>${esc(w.title)}</b><br><span class="xs muted">${new Date(w.end).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · ${w.setsDone} séries · ${(w.volume / 1000).toFixed(1).replace(".", ",")} t</span></span><span class="small muted">${Math.round((new Date(w.end) - new Date(w.start)) / 6e4)} min</span></button>`).join("")}</div><p class="xs muted mt8">Touche une séance pour la corriger ou la supprimer.</p>` : `<p class="empty">Tes séances terminées apparaîtront ici.</p>`;
 }
 
 // ---------- Statistiques ----------
@@ -218,19 +263,46 @@ actions.start = async () => {
   sessionStorage.removeItem("cxs.min");
   if (cur) return go("workout");
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
-  const s = E.buildSession(); if (!s) return toast("Choisis d'abord un programme.");
-  durationSheet((min) => { s.target = min; s.start = new Date().toISOString(); update(st => st.current = s); go("workout"); }, s.title);
+  const s0 = E.buildSession(); if (!s0) return toast("Choisis d'abord un programme.");
+  durationSheet((min, mode) => { const s = mode === "adapt" ? E.buildMerged(true) : mode === "full" ? E.buildMerged(false) : s0; s.target = min; s.start = new Date().toISOString(); update(st => st.current = s); go("workout"); }, s0.title, E.mergeCandidate());
 };
 // Durée visée de la séance : compte à rebours pendant toute la séance
-export function durationSheet(onGo, title = "Ta séance") {
+export function durationSheet(onGo, title = "Ta séance", merge = null) {
   const last = S().settings.sessionMin ?? (S().profile?.sessionMin || 45);
-  sheet(`<h2 class="h2">${esc(title)}</h2><p class="small muted mt4">Combien de temps as-tu ? Le compte à rebours te dit si tu es dans les temps.</p>
+  sheet(`<h2 class="h2">${esc(title)}</h2>${merge ? `<div class="card soft mt8"><b class="small">🔗 Une séance à rattraper ?</b><p class="xs muted" style="margin:4px 0 8px">Tu peux faire aujourd'hui « ${esc(title)} » et « ${esc(merge.title)} » en une seule séance. Ce n'est pas obligatoire : souvent, mieux vaut simplement reprendre le fil.</p>
+      <div class="chips wrap"><button class="chip on" data-a="mg-pick" data-v="">Seulement celle-ci</button><button class="chip" data-a="mg-pick" data-v="adapt">Fusionner, version adaptée</button><button class="chip" data-a="mg-pick" data-v="full">Fusionner tout</button></div>
+      <p class="xs muted" style="margin:6px 0 0">Adaptée : exercices en double regroupés, environ un tiers de séries en moins. Tu peux ensuite retirer ou changer des exercices.</p></div>` : ""}<p class="small muted mt8">Combien de temps as-tu ? Le compte à rebours te dit si tu es dans les temps.</p>
     <div class="chips wrap mt12">${[30, 40, 45, 50, 60, 75, 90].map(m => `<button class="chip ${m === last ? "on" : ""}" data-a="dur-pick" data-v="${m}">${m} min</button>`).join("")}<button class="chip ${last === 0 ? "on" : ""}" data-a="dur-pick" data-v="0">Sans chrono</button></div>
     <label class="field mt12"><span>Ou une durée précise (minutes)</span><input id="dur-x" inputmode="numeric" placeholder="ex. 35"></label>
     <button class="btn btn-red mt16" data-a="dur-go">C'est parti</button>`, (w) => { w._go = onGo; w._min = last; });
 }
 actions["dur-pick"] = (b, d) => { const w = document.getElementById("sheet"); w._min = +d.v; w.querySelectorAll('[data-a="dur-pick"]').forEach(x => x.classList.toggle("on", x === b)); w.querySelector("#dur-x").value = ""; };
-actions["dur-go"] = () => { const w = document.getElementById("sheet"), x = num(w.querySelector("#dur-x").value); const min = x > 0 && x < 300 ? Math.round(x) : w._min; update(st => st.settings.sessionMin = min); const go2 = w._go; closeSheet(); go2(min); };
+actions["dur-go"] = () => { const w = document.getElementById("sheet"), x = num(w.querySelector("#dur-x").value); const min = x > 0 && x < 300 ? Math.round(x) : w._min; update(st => st.settings.sessionMin = min); const go2 = w._go, mode = w._mode || ""; closeSheet(); go2(min, mode); };
+actions["mg-pick"] = (b, d) => { const w = document.getElementById("sheet"); w._mode = d.v; w.querySelectorAll('[data-a="mg-pick"]').forEach(x => x.classList.toggle("on", x === b)); if (d.v) w._min = Math.max(w._min || 0, d.v === "full" ? 90 : 75); w.querySelectorAll('[data-a="dur-pick"]').forEach(x => x.classList.toggle("on", +x.dataset.v === w._min)); };
+// ---------- Corriger ou supprimer une séance faite ----------
+let wEdit = null;
+actions["w-edit"] = (b, d) => { const w = S().workouts.find(x => x.id === +d.id); if (!w) return; wEdit = JSON.parse(JSON.stringify(w)); wEditSheet(); };
+function wEditSheet() {
+  const w = wEdit, dt = new Date(w.end), loc = new Date(dt.getTime() - dt.getTimezoneOffset() * 6e4).toISOString();
+  sheet(`<h2 class="h2">✏️ Corriger la séance</h2><input class="inp mt8" style="text-align:left;font-weight:700" value="${esc(w.title)}" data-c="we-title" aria-label="Nom de la séance">
+    <div class="grid2 mt8"><label class="field"><span>Date</span><input type="date" value="${loc.slice(0, 10)}" data-c="we-date" max="${today()}"></label><label class="field"><span>Fin à</span><input type="time" value="${loc.slice(11, 16)}" data-c="we-time"></label></div>
+    ${w.exercises.map((ex, ei) => `<div class="card mt12"><div class="row between"><b class="small">${esc(ex.name)}</b><button class="icon-btn sm" data-a="we-exdel" data-e="${ei}" aria-label="Retirer l'exercice">${I.close}</button></div>
+      ${ex.sets.map((st, si) => st.type === "W" && !st.done ? "" : `<div class="row mt8" style="gap:5px"><button class="rk" data-a="we-done" data-e="${ei}" data-s="${si}" style="width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);background:${st.done ? "var(--gradbtn)" : "var(--paper)"};color:#fff;flex:none" aria-label="Série faite">${st.done ? "✓" : ""}</button><span class="xs muted" style="width:18px;text-align:center">${st.type === "W" ? "É" : ex.sets.slice(0, si + 1).filter(x => x.type !== "W").length}</span>${ex.bw ? "" : `<input class="inp" style="width:74px" inputmode="decimal" value="${st.kg ?? ""}" data-c="we-kg" data-e="${ei}" data-s="${si}" aria-label="Charge"><span class="xs muted">kg</span>`}<input class="inp" style="width:60px" inputmode="numeric" value="${st.reps ?? ""}" data-c="we-reps" data-e="${ei}" data-s="${si}" aria-label="Répétitions"><span class="xs muted">${ex.unit === "s" ? "s" : "rép."}</span><button class="icon-btn sm" data-a="we-sdel" data-e="${ei}" data-s="${si}" aria-label="Retirer la série" style="margin-left:auto">${I.close}</button></div>`).join("")}
+      <button class="link xs mt8" data-a="we-sadd" data-e="${ei}">+ Ajouter une série</button></div>`).join("")}
+    <button class="btn btn-red mt16" data-a="we-save">Enregistrer les corrections</button><button class="btn btn-ghost mt8" data-a="w-del" data-id="${w.id}" style="color:var(--red)">🗑️ Supprimer la séance</button>`, null, { keep: true });
+}
+const weSet = (el) => wEdit.exercises[+el.dataset.e].sets[+el.dataset.s];
+changes["we-title"] = (el) => { wEdit.title = el.value.trim() || wEdit.title; };
+changes["we-kg"] = (el) => { const v = num(el.value); weSet(el).kg = v > 0 ? v : null; };
+changes["we-reps"] = (el) => { const v = num(el.value); weSet(el).reps = v > 0 ? Math.round(v) : null; };
+const weMove = () => { const d = document.querySelector('[data-c="we-date"]')?.value, t = document.querySelector('[data-c="we-time"]')?.value || "12:00"; if (!d) return; const dur = new Date(wEdit.end) - new Date(wEdit.start), end = new Date(`${d}T${t}:00`); wEdit.end = end.toISOString(); wEdit.start = new Date(end - dur).toISOString(); };
+changes["we-date"] = weMove; changes["we-time"] = weMove;
+actions["we-done"] = (b, d) => { const s = wEdit.exercises[+d.e].sets[+d.s]; s.done = !s.done; wEditSheet(); };
+actions["we-sdel"] = (b, d) => { wEdit.exercises[+d.e].sets.splice(+d.s, 1); wEditSheet(); };
+actions["we-sadd"] = (b, d) => { const ex = wEdit.exercises[+d.e], l = ex.sets.filter(s => s.type !== "W").at(-1) || { kg: null, reps: 8 }; ex.sets.push({ ...l, type: "N", done: true, tech: [], note: "" }); wEditSheet(); };
+actions["we-exdel"] = (b, d) => { if (!confirm("Retirer cet exercice de la séance ?")) return; wEdit.exercises.splice(+d.e, 1); wEditSheet(); };
+actions["we-save"] = () => { weMove(); E.saveWorkout(wEdit); wEdit = null; closeSheet(); pushStats(); toast("Séance corrigée"); rerender(); };
+actions["w-del"] = (b, d) => { if (!confirm("Supprimer cette séance ? Ses séries seront effacées de ton historique.")) return; E.deleteWorkout(+d.id); wEdit = null; closeSheet(); pushStats(); toast("Séance supprimée"); rerender(); };
 actions["dur-change"] = () => durationSheet((min) => { update(st => st.current.target = min); rerender(); }, "Changer la durée");
 actions.resume = () => { sessionStorage.removeItem("cxs.min"); go("workout"); };
 actions.minimize = () => { sessionStorage.setItem("cxs.min", "1"); go("home"); };

@@ -150,7 +150,7 @@ export function planBody(t) {
   const P = S().myPlan;
   if (!P?.meals?.length) {
     const plan = N.dayPlan(t), tot = sumM(plan.map(x => x.m));
-    return `<div class="card grad mt12"><div class="lbl">📋 Plan proposé pour toi</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
+    return prefsCard() + `<div class="card grad mt12"><div class="lbl">📋 Plan proposé pour toi</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
       <p class="small muted mt12">Ce plan change chaque jour pour varier les plats. Pour avoir ta propre journée type, que tu modifies aliment par aliment :</p>
       ${premium() ? `<button class="btn btn-red mt8" data-a="plan-make">✏️ Écrire mon plan à partir de celui-ci</button>` : `<button class="btn btn-line mt8" data-a="go" data-r="offers">🔒 Écrire mon plan (Bâtisseur)</button>`}
       ${plan.map(x => `<div class="card mt12"><div class="lbl">🕐 ${esc(x.time)} · ${esc(x.meal)}</div><b class="small">${esc(x.n)}</b><p class="xs muted" style="margin:4px 0 0">${x.lines.join(" · ")} · ${fr(x.m.kcal)} kcal</p></div>`).join("")}
@@ -166,6 +166,7 @@ export function planBody(t) {
       <div class="row mt8" style="gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-xs" data-a="pl-add" data-m="${mi}">+ Aliment</button><button class="btn btn-ghost btn-xs" data-a="pl-addr" data-m="${mi}">+ Recette</button>${P.meals.length > 1 ? `<button class="btn btn-ghost btn-xs" data-a="pl-mdel" data-m="${mi}">Supprimer le repas</button>` : ""}</div></div>`; }).join("")}
     <button class="btn btn-line btn-sm mt12" data-a="pl-madd" style="width:100%">+ Ajouter un repas</button>
     <button class="btn btn-ghost btn-sm mt8" data-a="plan-auto" style="width:100%">Revenir au plan proposé</button>
+    <button class="btn btn-ghost btn-sm mt8" data-a="plan-prefs" style="width:100%">🍽️ Changer de modèle de plan (repas, régime)</button>
     <p class="xs muted mt12">Quantités pesées telles que tu les manges (cuites quand c'est précisé). Ton plan s'affiche chaque jour dans le Journal.</p>`;
 }
 actions["plan-make"] = () => {
@@ -175,6 +176,26 @@ actions["plan-make"] = () => {
 };
 changes["pl-g"] = (el) => { const g = num(el.value); if (!(g > 0)) return; update(st => { const it = st.myPlan.meals[+el.dataset.m].items[+el.dataset.i], b = per100(it); if (!b) return; it.g = Math.round(g); it.kcal = Math.round(b.k * g / 100); it.p = +(b.p * g / 100).toFixed(1); it.c = +(b.c * g / 100).toFixed(1); it.f = +(b.f * g / 100).toFixed(1); }); rerender(); };
 changes["pl-title"] = (el) => update(st => st.myPlan.meals[+el.dataset.m].title = el.value.trim());
+
+// Modèle de plan : programmes alimentaires par profil, nombre de repas, régime, exclusions
+function prefsCard() {
+  const pr = N.planPrefs(), pre = N.PLAN_PRESETS.find(x => x.id === pr.preset);
+  const tg = (k, l) => `<button class="chip ${pr[k] ? "on" : ""}" data-a="pp-tg" data-k="${k}">${l}</button>`;
+  return `<div class="card mt12"><div class="row between"><span class="lbl">🍽️ Mon modèle de plan</span><button class="link xs" data-a="plan-prefs">Voir les modèles</button></div>
+    ${pre ? `<p class="small mt8" style="margin-bottom:0"><b>${pre.e} ${esc(pre.n)}</b><br><span class="xs muted">${esc(pre.d)}</span></p>` : ""}
+    <div class="lbl mt12">Repas par jour</div><div class="mt4">${seg([2, 3, 4, 5, 6].map(n => [String(n), String(n)]), String(pr.meals), "pp-meals")}</div>
+    <div class="lbl mt12">Régime</div><div class="chips wrap mt4">${N.DIETS.map(([k, l]) => `<button class="chip ${pr.diet === k ? "on" : ""}" data-a="pp-diet" data-v="${k}">${l}</button>`).join("")}</div>
+    <div class="chips wrap mt8">${tg("noPork", "Sans porc")}${tg("noGluten", "Sans gluten")}${tg("noLactose", "Sans lactose")}${tg("lowCarb", "Faible en glucides")}</div>
+    ${pr.kcalAdj ? `<p class="xs muted mt8" style="margin-bottom:0">+${pr.kcalAdj} kcal par jour ajoutées à ton objectif (${pre ? esc(pre.n.split("·")[0].trim().toLowerCase()) : "ajustement"}). <button class="link xs" data-a="pp-adj0">Retirer</button></p>` : ""}</div>`;
+}
+actions["plan-prefs"] = () => sheet(`<h2 class="h2">🍽️ Programmes alimentaires</h2><p class="xs muted">Choisis le modèle qui te ressemble : nombre de repas, régime, situation. Tu peux ensuite tout ajuster.</p>
+  <div class="list mt12">${N.PLAN_PRESETS.map(x => `<button class="li" data-a="pp-preset" data-id="${x.id}"><span class="em">${x.e}</span><span class="grow small"><b>${esc(x.n)}</b><br><span class="xs muted">${esc(x.d)}</span></span>${N.planPrefs().preset === x.id ? "✓" : I.chev}</button>`).join("")}</div>
+  <p class="xs muted mt12">Grossesse, allaitement, maladie, traitement : ces modèles ne remplacent pas l'avis de ton médecin ou d'un diététicien.</p>`);
+actions["pp-preset"] = (b, d) => { const x = N.PLAN_PRESETS.find(p => p.id === d.id); N.setPlanPrefs({ meals: 4, diet: S().profile?.diet || "all", noPork: false, noGluten: false, noLactose: false, lowCarb: false, kcalAdj: 0, ...x.p, preset: x.id }); closeSheet(); toast(`Modèle « ${x.n} » appliqué`); rerender(); };
+actions["pp-meals"] = (b, d) => { N.setPlanPrefs({ meals: +d.v, preset: null }); rerender(); };
+actions["pp-diet"] = (b, d) => { N.setPlanPrefs({ diet: d.v, preset: null }); rerender(); };
+actions["pp-tg"] = (b, d) => { N.setPlanPrefs({ [d.k]: !N.planPrefs()[d.k], preset: null }); rerender(); };
+actions["pp-adj0"] = () => { N.setPlanPrefs({ kcalAdj: 0 }); rerender(); };
 
 // =====================================================================
 // COURSES ET BUDGET

@@ -1,6 +1,6 @@
 // Noyau d'interface : état partagé, routeur, en-tête, barre d'onglets, feuilles, graphiques, formules.
 import { S, update, today } from "./store.js";
-import { CONFIG, offer, MSGS_PER_WEEK, FREE_PROGRAMS, FREE_WEEKS, ALL_FREE } from "./config.js";
+import { CONFIG, offer, MSGS_PER_WEEK, FREE_PROGRAMS, FREE_WEEKS, ALL_FREE, TRIAL_DAYS } from "./config.js";
 
 export const $app = document.getElementById("app");
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -13,7 +13,9 @@ export const addDays = (d, n) => { const x = new Date(d + "T12:00:00"); x.setDat
 export const hhmm = (d = new Date()) => d.toTimeString().slice(0, 5);
 
 // ---------- Formules ----------
-export const tier = () => S().demoTier || S().me?.tier || "free";
+// Essai : les 7 premiers jours, l'app complète (Bâtisseur) est ouverte
+export const trialLeft = () => { const t = S().trialStart; if (!t || (S().me?.tier && S().me.tier !== "free")) return 0; return Math.max(0, TRIAL_DAYS - Math.floor((Date.now() - new Date(t + "T00:00:00").getTime()) / 864e5)); };
+export const tier = () => S().demoTier || (S().me?.tier && S().me.tier !== "free" ? S().me.tier : trialLeft() > 0 ? "premium" : "free");
 export const rank = () => offer(tier()).rank;
 export const premium = () => (ALL_FREE && !S().demoTier) || rank() >= 1;
 export const expert = () => (ALL_FREE && !S().demoTier) || rank() >= 2; // contenus « suivi » (connaissances expertes)
@@ -39,6 +41,7 @@ export const I = {
   home: svg('<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>'),
   cal: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
   bar: svg('<path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/>'),
+  list: svg('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>', 2),
   fork: svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
   book: svg('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 1 2-2h13v2H6"/><path d="M11.5 7v7M9 9.5h5"/>'),
   coach: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/>'),
@@ -79,10 +82,20 @@ export function sheet(html, onMount, { keep = false } = {}) {
   w.addEventListener("click", e => { if (e.target === w) closeSheet(); });
   const g = w.querySelector(".grab"), sh = w.querySelector(".sheet");
   g.setAttribute("role", "button"); g.setAttribute("aria-label", "Fermer"); g.addEventListener("click", closeSheet);
-  let y0 = null; // glisser vers le bas depuis le haut de la fenêtre
-  sh.addEventListener("touchstart", e => { y0 = sh.scrollTop <= 0 && e.touches[0].clientY - sh.getBoundingClientRect().top < 90 ? e.touches[0].clientY : null; }, { passive: true });
-  sh.addEventListener("touchmove", e => { if (y0 == null) return; const dy = e.touches[0].clientY - y0; if (dy > 0) sh.style.transform = `translateY(${dy}px)`; }, { passive: true });
-  sh.addEventListener("touchend", e => { if (y0 == null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null; if (dy > 90) closeSheet(); else sh.style.transform = ""; });
+  // Glisser vers le bas pour fermer : suit le doigt sans retard (pas de transition pendant le geste), ferme selon la distance ou la vitesse
+  let y0 = null, last = 0, t0 = 0, dy = 0, drag = false, raf = 0;
+  const setY = (v) => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { sh.style.transform = v ? `translate3d(0,${v}px,0)` : ""; w.style.backgroundColor = v ? `rgba(10,4,6,${Math.max(0, .45 * (1 - v / 500))})` : ""; }); };
+  sh.addEventListener("touchstart", e => { if (e.touches.length > 1) return; y0 = e.touches[0].clientY; last = y0; t0 = performance.now(); dy = 0; drag = false; }, { passive: true });
+  sh.addEventListener("touchmove", e => {
+    if (y0 == null) return;
+    const y = e.touches[0].clientY; dy = y - y0;
+    const nearTop = y0 - sh.getBoundingClientRect().top < 110;
+    if (!drag) { if (dy > 6 && (sh.scrollTop <= 0 || nearTop) && !e.target.closest("input,textarea,select,.hscroll,.chips")) { drag = true; sh.style.transition = "none"; y0 = y; dy = 0; } else if (Math.abs(dy) > 6) { y0 = null; return; } }
+    if (drag) { e.preventDefault(); const v = (y - last) / Math.max(1, performance.now() - t0); last = y; t0 = performance.now(); sh.dataset.v = v; setY(Math.max(0, dy)); }
+  }, { passive: false });
+  const end = () => { if (!drag) { y0 = null; return; } drag = false; y0 = null; const v = +sh.dataset.v || 0; sh.style.transition = "transform .22s cubic-bezier(.2,.8,.2,1)";
+    if (dy > 120 || (dy > 30 && v > .5)) { sh.style.transform = "translate3d(0,100%,0)"; w.style.transition = "background-color .22s"; w.style.backgroundColor = "rgba(10,4,6,0)"; setTimeout(closeSheet, 200); } else setY(0); };
+  sh.addEventListener("touchend", end, { passive: true }); sh.addEventListener("touchcancel", end, { passive: true });
   document.documentElement.classList.add("sheet-open");
   document.body.append(w); onMount?.(w); return w;
 }
@@ -118,7 +131,7 @@ export function header(title, sub = "", { back = null, actions = "" } = {}) {
     ${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
 }
 export function tabbar(active) {
-  const t = [["home", "Accueil", I.home], ["train", "Entraînement", I.bar], ["food", "Nutrition", I.fork], ["word", "Parole", I.book], ["coach", isCoach() ? "Membres" : "Coach", I.coach]];
+  const t = [["home", "Accueil", I.home], ["train", "Entraînement", I.list], ["carnet", "Carnet", I.bar], ["food", "Nutrition", I.fork], ["word", "Parole", I.book], ["coach", isCoach() ? "Membres" : "Coach", I.coach]];
   const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;width:auto;max-width:616px;margin:0 auto;box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:12px;text-align:left;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
   return cur + `<nav class="tabbar" aria-label="Navigation">${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === active ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }

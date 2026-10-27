@@ -2,7 +2,9 @@
 // affirmations, favoris, « Et après ? ». Tout est gratuit : l'Évangile ne se paie pas.
 import { S, update } from "../store.js";
 import * as W from "../word.js";
-import { $app, esc, toast, routes, R, actions, changes, forms, go, I, header, tabbar, seg, chips, sheet, closeSheet, rerender } from "../core.js";
+import * as F from "../faith.js";
+import { $app, esc, toast, routes, R, actions, changes, forms, go, I, header, tabbar, seg, chips, sheet, closeSheet, rerender, fmtDate, addDays, buzz } from "../core.js";
+import { today } from "../store.js";
 
 let tab = "jour", affCat = "valeur";
 let IDX = null; const BOOKS = {};
@@ -23,33 +25,117 @@ const readBtn = (ref) => `<button class="link small mt8" data-a="read-ref" data-
 
 routes.word = async () => {
   await loadIndex();
-  if (R.param && ["jour", "bible", "affirm", "favoris", "apres"].includes(R.param)) tab = R.param;
+  if (R.param === "apres") R.param = "rocher";
+  if (R.param && ["jour", "journal", "defis", "rocher", "bible", "affirm", "favoris"].includes(R.param)) tab = R.param;
   let body = "";
   if (tab === "jour") body = dayBody();
+  else if (tab === "journal") body = journalBody();
+  else if (tab === "defis") body = await defisBody();
+  else if (tab === "rocher") body = rocherBody();
   else if (tab === "bible") body = await bibleBody();
-  else if (tab === "affirm") body = `<div class="mt12">${chips(W.CATS.map(c => [c.id, c.n]), affCat, "aff-cat")}</div>
-      ${W.AFFIRMATIONS.filter(a => a.cat === affCat).map(a => `<div class="card mt8"><div class="row" style="align-items:flex-start"><p class="affirm grow" style="font-size:22px">${esc(a.t)}</p>${heartBtn(a.id)}</div><div class="aref">${esc(a.ref)}</div></div>`).join("")}`;
-  else if (tab === "favoris") body = favBody();
-  else body = `<p class="muted mt12">Le corps est utile pour un temps. Ces pages parlent de ce qui dure.</p>
-      ${W.ETERNAL.map(e => `<button class="card tap mt8" data-a="go" data-r="eternal" data-p="${e.id}" style="display:flex;align-items:center;gap:12px"><span class="grow"><b class="h3">${esc(e.n)}</b><br><span class="small muted">${esc(e.lead)}</span></span>${I.chev}</button>`).join("")}`;
-  $app.innerHTML = header("Parole", "Pour l'âme et l'esprit · gratuit, pour toujours") + `<main class="page">${chips([["jour", "☀️ Aujourd'hui"], ["bible", "📖 Bible"], ["affirm", "💬 Affirmations"], ["favoris", "❤️ Favoris"], ["apres", "✝ Et après ?"]], tab, "word-tab")}${body}</main>${tabbar("word")}`;
+  else if (tab === "affirm") body = `<p class="small muted mt12">Ce que la Parole dit de toi. Pas des formules pour se motiver soi-même : notre force et notre valeur viennent de Dieu.</p><div class="mt8">${chips(W.CATS.map(c => [c.id, c.n]), affCat, "aff-cat")}</div>
+      ${W.AFFIRMATIONS.filter(a => a.cat === affCat).map(a => `<div class="card mt8"><div class="row" style="align-items:flex-start"><p class="affirm grow" style="font-size:22px">${esc(a.t)}</p>${heartBtn(a.id)}</div><div class="aref">${esc(a.ref)}</div>${readBtn(a.ref)}</div>`).join("")}`;
+  else body = favBody();
+  const TABS = [["jour", "☀️ Aujourd'hui"], ["journal", "📓 Mon journal"], ["defis", "🔥 Défis"], ["rocher", "🪨 Le Rocher"], ["affirm", "📜 Vérités"], ["favoris", "❤️ Favoris"], ...(tab === "bible" ? [["bible", "📖 Bible"]] : [])];
+  $app.innerHTML = header("Parole", "Pour l'âme et l'esprit · gratuit, pour toujours") + `<main class="page">${chips(TABS, tab, "word-tab")}${body}</main>${tabbar("word")}`;
   if (tab === "bible") afterBible();
 };
 actions["word-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/word/" + d.v); rerender(false); window.scrollTo(0, 0); };
 actions["aff-cat"] = (b, d) => { affCat = d.v; tab = "affirm"; R.param = "affirm"; routes.word(); };
 
+// Jour de repos : le dimanche par défaut (réglable dans le profil)
+export const sabbatOn = (d = today()) => { const sb = S().settings?.sabbat; if (sb && sb.on === false) return false; return ((new Date(d + "T12:00:00").getDay() + 6) % 7) === (sb?.dow ?? 6); };
+export function sabbatCard() {
+  const m = F.SABBAT[Math.floor(Date.now() / 6048e5) % F.SABBAT.length];
+  return `<div class="daycard mt12" style="background:linear-gradient(135deg,#2F3B2A,#55623F)"><div class="deco">🕊️</div><div class="lbl" style="color:#fff;opacity:.85">Jour de repos</div><p class="affirm" style="font-size:20px;margin-top:8px">${esc(m.m)}</p>
+    <p class="small" style="opacity:.92;margin:8px 0 0">« ${esc(m.t)} »</p><div class="aref">${esc(m.ref)}</div></div>`;
+}
+const JQ = { sleep: "Sommeil", food: "Nourriture", move: "Mouvement" };
+const HEART = [["proche", "🙏 Proche de Dieu"], ["lutte", "⚔️ En lutte"], ["tiede", "🌫️ Tiède"], ["loin", "🏚️ Loin de lui"]];
+const LUTTES = ["Paresse", "Orgueil", "Découragement", "Gourmandise", "Colère", "Inquiétude", "Convoitise", "Impatience", "Mensonge", "Écrans"];
+const jOf = (d) => S().journal?.[d] || {};
 function dayBody() {
-  const af = W.affirmationOfDay(), v = W.verseOfDay(), at = S().bibleAt, bk = IDX.find(b => b.i === at.b);
-  return `<div class="daycard mt12"><div class="deco">✝</div><div class="row between" style="align-items:flex-start"><p class="affirm grow">${esc(af.t)}</p>${heartBtn(af.id)}</div><div class="aref">${esc(af.ref)}</div>
-      <div class="row mt16" style="gap:8px"><button class="btn btn-ghost btn-sm" data-a="share" data-t="${esc(af.t)}">Partager</button><button class="btn btn-ghost btn-sm" data-a="declare">🗣️ Déclarer à voix haute</button></div></div>
+  const af = W.affirmationOfDay(), v = W.verseOfDay(), j = jOf(today()), ch = S().challenge, C = ch && F.CHALLENGES.find(x => x.id === ch.id);
+  const dayN = C ? Math.min(7, Object.keys(ch.done || {}).length + 1) : 0, cd = C && C.days[dayN - 1];
+  return `${sabbatOn() ? sabbatCard() : ""}
+    <div class="card mt12"><div class="row between"><span class="lbl">📓 Bilan de la chair et de l'esprit</span><span class="xs muted">30 s</span></div>
+      ${j.heart ? `<p class="small mt8" style="margin-bottom:0">Fait aujourd'hui : ${Object.keys(JQ).map(k => `${JQ[k]} ${j.body?.[k] === 2 ? "✅" : j.body?.[k] === 1 ? "🟡" : "❌"}`).join(" · ")} · ${esc(HEART.find(h => h[0] === j.heart)?.[1] || "")}</p><button class="link xs mt4" data-a="word-tab" data-v="journal">Relire ou compléter</button>`
+        : `<p class="small mt8">As-tu honoré ton corps aujourd'hui ? Où en est ton cœur face à Dieu ?</p><button class="btn btn-red btn-sm mt4" data-a="word-tab" data-v="journal">Faire mon bilan</button>`}</div>
+    ${C ? `<button class="card tap mt12" data-a="word-tab" data-v="defis" style="display:block;width:100%;text-align:left"><div class="lbl">${C.e} Défi · ${esc(C.n)} · jour ${dayN}/7</div><b class="h3 mt4" style="display:block">${esc(cd.n)}</b><p class="small muted" style="margin:4px 0 0">${esc(cd.ref)} · ${esc(cd.act)}</p></button>`
+      : `<button class="card tap mt12" data-a="word-tab" data-v="defis" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">🔥</span><span class="grow"><b>Commencer un défi de 7 jours</b><br><span class="small muted">Maîtrise de soi, vanité de l'effort sans Dieu, force dans la faiblesse…</span></span>${I.chev}</button>`}
     <h2 class="sec">📜 Parole du jour</h2>
     <div class="card"><div class="row" style="align-items:flex-start"><div class="grow">${W.wordCard(v)}</div>${heartBtn(v.id)}</div>${readBtn(v.ref)}</div>
-    <h2 class="sec">📖 Continuer ma lecture</h2>
-    <button class="card tap" data-a="bible-go" data-b="${at.b}" data-c="${at.c}" style="display:flex;align-items:center;gap:12px"><span style="font-size:30px">📖</span><span class="grow"><b>${esc(bk?.name || "Jean")} ${at.c}</b><br><span class="small muted">La Bible complète, à lire, surligner et annoter</span></span>${I.chev}</button>
-    <h2 class="sec">💬 Affirmations</h2>
-    <div class="list">${W.CATS.map(c => `<button class="li" data-a="aff-cat" data-v="${c.id}"><span class="grow"><b>${c.n}</b><br><span class="xs muted">${W.AFFIRMATIONS.filter(a => a.cat === c.id).length} affirmations</span></span>${I.chev}</button>`).join("")}</div>
-    <button class="card tap mt16" data-a="word-tab" data-v="apres" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">✝</span><span class="grow"><b>Et après ?</b><br><span class="small muted">Qui est Jésus, naître de nouveau, la vie éternelle</span></span>${I.chev}</button>`;
+    <div class="daycard mt12"><div class="deco">✝</div><div class="row between" style="align-items:flex-start"><p class="affirm grow">${esc(af.t)}</p>${heartBtn(af.id)}</div><div class="aref">${esc(af.ref)}</div>
+      <div class="row mt16" style="gap:8px"><button class="btn btn-ghost btn-sm" data-a="share" data-t="${esc(af.t)}">Partager</button></div></div>
+    <button class="card tap mt16" data-a="word-tab" data-v="rocher" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">🪨</span><span class="grow"><b>Le Rocher</b><br><span class="small muted">Pourquoi le sport ne suffit pas, qui est Jésus, naître de nouveau</span></span>${I.chev}</button>
+    <p class="xs muted mt12 center">Pour l'étude complète, garde ta Bible papier. <button class="link xs" data-a="bible-open">Ouvrir le texte de la Bible ici</button></p>`;
 }
+actions["bible-open"] = () => { tab = "bible"; R.param = "bible"; history.replaceState(null, "", "#/word/bible"); rerender(false); window.scrollTo(0, 0); };
+// ---------- Journal du Bâtisseur ----------
+let jDay = null;
+function journalBody() {
+  const d = jDay || today(), j = jOf(d), b = j.body || {}, prayers = S().prayers || [];
+  const lvl = (k) => [[2, "Oui"], [1, "Un peu"], [0, "Non"]].map(([v, l]) => `<button class="chip ${b[k] === v ? "on" : ""}" data-a="jr-body" data-k="${k}" data-v="${v}">${l}</button>`).join("");
+  const hist = Object.entries(S().journal || {}).sort((x, y) => y[0].localeCompare(x[0])).slice(0, 28);
+  const freq = {}; hist.forEach(([, e]) => (e.struggles || []).forEach(s => freq[s] = (freq[s] || 0) + 1));
+  const top = Object.entries(freq).sort((a, b2) => b2[1] - a[1]).slice(0, 3);
+  return `<div class="row between mt12"><button class="icon-btn" data-a="jr-day" data-v="-1" aria-label="Jour précédent">${I.back}</button><b class="h3" style="text-transform:capitalize">${d === today() ? "Aujourd'hui" : fmtDate(d)}</b><button class="icon-btn" data-a="jr-day" data-v="1" aria-label="Jour suivant" style="transform:scaleX(-1);${d === today() ? "visibility:hidden" : ""}">${I.back}</button></div>
+    <div class="card mt8"><div class="lbl">🏋️ As-tu honoré ton corps ?</div>${Object.entries(JQ).map(([k, l]) => `<div class="row between mt8" style="gap:6px"><span class="small" style="flex:none;width:92px">${l}</span><div class="chips wrap" style="justify-content:flex-end">${lvl(k)}</div></div>`).join("")}</div>
+    <div class="card mt12"><div class="lbl">✝ Où en est ton cœur face à Dieu ?</div><div class="chips wrap mt8">${HEART.map(([k, l]) => `<button class="chip ${j.heart === k ? "on" : ""}" data-a="jr-heart" data-v="${k}">${l}</button>`).join("")}</div>
+      <div class="lbl mt12">Mes luttes du jour</div><div class="chips wrap mt8">${LUTTES.map(l => `<button class="chip ${(j.struggles || []).includes(l) ? "on" : ""}" data-a="jr-str" data-v="${l}">${l}</button>`).join("")}</div>
+      <label class="field mt12"><span>Ce que je retiens, ce que je confesse</span><textarea rows="3" data-c="jr-note" data-d="${d}" placeholder="Écris librement : ça reste sur ton téléphone.">${esc(j.note || "")}</textarea></label></div>
+    <h2 class="sec">🙏 Mes prières</h2>
+    <form data-f="jr-pray" class="row" style="gap:8px"><input name="t" class="inp grow" style="text-align:left" maxlength="200" placeholder="Un sujet de prière, une requête"><button class="btn btn-red btn-sm" style="width:auto">+</button></form>
+    ${prayers.length ? `<div class="list mt8">${prayers.slice().reverse().map(p => `<div class="li" style="gap:8px"><button class="rk" data-a="jr-ans" data-id="${p.id}" aria-label="Exaucée" style="width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);background:${p.ans ? "var(--gradbtn)" : "var(--paper)"};color:#fff;flex:none">${p.ans ? "✓" : ""}</button><span class="grow small" style="${p.ans ? "text-decoration:line-through;opacity:.7" : ""}">${esc(p.t)}<br><span class="xs muted">${fmtDate(p.d, { day: "numeric", month: "short" })}${p.ans ? ` · exaucée le ${fmtDate(p.ans, { day: "numeric", month: "short" })}` : ""}</span></span><button class="icon-btn sm" data-a="jr-pdel" data-id="${p.id}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>` : `<p class="xs muted mt8">Note tes sujets de prière et coche-les quand Dieu répond : tu verras sa fidélité au fil des mois.</p>`}
+    <h2 class="sec">📈 Au fil des semaines</h2>
+    ${hist.length ? `<div class="card">${top.length ? `<p class="small" style="margin-top:0">Tes luttes les plus fréquentes (4 semaines) : ${top.map(([k, n]) => `<b>${esc(k)}</b> (${n})`).join(", ")}.</p>` : ""}
+      <div class="list">${hist.map(([dd, e]) => `<button class="li" data-a="jr-goto" data-v="${dd}"><span class="grow small"><b style="text-transform:capitalize">${fmtDate(dd, { weekday: "short", day: "numeric", month: "short" })}</b> · ${Object.keys(JQ).map(k => e.body?.[k] === 2 ? "✅" : e.body?.[k] === 1 ? "🟡" : e.body?.[k] === 0 ? "❌" : "·").join("")} ${HEART.find(h => h[0] === e.heart)?.[1].split(" ")[0] || ""}<br><span class="xs muted">${esc((e.struggles || []).join(", "))}${e.note ? ` · ${esc(e.note.slice(0, 60))}${e.note.length > 60 ? "…" : ""}` : ""}</span></span>${I.chev}</button>`).join("")}</div></div>` : `<p class="xs muted">Ton historique apparaîtra ici.</p>`}
+    <p class="xs muted mt12">Ton journal reste sur ton téléphone. Il n'est pas envoyé à ton coach.</p>`;
+}
+const jSet = (fn) => update(st => { st.journal = st.journal || {}; const d = jDay || today(); st.journal[d] = st.journal[d] || {}; fn(st.journal[d]); });
+actions["jr-day"] = (b, d) => { const n = addDays(jDay || today(), +d.v); jDay = n >= today() ? null : n; rerender(); };
+actions["jr-goto"] = (b, d) => { jDay = d.v === today() ? null : d.v; rerender(false); window.scrollTo(0, 0); };
+actions["jr-body"] = (b, d) => { jSet(j => { j.body = j.body || {}; j.body[d.k] = +d.v; }); buzz(8); rerender(); };
+actions["jr-heart"] = (b, d) => { jSet(j => j.heart = d.v); buzz(8); rerender(); };
+actions["jr-str"] = (b, d) => { jSet(j => { const l = new Set(j.struggles || []); l.has(d.v) ? l.delete(d.v) : l.add(d.v); j.struggles = [...l]; }); rerender(); };
+changes["jr-note"] = (el) => { update(st => { st.journal = st.journal || {}; (st.journal[el.dataset.d] = st.journal[el.dataset.d] || {}).note = el.value.trim(); }); toast("Gardé dans ton journal"); };
+forms["jr-pray"] = (v) => { if (!v.t.trim()) return; update(st => st.prayers = [...(st.prayers || []), { id: Date.now(), t: v.t.trim(), d: today(), ans: null }]); rerender(); };
+actions["jr-ans"] = (b, d) => { update(st => { const p = st.prayers.find(x => x.id === +d.id); p.ans = p.ans ? null : today(); }); buzz(); rerender(); };
+actions["jr-pdel"] = (b, d) => { if (!confirm("Supprimer ce sujet de prière ?")) return; update(st => st.prayers = st.prayers.filter(x => x.id !== +d.id)); rerender(); };
+// ---------- Défis de discipline et de vérité ----------
+let defiOpen = null;
+async function defisBody() {
+  const ch = S().challenge, C = ch && F.CHALLENGES.find(x => x.id === ch.id);
+  if (C) {
+    const done = ch.done || {}, cur = Math.min(7, Object.keys(done).length + 1), k = defiOpen ?? cur, dd = C.days[k - 1];
+    return `<div class="card grad mt12"><div class="lbl">${C.e} Défi en cours</div><h2 class="h2 mt4">${esc(C.n)}</h2><p class="small mt4" style="margin-bottom:0">${esc(C.lead)}</p>
+        <div class="gauge mt8" style="background:rgba(255,255,255,.25)"><i style="width:${Object.keys(done).length / 7 * 100}%;background:#fff"></i></div></div>
+      <div class="chips mt12">${C.days.map((x, i) => `<button class="chip ${i + 1 === k ? "on" : ""}" data-a="df-day" data-v="${i + 1}">${done[i + 1] ? "✓ " : ""}Jour ${i + 1}</button>`).join("")}</div>
+      <div class="card mt8"><div class="lbl">Jour ${k} · ${esc(dd.ref)}</div><h3 class="h2 mt4">${esc(dd.n)}</h3>
+        <p class="verse-q mt8" style="font-family:var(--fs, serif);font-size:17px;line-height:1.5">« ${esc(dd.t)} »</p>${readBtn(dd.ref)}
+        <p class="mt12"><b>Question.</b> ${esc(dd.q)}</p><p><b>Action du jour.</b> ${esc(dd.act)}</p>
+        <label class="field mt8"><span>Ma réponse</span><textarea rows="3" data-c="df-note" data-k="${k}">${esc(ch.notes?.[k] || "")}</textarea></label>
+        ${done[k] ? `<p class="small mt8">✅ Fait le ${fmtDate(done[k], { day: "numeric", month: "long" })}.</p>` : `<button class="btn btn-red mt12" data-a="df-done" data-v="${k}">✅ J'ai médité et agi</button>`}</div>
+      ${Object.keys(done).length >= 7 ? `<div class="card mt12 center"><b>🏁 Défi terminé.</b><p class="small muted mt4">Que Dieu fasse croître ce qu'il a semé. Choisis le suivant quand tu veux.</p></div>` : ""}
+      <button class="btn btn-ghost btn-sm mt12" data-a="df-stop" style="width:100%">${Object.keys(done).length >= 7 ? "Choisir un autre défi" : "Arrêter ce défi"}</button>`;
+  }
+  return `<p class="small muted mt12">Sept jours, un thème, un passage par jour, une question qui remet en question, et une action concrète pour ton corps et ton foyer.</p>
+    ${F.CHALLENGES.map(c => `<div class="card mt8"><div class="row" style="gap:12px"><span style="font-size:30px">${c.e}</span><div class="grow"><b class="h3">${esc(c.n)}</b><p class="small muted" style="margin:4px 0 0">${esc(c.lead)}</p></div></div>
+      <p class="xs muted mt8" style="margin-bottom:0">${c.days.map(x => esc(x.ref)).join(" · ")}</p><button class="btn btn-line btn-sm mt8" data-a="df-start" data-id="${c.id}">Commencer</button></div>`).join("")}`;
+}
+actions["df-start"] = (b, d) => { update(st => st.challenge = { id: d.id, start: today(), done: {}, notes: {} }); defiOpen = null; toast("Défi commencé : jour 1"); rerender(); window.scrollTo(0, 0); };
+actions["df-day"] = (b, d) => { defiOpen = +d.v; rerender(); };
+actions["df-done"] = (b, d) => { update(st => { st.challenge.done = st.challenge.done || {}; st.challenge.done[d.v] = today(); }); defiOpen = null; buzz(); toast("Jour validé"); rerender(); };
+actions["df-stop"] = () => { if (Object.keys(S().challenge?.done || {}).length < 7 && !confirm("Arrêter ce défi ?")) return; update(st => { st.challengesDone = [...(st.challengesDone || []), st.challenge]; st.challenge = null; }); rerender(); };
+changes["df-note"] = (el) => update(st => { st.challenge.notes = st.challenge.notes || {}; st.challenge.notes[el.dataset.k] = el.value.trim(); });
+// ---------- Le Rocher ----------
+function rocherBody() {
+  return `<div class="card mt12"><p style="margin:0">Le sport rend fort pour un temps. Ces pages parlent de ce qui demeure. Que tu sois chrétien ou simplement en recherche, prends le temps de les lire.</p></div>
+    ${F.ROCHER.map(e => `<button class="card tap mt8" data-a="go" data-r="eternal" data-p="${e.id}" style="display:flex;align-items:center;gap:12px"><span class="grow"><b class="h3">${esc(e.n)}</b><br><span class="small muted">${esc(e.lead)}</span></span>${I.chev}</button>`).join("")}
+    <div class="card mt12"><b>💬 Poser une question</b><p class="small muted mt4">Une question sur la foi, un doute, une difficulté ? Écris à Thomas. Il lit et répond lui-même, et garde tes messages pour lui.</p>
+      <form data-f="rocher-q"><textarea name="q" rows="3" class="inp" style="text-align:left;height:auto;padding:12px;width:100%;box-sizing:border-box" maxlength="1500" placeholder="Ta question"></textarea><button class="btn btn-red btn-sm mt8" style="width:100%">Envoyer à Thomas</button></form></div>`;
+}
+forms["rocher-q"] = (v) => { if (!v.q.trim()) return; window.__prefill = "🪨 Question (Le Rocher) : " + v.q.trim(); go("chat"); };
 
 // ---------- Bible ----------
 let sel = new Set(), pick = null; // pick: null | "books" | "chapters"
@@ -155,11 +241,12 @@ actions.share = (b, d) => { const t = d.t + "\n\nCalXsthenos · " + location.ori
 actions.declare = () => { const t = W.affirmationOfDay().t; if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(t); u.lang = "fr-FR"; u.rate = .92; speechSynthesis.speak(u); } toast("Répète-la à voix haute, lentement."); };
 
 routes.eternal = () => {
-  const e = W.ETERNAL.find(x => x.id === R.param) || W.ETERNAL[0];
+  const e = F.ROCHER.find(x => x.id === R.param) || F.ROCHER[0];
   $app.innerHTML = header(esc(e.n), "", { back: "word" }) + `<main class="page full prose">
     <p class="red" style="font-weight:700">${esc(e.lead)}</p>
     ${e.body.map(p => `<p>${esc(p)}</p>`).join("")}
     ${e.verses.map(v => `<div class="card mt12">${W.wordCard(v)}${readBtn(v.ref)}</div>`).join("")}
     <div class="card mt24 center"><p>Tu as des questions ? Je serais heureux d'en parler avec toi, simplement.</p><button class="btn btn-red mt8" data-a="go" data-r="chat">Écrire à Thomas</button></div>
+    <div class="row mt16" style="gap:8px;flex-wrap:wrap">${F.ROCHER.filter(x => x.id !== e.id).map(x => `<button class="chip" data-a="go" data-r="eternal" data-p="${x.id}">${esc(x.n)}</button>`).join("")}</div>
   </main>${tabbar("word")}`;
 };

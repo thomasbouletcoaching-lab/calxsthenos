@@ -103,7 +103,7 @@ p{margin:0 0 10px}
 .dock{position:fixed;left:0;right:0;bottom:0;z-index:20;max-width:640px;margin:0 auto;padding:14px 16px calc(14px + var(--safe-b));background:linear-gradient(transparent,var(--chalk) 34%)}
 
 /* Barre d'onglets */
-.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:640px;margin:0 auto;background:var(--glass-bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:8px 2px calc(8px + var(--safe-b))}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:640px;margin:0 auto;background:var(--glass-bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(6,1fr);padding:8px 2px calc(8px + var(--safe-b))}
 .tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:3px 0;color:var(--navoff);font-size:12px;font-weight:500;text-decoration:none;position:relative}
 .tab svg{width:26px;height:26px}
 .tab[aria-current="page"]{color:var(--red);font-weight:700}
@@ -311,7 +311,7 @@ p{margin:0 0 10px}
 
 /* Feuilles et divers */
 .sheet .grab{cursor:pointer;position:relative}.sheet .grab::after{content:"";position:absolute;left:-30px;right:-30px;top:-14px;bottom:-14px}
-.sheet{transition:transform .15s}
+.sheet{will-change:transform}
 .sheet-wrap{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:60;background:rgba(10,4,6,.45);display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
 .sheet{width:100%;max-width:640px;max-height:calc(var(--vvh,100dvh) - 16px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--chalk);border-radius:28px 28px 0 0;padding:10px 16px calc(22px + var(--safe-b));animation:up .28s cubic-bezier(.2,.8,.2,1)}
 .sheet .grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
@@ -450,3 +450,6 @@ input,select,textarea{max-width:100%;min-width:0}
 .catgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .catgrid button{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;padding:14px;border-radius:16px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-weight:700;font-size:15px}
 .catgrid button span{color:var(--soft);font-weight:600}
+.tab span{font-size:11px;white-space:nowrap;letter-spacing:-.1px}
+.catgrid button.on{background:var(--gradbtn);color:#fff;border-color:transparent}.catgrid button.on .muted{color:#fff}
+.cmp{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}.cmp th:first-child,.cmp td:first-child{width:38%}.cmp th{font-size:10.5px;text-align:center;padding:6px 2px;color:var(--ink);hyphens:manual}.cmp td{padding:7px 2px;border-top:1px solid var(--line);text-align:center}.cmp td:first-child{text-align:left;font-weight:600;color:var(--ink)}.cmp th:nth-child(3),.cmp td:nth-child(3){background:color-mix(in srgb,var(--red) 8%,transparent)}
