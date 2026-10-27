@@ -7,14 +7,16 @@ import * as EN from "../energy.js";
 import { $app, esc, num, fr, buzz, toast, routes, R, actions, forms, changes, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, ring, gradDef, premium, rank, fmtDate, addDays, hhmm, rerender } from "../core.js";
 import { caloriesCard } from "./home.js";
 import { pushStats } from "../sync.js";
+import * as ML from "./meals.js";
 
 let tab = "journal", day = null;
-const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["budget", "💶 Budget courses"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"]];
+const TABS = [["journal", "🍽️ Journal"], ["plan", "📋 Mon plan"], ["recettes", "👩‍🍳 Recettes"], ["batch", "🥡 Batch cooking"], ["jeune", "⏳ Jeûne"], ["budget", "🛒 Courses"], ["depense", "🔥 Dépense"], ["corps", "⚖️ Corps"]];
 const D = () => day || today();
 const FREE_RECIPES = 10;
 const recipeOpen = (r) => premium() || r.mine || RC.RECIPES.indexOf(r) < FREE_RECIPES;
 const myRecipes = () => (S().myRecipes || []).map(r => ({ ...r, mine: true, m: RC.macros(r.ing, r.portions) }));
 const allRecipes = () => [...myRecipes(), ...RC.RECIPES];
+export const recipePool = () => allRecipes().filter(recipeOpen);
 
 routes.food = async () => {
   await N.loadModels();
@@ -22,11 +24,11 @@ routes.food = async () => {
   const t = N.targets();
   let body;
   if (tab === "journal") body = journalBody(t);
-  else if (tab === "plan") body = planBody(t);
+  else if (tab === "plan") body = ML.planBody(t);
   else if (tab === "recettes") body = recipesBody();
   else if (tab === "batch") body = batchBody();
   else if (tab === "jeune") body = fastBody();
-  else if (tab === "budget") body = budgetBody();
+  else if (tab === "budget") body = ML.shopBody() + (premium() ? `<h2 class="sec">💶 Mes dépenses réelles</h2>` + budgetBody() : "");
   else if (tab === "depense") body = burnBody();
   else body = await bodyBody();
   $app.innerHTML = header("Nutrition", t ? `${fr(t.kcal)} kcal · ${t.prot} g de protéines` : "") + `<main class="page">${chips(TABS, tab, "food-tab")}${body}</main>${tabbar("food")}`;
@@ -44,13 +46,7 @@ function journalBody(t) {
     <div class="card mt8">${caloriesCard(d)}</div>
     <div class="card"><div class="rt" style="border:0;padding:0"><span class="em">💧</span><div class="grow"><b>Eau</b><div class="small muted">${fr(water * .25, 2)} L · 1 verre = 25 cl</div></div><div class="water"><button data-a="water" data-v="-1" data-d="${d}" aria-label="Retirer un verre">−</button><b>${water}</b><button data-a="water" data-v="1" data-d="${d}" aria-label="Ajouter un verre">+</button></div></div></div>
     ${fs ? `<button class="card tap" data-a="food-tab" data-v="jeune" style="display:flex;gap:12px;align-items:center"><span style="font-size:26px">${fs.stage[1]}</span><span class="grow"><b>Jeûne en cours · ${Math.floor(fs.hours)} h</b><br><span class="small muted">${esc(fs.stage[2])}</span></span>${I.chev}</button>` : ""}
-    ${N.MEALS.map(m => {
-      const es = log.filter(e => e.meal === m).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-      const k = es.reduce((a, e) => a + e.kcal, 0);
-      return `<div class="card mt12"><div class="row between"><div><b class="h3">${{ "Petit-déjeuner": "🥣", "Déjeuner": "🍛", "Collation": "🍎", "Dîner": "🍲" }[m]} ${m}</b>${es.length ? `<div class="xs muted">${fr(k)} kcal · ${fr(es.reduce((a, e) => a + e.p, 0))} g prot.</div>` : ""}</div><button class="btn btn-red btn-xs" data-a="add-food" data-m="${m}">+ Ajouter</button></div>
-        ${es.length ? `<div class="row mt8" style="gap:8px"><span class="xs muted">🕐 Heure du repas</span><input type="time" class="inp" style="width:116px;font-size:14px;padding:4px 8px" value="${es[0].time || ""}" data-c="mtime" data-m="${m}" data-d="${d}" aria-label="Heure du repas"></div><div class="list mt8">${es.map(e => `<div class="li" style="gap:8px"><span class="grow small">${esc(e.label)}<br><span class="xs muted">${e.g ? e.g + " g · " : ""}${e.kcal} kcal · P ${fr(e.p)} · G ${fr(e.c)} · L ${fr(e.f)}</span></span><button class="icon-btn" data-a="del-food" data-id="${e.id}" data-d="${d}" aria-label="Supprimer">${I.close}</button></div>`).join("")}</div>
-          <button class="link xs mt8" data-a="save-meal" data-m="${m}" data-d="${d}">⭐ Enregistrer ce repas pour le refaire</button>` : ""}</div>`;
-    }).join("")}
+    ${ML.mealCards(t, d)}
     <p class="xs muted mt12">Les heures servent à suivre tes fenêtres de repas et ton jeûne. Valeurs nutritionnelles : table Ciqual (Anses) et Open Food Facts.</p>`;
 }
 changes.mtime = (el) => { const m = el.dataset.m, d = el.dataset.d; update(st => (st.food[d] || []).forEach(e => { if (e.meal === m) e.time = el.value; })); toast("Heure du repas enregistrée"); };
@@ -66,7 +62,7 @@ actions["save-meal"] = (b, d) => {
 // Ajouter des aliments : on reste dans la fenêtre et on enchaîne les aliments du repas
 let afs = { meal: "Déjeuner", tab: "search", date: null, time: "" };
 const afsTime = () => document.getElementById("afs-time")?.value || afs.time;
-async function addFoodSheet(meal) {
+export async function addFoodSheet(meal) {
   afs.meal = meal; afs.date = D(); afs.tab = afs.tab || "search";
   afs.time = N.dayLog(afs.date).find(e => e.meal === meal)?.time || (afs.date === today() ? hhmm() : N.MEAL_TIMES[meal] || "12:00");
   const w = sheet(`<div class="row between" style="gap:10px"><h2 class="h2">${esc(meal)}</h2><label class="row xs muted" style="gap:6px">Heure du repas <input id="afs-time" class="inp" type="time" style="width:116px" value="${afs.time}"></label></div>
@@ -155,7 +151,11 @@ function gramsSheet(food, onAdd, meal = afs.meal) {
     w.querySelector("#gadd").addEventListener("click", () => { if (!g) return; const e = N.entryFromFood(food, g, meal); e.time = w.querySelector("#gt").value; N.rememberFood(food); buzz(); closeSheet(); onAdd(e); });
   });
 }
-actions.scan = async () => {
+export async function scanBarcode(meal = afs.meal, date = afs.date || D(), back = true) {
+  const done = async (code) => { const f = await N.lookupBarcode(code); if (f) gramsSheet(f, (e) => { N.addEntry(e, date); toast("Ajouté"); if (back) addFoodSheet(meal); else rerender(); }, meal); else { closeSheet(); toast("Produit introuvable : cherche-le par son nom."); } };
+  const manual = () => sheet(`<h2 class="h2">🔎 Code-barres</h2><p class="small muted">Ton navigateur ne lit pas les codes-barres avec la caméra. Tape les chiffres sous le code-barres (13 en général).</p><form data-f="bc-code" class="row mt12" style="gap:8px"><input name="c" class="inp grow" inputmode="numeric" pattern="[0-9]*" placeholder="3017620422003" required><button class="btn btn-red btn-sm" style="width:auto">Chercher</button></form>`);
+  forms["bc-code"] = (v) => { const c = String(v.c).replace(/\D/g, ""); if (c.length < 8) return toast("Code incomplet"); done(c); };
+  if (!("BarcodeDetector" in window)) return manual();
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     sheet(`<h2 class="h2">Scanner</h2><video id="cam" playsinline autoplay muted style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video><p class="small muted mt8">Place le code-barres dans le cadre.</p>`, async (w) => {
@@ -164,31 +164,16 @@ actions.scan = async () => {
       let alive = true; const stop = () => { alive = false; stream.getTracks().forEach(t => t.stop()); };
       w.addEventListener("click", e => { if (e.target === w) stop(); });
       while (alive && document.body.contains(v)) {
-        try { const c = await det.detect(v); if (c[0]) { stop(); const f = await N.lookupBarcode(c[0].rawValue); if (f) gramsSheet(f, (e) => { N.addEntry(e, afs.date); toast("Ajouté"); addFoodSheet(afs.meal); }); else { closeSheet(); toast("Produit introuvable : cherche-le par son nom."); } return; } } catch { }
+        try { const c = await det.detect(v); if (c[0]) { stop(); return done(c[0].rawValue); } } catch { }
         await new Promise(r => setTimeout(r, 300));
       }
       stop();
     });
-  } catch { toast("Caméra indisponible : cherche l'aliment par son nom."); }
-};
+  } catch { manual(); }
+}
+actions.scan = () => scanBarcode(afs.meal, afs.date, true);
 
 // ---------- Plan alimentaire écrit ----------
-function planBody(t) {
-  if (!t) return "";
-  const plan = N.dayPlan(t), mine = !!S().myPlan?.meals?.length;
-  const tot = plan.reduce((a, x) => ({ kcal: a.kcal + x.m.kcal, p: a.p + x.m.p }), { kcal: 0, p: 0 });
-  const cards = plan.map((x, i) => {
-    const open = premium() || i === 0;
-    return `<div class="card mt12 ${open ? "" : "locked"}" style="position:relative${open ? "" : ";min-height:150px"}"><div class="row between"><div class="lbl">🕐 ${esc(x.time || "")} · ${esc(x.meal)}</div><span class="xs muted">${fr(x.m.kcal)} kcal · ${fr(x.m.p)} g P</span></div>
-      <h3 class="h3 mt4">${esc(x.n)}</h3><ul class="small" style="padding-left:18px;margin:8px 0">${x.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
-      <div class="row" style="gap:8px"><button class="btn btn-red btn-xs" data-a="eat-plan" data-i="${i}">✓ J'ai mangé ça</button>${!mine && x.poolSize > 1 ? `<button class="btn btn-ghost btn-xs" data-a="swap-dish" data-m="${esc(x.meal)}">🔄 Autre plat</button>` : ""}</div>
-      ${open ? "" : lockVeil("Bâtisseur", "Ton plan complet, écrit en vrais plats, ajusté à tes calories.")}</div>`;
-  }).join("");
-  return `<div class="card grad mt12"><div class="lbl">📋 ${mine ? "Mon plan alimentaire" : "Plan proposé pour toi"}</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
-    ${cards}
-    <div class="row mt16" style="gap:8px">${premium() ? `<button class="btn btn-line btn-sm grow" data-a="plan-edit">✏️ ${mine ? "Modifier mon plan" : "Écrire mon propre plan"}</button>${mine ? `<button class="btn btn-ghost btn-sm grow" data-a="plan-auto">Revenir au plan proposé</button>` : ""}` : `<button class="btn btn-line btn-sm grow" data-a="go" data-r="offers">🔒 Écrire mon plan (Premium)</button>`}</div>
-    <p class="xs muted mt12">Quantités pesées cuites. Le plan est un repère : ce que tu manges vraiment se note dans le journal.</p>`;
-}
 actions["eat-plan"] = (b, d) => { const x = N.dayPlan(N.targets())[+d.i]; N.addEntry({ meal: N.MEALS.includes(x.meal) ? x.meal : "Déjeuner", label: x.n, g: null, kcal: x.m.kcal, p: x.m.p, c: x.m.c, f: x.m.f, time: x.time }); buzz(); toast(`${x.meal} noté dans le journal`); };
 actions["swap-dish"] = (b, d) => { N.swapDish(d.m); rerender(); };
 actions["plan-auto"] = () => { if (!confirm("Revenir au plan proposé ? Ton plan écrit sera effacé.")) return; update(st => st.myPlan = null); rerender(); };
@@ -199,15 +184,7 @@ actions["plan-edit"] = () => {
   }
   planEditor();
 };
-function planEditor() {
-  const P = S().myPlan, t = N.targets();
-  const tot = P.meals.reduce((a, m) => a + m.items.reduce((x, i) => x + i.kcal, 0), 0);
-  sheet(`<h2 class="h1">Mon plan</h2><p class="small muted">${fr(tot)} kcal pour un objectif de ${fr(t.kcal)} kcal.</p>
-    ${P.meals.map((m, mi) => `<div class="card mt12"><div class="row" style="gap:8px"><input class="inp grow" style="text-align:left;font-weight:700" value="${esc(m.name)}" data-c="pl-name" data-m="${mi}" aria-label="Nom du repas"><input class="inp" type="time" style="width:116px" value="${m.time}" data-c="pl-time" data-m="${mi}" aria-label="Heure"></div>
-      ${m.items.map((it, ii) => `<div class="row between small mt8"><span class="grow">${it.g ? it.g + " g " : ""}${esc(it.label)} <span class="xs muted">${it.kcal} kcal</span></span><button class="icon-btn" data-a="pl-idel" data-m="${mi}" data-i="${ii}" aria-label="Retirer">${I.close}</button></div>`).join("")}
-      <div class="row mt8" style="gap:6px"><button class="btn btn-ghost btn-xs" data-a="pl-add" data-m="${mi}">+ Aliment</button><button class="btn btn-ghost btn-xs" data-a="pl-addr" data-m="${mi}">+ Recette</button>${P.meals.length > 1 ? `<button class="btn btn-ghost btn-xs" data-a="pl-mdel" data-m="${mi}">Supprimer le repas</button>` : ""}</div></div>`).join("")}
-    <button class="btn btn-line btn-sm mt12" data-a="pl-madd">+ Ajouter un repas</button><button class="btn btn-red mt12" data-a="pl-done">Terminé</button>`);
-}
+function planEditor() { closeSheet(); rerender(); }
 changes["pl-name"] = (el) => update(st => st.myPlan.meals[+el.dataset.m].name = el.value);
 changes["pl-time"] = (el) => update(st => st.myPlan.meals[+el.dataset.m].time = el.value);
 actions["pl-idel"] = (b, d) => { update(st => st.myPlan.meals[+d.m].items.splice(+d.i, 1)); planEditor(); };
@@ -402,9 +379,9 @@ async function bodyBody() {
   migrateMeasures();
   const ms = S().measures.filter(m => MS.some(([k]) => m[k] != null)).sort((a, b) => a.d.localeCompare(b.d));
   const lastM = [...ms].reverse()[0], firstM = ms[0];
-  const photos = premium() ? await listPhotos() : [];
+  const photos = premium() ? (await listPhotos()).filter(p => p.view !== "repas") : [];
   const goal = S().profile?.goal;
-  return `<div class="card mt12"><div class="row between"><span class="lbl">⚖️ Poids · moyenne 7 jours</span><span class="xs muted">${ws.length} pesées</span></div>
+  return `${ML.balanceCard(lineChart)}<div class="card mt12"><div class="row between"><span class="lbl">⚖️ Poids · moyenne 7 jours</span><span class="xs muted">${ws.length} pesées</span></div>
       ${avg.length ? `<div class="num mt4" style="font-size:32px">${fr(avg.at(-1).y, 1)} kg</div>` : ""}
       <div class="mt8">${lineChart(avg.slice(-60), { proj: premium() ? proj : null, yfmt: (v) => fr(v, 1) })}</div>
       ${rate != null ? premium() ? `<div class="card soft mt8"><b>📉 À ce rythme</b> (${rate > 0 ? "+" : ""}${fr(rate, 2)} kg / semaine) : <b>${fr(proj.at(-1).y, 1)} kg dans 8 semaines</b>.<br><span class="xs muted">${goal === "fat" ? (rate > -.2 ? "Un peu lent : vise −0,3 à −0,7 kg par semaine (baisse de 150 kcal ou +2 000 pas)." : rate < -1 ? "Rapide : attention à ta masse musculaire, remonte de 150 kcal." : "Rythme idéal pour perdre du gras en gardant ton muscle.") : goal === "muscle" ? (rate < .1 ? "Trop lent pour prendre du muscle : ajoute 150 kcal." : rate > .5 ? "Rapide : une partie sera du gras, baisse de 100 kcal." : "Bon rythme de prise de muscle.") : "La moyenne compte, pas la pesée du jour."}</span></div>` : `<p class="small mt8">🔒 Courbe de projection « à ce rythme » avec Premium.</p>` : `<p class="xs muted mt8">La projection apparaît après une semaine de pesées.</p>`}

@@ -77,11 +77,11 @@ function db() {
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
-export async function addPhoto(blob, day = today(), view = "face") {
+export async function addPhoto(blob, day = today(), view = "face", meta = {}) {
   const d = await db();
   return new Promise((res, rej) => {
     const tx = d.transaction("p", "readwrite");
-    tx.objectStore("p").put({ id: Date.now(), d: day, view, blob });
+    tx.objectStore("p").put({ id: Date.now(), d: day, view, blob, ...meta });
     tx.oncomplete = res; tx.onerror = () => rej(tx.error);
   });
 }

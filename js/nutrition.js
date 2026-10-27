@@ -4,7 +4,9 @@ import { S, update, today } from "./store.js";
 let CQ = null, MODELS = null;
 export async function loadModels() { if (!MODELS) MODELS = await (await fetch("data/nutrition-models.json")).json(); return MODELS; }
 export async function loadCiqual() {
-  if (!CQ) { const j = await (await fetch("data/ciqual.json")).json(); CQ = [...j.foods, ...EXTRA, ...EXTRA_COACH].map(f => ({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], k: norm(f[0]), a: f[0].toLowerCase() })); }
+  if (!CQ) { const j = await (await fetch("data/ciqual.json")).json(); const byName = Object.fromEntries(j.foods.map(f => [f[0], f]));
+    const base = BASICS.map(([n, src]) => byName[src] ? [n, byName[src][1], ...byName[src].slice(2, 7), true] : null).filter(Boolean);
+    CQ = [...base, ...j.foods, ...EXTRA, ...EXTRA_COACH].map(f => ({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], fib: f[6] ?? null, k: norm(f[0]), a: f[0].toLowerCase(), base: f[7] === true })); }
   return CQ;
 }
 export const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/œ/g, "oe").replace(/æ/g, "ae").replace(/['’‘`´,;.()\/-]+/g, " ").replace(/\s+/g, " ").trim();
@@ -13,6 +15,18 @@ const EXTRA = [
   ["Skyr nature 0 %", "Produits laitiers", 60, 10.5, 4, 0.2],
   ["Skyr aux fruits", "Produits laitiers", 80, 9, 10, 0.2],
   ["Protéine whey en poudre", "Compléments", 380, 75, 8, 6],
+];
+// Aliments de base avec un nom clair, recopiés de la table Ciqual (on les trouve en premier)
+const BASICS = [
+  ["Pâtes (cuites)", "Pâtes sèches standard, cuites, non salées"], ["Pâtes (crues)", "Pâtes sèches standard, crues"],
+  ["Pâtes complètes (cuites)", "Pâtes sèches, au blé complet, cuites, non salées"], ["Pâtes aux œufs (cuites)", "Pâtes sèches, aux oeufs, cuites, non salées"],
+  ["Riz blanc (cuit)", "Riz blanc, cuit, non salé"], ["Riz blanc (cru)", "Riz blanc, cru"], ["Riz basmati (cuit)", "Riz basmati, cuit, non salé"],
+  ["Riz complet (cuit)", "Riz complet, cuit, non salé"], ["Riz complet (cru)", "Riz complet, cru"],
+  ["Semoule (cuite)", "Semoule de blé dur, cuite, non salée"], ["Semoule (crue)", "Semoule de blé dur, crue"], ["Quinoa (cuit)", "Quinoa, bouilli/cuit à l'eau, non salé"], ["Quinoa (cru)", "Quinoa, cru"],
+  ["Lentilles (cuites)", "Lentille, bouillie/cuite à l'eau"], ["Pois chiches (cuits)", "Pois chiche, bouilli/cuit à l'eau"], ["Pommes de terre (cuites)", "Pomme de terre, bouillie/cuite à l'eau"],
+  ["Flocons d'avoine", "Flocon d'avoine"], ["Blanc de poulet (cru)", "Poulet, filet, sans peau, cru"], ["Blanc de poulet (cuit)", "Poulet, filet, sans peau, sauté/poêlé"],
+  ["Escalope de dinde (crue)", "Dinde, escalope, crue"], ["Steak haché 5 % (cuit)", "Boeuf, steak haché 5% MG, cuit"], ["Steak haché 5 % (cru)", "Boeuf, steak haché 5% MG, cru"],
+  ["Œuf entier", "Oeuf, cru"], ["Banane", "Banane, pulpe, crue"], ["Brocoli (cuit)", "Brocoli, cuit"], ["Haricots verts (cuits)", "Haricot vert, cuit"], ["Lait demi-écrémé", "Lait demi-écrémé, UHT"],
 ];
 // Aliments ajoutés par le coach (bibliothèque partagée)
 export const EXTRA_COACH = [];
@@ -32,14 +46,16 @@ export function searchFoods(q, max = 30) {
   const raw = String(q).toLowerCase().replace(/oe/g, "œ").split(/[\s'’,]+/).filter(t => t.length > 1 && !STOP.has(t)).map(t => t.replace(/(s|x)$/, ""));
   const res = [];
   for (const f of CQ) {
-    if (!terms.every(t => f.k.includes(t))) continue;
+    if (!terms.every(t => f.k.startsWith(t) || f.k.includes(" " + t))) continue;
     let s = 0;
     if (f.k.startsWith(terms[0])) s += 4;
+    if (f.base) s += 5;
+    if (/\bpates\b/.test(norm(q)) && /\bpate (a |feuilletee|brisee|sablee|de fruit|d amande|a tartiner)|pizza|tarte/.test(f.k)) s -= 4;
     // mot entier avec ses accents : « pâtes » ne remonte pas « pâté », « lait » ne remonte pas « laitue »
     for (const w of raw) if (new RegExp(`(^|[^a-zà-ÿœ])${w.replace(/[.*+?^${}()|[\]\\]/g, "")}(s|x)?($|[^a-zà-ÿœ])`).test(f.a)) s += 2;
     if (/\b(cuit|bouilli|dur)/.test(f.k)) s += 1;
     s += terms.join(" ").length / f.k.length * 3; // plus le nom est proche de la recherche, plus il remonte
-    if (/\b(blanc|jaune|poudre|deshydrate|lyophilise|infantile|bebe)\b/.test(f.k) && !terms.some(t => /blanc|jaune|poudre/.test(t))) s -= 1.5;
+    if (!f.base && /\b(blanc|jaune|poudre|deshydrate|lyophilise|infantile|bebe)\b/.test(f.k) && !terms.some(t => /blanc|jaune|poudre/.test(t))) s -= 1.5;
     if (f.cat === "Plats préparés" && f.n.length > 25) s -= 1;
     s -= f.n.length / 80;
     res.push([s, f]);
@@ -113,13 +129,13 @@ const r5 = (g, k) => k === "oeuf" ? Math.max(55, Math.round(g / 55) * 55) : k ==
 export function scaleDish(d, kcal) {
   const base = macrosOf(d.ing), f = kcal / base.kcal, ing = {};
   for (const [k, g] of Object.entries(d.ing)) ing[k] = (k === "legumes") ? g : r5(g * f, k);
-  return { ...d, ing, m: macrosOf(ing), lines: Object.entries(ing).map(([k, g]) => k === "oeuf" ? `${g / 55} œuf${g > 55 ? "s" : ""}` : `${g} g ${ING[k][0].toLowerCase()}`) };
+  return { ...d, ing, m: macrosOf(ing), items: Object.entries(ing).map(([k, g]) => ({ n: ING[k][0], g, kcal: Math.round(ING[k][1] * g / 100), p: +(ING[k][2] * g / 100).toFixed(1), c: +(ING[k][3] * g / 100).toFixed(1), f: +(ING[k][4] * g / 100).toFixed(1) })), lines: Object.entries(ing).map(([k, g]) => k === "oeuf" ? `${g / 55} œuf${g > 55 ? "s" : ""}` : `${g} g ${ING[k][0].toLowerCase()}`) };
 }
 
 // ---------- Plan alimentaire du jour ----------
 const SPLIT = [["Petit-déjeuner", "matin", .25], ["Déjeuner", "repas", .35], ["Collation", "collation", .12], ["Dîner", "repas", .28]];
 export function dayPlan(t, date = today()) {
-  if (S().myPlan?.meals?.length) return S().myPlan.meals.map(m => ({ meal: m.name, time: m.time, n: m.items.map(i => i.label).join(", ") || m.name, lines: m.items.map(i => `${i.g ? i.g + " g " : ""}${i.label}`), m: m.items.reduce((a, i) => ({ kcal: a.kcal + i.kcal, p: a.p + i.p, c: a.c + i.c, f: a.f + i.f }), { kcal: 0, p: 0, c: 0, f: 0 }), poolSize: 1, mine: true }));
+  if (S().myPlan?.meals?.length) return S().myPlan.meals.map(m => ({ meal: m.name, time: m.time, n: m.title || m.items.map(i => i.label.split(",")[0]).slice(0, 3).join(", ") || m.name, items: m.items.map(i => ({ n: i.label, g: i.g, kcal: i.kcal, p: i.p, c: i.c, f: i.f })), lines: m.items.map(i => `${i.g ? i.g + " g " : ""}${i.label}`), m: m.items.reduce((a, i) => ({ kcal: a.kcal + i.kcal, p: a.p + i.p, c: a.c + i.c, f: a.f + i.f }), { kcal: 0, p: 0, c: 0, f: 0 }), poolSize: 1, mine: true }));
   const diet = S().profile?.diet || "all";
   const seed = Math.floor(new Date(date).getTime() / 864e5);
   const choice = S().planChoice?.[date] || {};
@@ -129,6 +145,13 @@ export function dayPlan(t, date = today()) {
     return { meal, slot, time: MEAL_TIMES[meal], ...scaleDish(pick, t.kcal * share), poolSize: pool.length };
   });
 }
+// Les autres plats possibles pour ce repas, à la même dose de calories
+export function planOptions(t, date, meal) {
+  const x = dayPlan(t, date).find(p => p.meal === meal); if (!x || x.mine || !x.slot) return [];
+  const diet = S().profile?.diet || "all", share = SPLIT.find(s => s[0] === meal)?.[2] || .3;
+  return DISHES.filter(d => d.slot === x.slot && d.diet.includes(diet === "all" ? "all" : diet)).map((d, i) => ({ i, ...scaleDish(d, t.kcal * share) }));
+}
+export function chooseDish(meal, i, date = today()) { update(st => { st.planChoice = st.planChoice || {}; (st.planChoice[date] = st.planChoice[date] || {})[meal] = i; }); }
 export function swapDish(meal, date = today()) {
   update(st => { st.planChoice = st.planChoice || {}; const c = st.planChoice[date] = st.planChoice[date] || {}; c[meal] = (c[meal] ?? Math.floor(Math.random() * 5)) + 1; });
 }
@@ -151,7 +174,7 @@ export function lastMealTime(date = today()) { const l = dayLog(date); return l.
 export function removeEntry(id, date = today()) { update(st => { st.food[date] = (st.food[date] || []).filter(e => e.id !== id); }); }
 export function entryFromFood(f, g, meal) {
   const k = g / 100;
-  return { meal, label: f.n, g, kcal: Math.round(f.kcal * k), p: +(f.p * k).toFixed(1), c: +(f.c * k).toFixed(1), f: +(f.f * k).toFixed(1) };
+  return { meal, label: f.n, g, kcal: Math.round(f.kcal * k), p: +(f.p * k).toFixed(1), c: +(f.c * k).toFixed(1), f: +(f.f * k).toFixed(1), ...(f.fib != null ? { fib: +(f.fib * k).toFixed(1) } : {}) };
 }
 export function rememberFood(f) {
   update(st => { st.recentFoods = [f, ...st.recentFoods.filter(x => x.n !== f.n)].slice(0, 12); });
