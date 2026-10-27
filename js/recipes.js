@@ -127,3 +127,9 @@ export function shoppingListPriced(items, mine = {}) {
 export function cheapProteins(mine = {}) {
   return Object.entries(ING).filter(([, v]) => v[2] >= 8).map(([k, v]) => ({ k, label: v[0], eur: priceOf(k, mine) * 100 / v[2] / 10 })).sort((a, b) => a.eur - b.eur);
 }
+
+// Recettes ajoutées par le coach (bibliothèque partagée)
+export function setCoachRecipes(list) {
+  for (let i = RECIPES.length - 1; i >= 0; i--) if (RECIPES[i].coach) RECIPES.splice(i, 1);
+  list.forEach(r => RECIPES.push({ ...r, coach: true, batch: !!r.batch, m: macros(r.ing || {}, r.portions || 1) }));
+}

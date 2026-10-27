@@ -259,8 +259,9 @@ actions["rc-open"] = (b, d) => {
 actions["rc-por"] = (b, d) => document.getElementById("sheet")?.__draw?.(+d.v);
 actions["rc-eat"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); N.addEntry({ meal: d.m, label: `${r.n} (1 portion)`, g: null, ...r.m }); closeSheet(); toast(`Ajouté au ${d.m.toLowerCase()}`); };
 actions["rc-del"] = (b, d) => { if (!confirm("Supprimer cette recette ?")) return; update(st => st.myRecipes = st.myRecipes.filter(r => r.id !== d.id)); closeSheet(); rerender(); };
-let newR = null;
-actions["rc-new"] = () => { if (!premium()) return go("offers"); newR = { n: "", cat: "Plat", e: "🍽️", portions: 2, min: 20, ing: {}, steps: "" }; recipeForm(); };
+let newR = null, nrSave = null;
+export function openRecipeEditor(onSave) { nrSave = onSave; newR = { n: "", cat: "Plat", e: "🍽️", portions: 2, min: 20, ing: {}, steps: "" }; recipeForm(); }
+actions["rc-new"] = () => { if (!premium()) return go("offers"); nrSave = null; newR = { n: "", cat: "Plat", e: "🍽️", portions: 2, min: 20, ing: {}, steps: "" }; recipeForm(); };
 function recipeForm() {
   const m = RC.macros(newR.ing, newR.portions);
   sheet(`<h2 class="h1">Ma recette</h2>
@@ -282,6 +283,7 @@ actions["nr-save"] = () => {
   if (!newR.n.trim()) return toast("Donne un nom à ta recette");
   if (!Object.keys(newR.ing).length) return toast("Ajoute au moins un ingrédient");
   const r = { id: "my-" + Date.now(), n: newR.n.trim(), cat: newR.cat, e: newR.e, min: newR.min, portions: newR.portions, ing: newR.ing, steps: newR.steps.split("\n").map(s => s.trim()).filter(Boolean), batch: newR.portions >= 3 };
+  if (nrSave) { const f = nrSave; nrSave = null; return f(r); }
   update(st => st.myRecipes = [r, ...(st.myRecipes || [])]); closeSheet(); toast("Recette enregistrée"); rcat = "mine"; rerender();
 };
 

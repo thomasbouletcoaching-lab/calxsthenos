@@ -6,7 +6,10 @@ let PROG = null, FICHES = null, LIB = null;
 export async function loadPrograms() { if (!PROG) PROG = await (await fetch("data/programs.json")).json(); return PROG; }
 export async function loadFiches() { if (!FICHES) { try { FICHES = await (await fetch("data/fiches.json")).json(); } catch { FICHES = { ex: {}, fam: {}, svg: {} }; } } return FICHES; }
 export async function loadLib() { if (!LIB) { try { LIB = await (await fetch("data/lib.json")).json(); } catch { LIB = { BASE: [] }; } } return LIB; }
-export const programs = () => [...(PROG?.P || []), ...(S().customPrograms || [])];
+// Ajouts du coach (bibliothèque partagée) : programmes, exercices, vidéos
+export const extra = { programs: [], exercises: {}, videos: {} };
+export const videoOf = (name) => extra.videos[name] || extra.exercises[name]?.video || null;
+export const programs = () => [...(PROG?.P || []), ...extra.programs.filter(p => !(PROG?.P || []).some(x => x.id === p.id)), ...(S().customPrograms || [])];
 export const program = (id) => programs().find(p => p.id === id) || null;
 export const fiches = () => FICHES;
 export const lib = () => LIB;
@@ -119,7 +122,7 @@ export function parseScheme(str) {
 
 // ---------- Exercices ----------
 const BW = /poids de corps|pompes|gainage|planche|plank|dead bug|bird dog|hollow|relev[ée] de jambes(?! .*lest)|hip airplane|stretch|étirement|copenhagen|chaise contre|superman|mobilit|respiration|90\/90|cat camel|McGill|crunch au sol|tractions(?!.*lest)|dips(?!.*lest)|muscle-up|traction australienne/i;
-const exInfo = (name) => FICHES?.ex?.[name] || (S().customExercises || []).find(x => x.n === name) || null;
+const exInfo = (name) => FICHES?.ex?.[name] || extra.exercises[name] || (S().customExercises || []).find(x => x.n === name) || null;
 export function unitOf(name, kind) {
   const x = exInfo(name); if (x?.unit) return x.unit;
   if (kind === "M") return "s";
@@ -511,12 +514,12 @@ export function alternatives(name) {
   return [...same, ...near];
 }
 export function ficheOf(name) {
-  const F = FICHES; const ex = F?.ex?.[name] || (S().customExercises || []).find(x => x.n === name); if (!ex) return null;
-  const fam = F.fam[ex.fam] || {};
-  return { name, ...ex, fam, svg: F.svg[fam.schema] || F.svg[ex.fam] || null };
+  const F = FICHES; const ex = F?.ex?.[name] || extra.exercises[name] || (S().customExercises || []).find(x => x.n === name); if (!ex) return null;
+  const fam = F?.fam?.[ex.fam] || {};
+  return { name, ...ex, fam, svg: F?.svg?.[fam.schema] || F?.svg?.[ex.fam] || null, video: videoOf(name) };
 }
-export function allExercises() { return [...new Set([...Object.keys(FICHES?.ex || {}), ...(S().customExercises || []).map(x => x.n)])].sort((a, b) => a.localeCompare(b, "fr")); }
-export const isCustomExercise = (name) => !FICHES?.ex?.[name] && (S().customExercises || []).some(x => x.n === name);
+export function allExercises() { return [...new Set([...Object.keys(FICHES?.ex || {}), ...Object.keys(extra.exercises), ...(S().customExercises || []).map(x => x.n)])].sort((a, b) => a.localeCompare(b, "fr")); }
+export const isCustomExercise = (name) => !FICHES?.ex?.[name] && !extra.exercises[name] && (S().customExercises || []).some(x => x.n === name);
 
 // ---------- Saison : macrocycle d'un an en blocs ----------
 // S().season = { start: "YYYY-MM-DD", cur: 0, blocks: [{ id, programId, weeks, focus }] }

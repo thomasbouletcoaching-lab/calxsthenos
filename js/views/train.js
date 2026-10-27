@@ -3,7 +3,7 @@ import { S, update, save, today } from "../store.js";
 import * as E from "../engine.js";
 import * as W from "../word.js";
 import { CONFIG } from "../config.js";
-import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave } from "../core.js";
+import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave, isCoach, cloud } from "../core.js";
 import { pushStats } from "../sync.js";
 import { seasonBody } from "./season.js";
 
@@ -78,7 +78,8 @@ function bankBody() {
   return `<p class="small muted mt12">Les programmes de ${esc(CONFIG.coachName)}, testés en salle. Changer de programme repart en semaine 1 ; tes charges sont conservées.</p>
     <button class="card tap mt8" data-a="go" data-r="builder" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">✏️</span><span class="grow"><b>Créer mon programme</b><br><span class="small muted">Séances, séries, RPE, techniques, temps de repos${premium() ? "" : " · Premium"}</span></span>${premium() ? I.chev : `<span class="lock">🔒</span>`}</button>
     ${mine.length ? `<h2 class="sec">Mes programmes</h2>${mine.map(pg => progCard(pg, true)).join("")}` : ""}
-    <h2 class="sec">La banque</h2>${E.programs().filter(p => !p.custom).map(pg => progCard(pg)).join("")}`;
+    ${E.extra.programs.length ? `<h2 class="sec">Nouveaux programmes de Thomas</h2>${E.extra.programs.map(pg => progCard(pg)).join("")}` : ""}
+    <h2 class="sec">La banque</h2>${E.programs().filter(p => !p.custom && !p.lib).map(pg => progCard(pg)).join("")}`;
 }
 function progCard(pg, mine = false) {
   const open = programOpen(pg.id), cur = pg.id === S().plan?.programId;
@@ -86,7 +87,7 @@ function progCard(pg, mine = false) {
     <h3 class="h3 mt8">${esc(pg.name)}</h3>${pg.prof ? `<p class="small muted mt4">${esc(pg.prof)}</p>` : ""}
     <div class="row mt8" style="gap:8px">${cur ? "" : open ? `<button class="btn btn-line btn-sm" data-a="set-program" data-id="${pg.id}">Choisir</button>` : `<button class="btn btn-line btn-sm" data-a="go" data-r="offers">Débloquer</button>`}${mine ? `<button class="btn btn-ghost btn-sm" data-a="go" data-r="builder" data-p="${pg.id}">Modifier</button>` : `<button class="btn btn-ghost btn-sm" data-a="bd-copy" data-id="${pg.id}">Personnaliser</button>`}</div></div>`;
 }
-actions["bd-copy"] = (b, d) => { const p = E.program(d.id); if (p?.custom) return go("builder", p.id); draft = null; location.hash = "#/builder/copie/" + encodeURIComponent(d.id); };
+actions["bd-copy"] = (b, d) => { const p = E.program(d.id); if (p?.custom && (S().customPrograms || []).some(x => x.id === p.id)) return go("builder", p.id); draft = null; location.hash = "#/builder/copie/" + encodeURIComponent(d.id); };
 actions["set-program"] = (b, d) => {
   if (S().current) return toast("Termine d'abord ta séance en cours.");
   if (!programOpen(d.id)) return go("offers");
@@ -198,6 +199,7 @@ routes.fiche = async () => {
   const recordE = Math.round(E.currentE1rm(f.name));
   $app.innerHTML = header("Fiche technique", "", { back }) + `<main class="page">
     <h1 class="h1 mt8" style="color:var(--red)">${esc(f.name)}</h1><p class="small muted">${esc(E.musclesOf(f.name).join(" · "))}${fam.nom ? ` · ${esc(fam.nom)}` : ""}</p>
+    ${f.video ? `<a class="btn btn-red btn-sm mt12" href="${esc(f.video)}" target="_blank" rel="noopener" style="width:100%">▶️ Voir la vidéo de Thomas</a>` : ""}
     ${recordE ? `<div class="card mt12"><div class="lbl">📈 Ton 1RM estimé</div><b class="num" style="font-size:26px">${recordE} kg</b></div>` : ""}
     <div class="card mt12">${f.setup ? `<div class="lbl">🛠️ Installation</div><p class="small mt4">${esc(f.setup)}</p>` : ""}${f.cues?.length ? `<div class="lbl mt12">🎯 Points clés</div>${block(f.cues)}` : ""}${f.note ? `<p class="small muted mt8" style="margin-bottom:0">${esc(f.note)}</p>` : ""}</div>
     ${FIELD.filter(([k]) => fam[k] && (deep || FREE_FIELDS.includes(k))).map(([k, l]) => `<div class="card mt12"><div class="lbl">${l}</div>${block(fam[k])}</div>`).join("")}
@@ -460,6 +462,7 @@ export function ficheSheet(name, backToPicker = false) {
   const li = (v) => Array.isArray(v) ? `<ul class="small" style="padding-left:18px;margin:6px 0">${v.map(x => `<li>${esc(typeof x === "string" ? x : Object.values(x).join(" : "))}</li>`).join("")}</ul>` : v ? `<p class="small" style="margin:6px 0">${esc(v)}</p>` : "";
   sheet(`${backToPicker ? `<button class="link small" data-a="pick-back">← Retour à la liste</button>` : ""}
     <h2 class="h2 mt8" style="color:var(--red)">${esc(name)}</h2><p class="small muted">${esc(E.musclesOf(name).join(" · "))} · ${esc(E.equipOf(name))}${fam.nom ? ` · ${esc(fam.nom.split("(")[0].trim())}` : ""}</p>
+    ${f?.video ? `<a class="btn btn-red btn-sm mt12" href="${esc(f.video)}" target="_blank" rel="noopener" style="width:100%">▶️ Voir la vidéo de Thomas</a>` : ""}
     ${f?.setup ? `<div class="lbl mt12">🛠️ Installation</div>${li(f.setup)}` : ""}${f?.cues?.length ? `<div class="lbl mt12">🎯 Points clés</div>${li(f.cues)}` : ""}
     ${fam.exec ? `<div class="lbl mt12">▶️ Exécution</div>${li(fam.exec)}` : ""}${fam.erreurs ? `<div class="lbl mt12">⚠️ Erreurs fréquentes</div>${li(fam.erreurs)}` : ""}${fam.resp ? `<div class="lbl mt12">🌬️ Respiration</div>${li(fam.resp)}` : ""}
     ${!f ? `<p class="small muted mt12">Exercice créé par toi.</p>` : ""}
@@ -581,8 +584,10 @@ routes.builder = async () => {
     $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page"><div class="card locked" style="min-height:300px;position:relative"><h2 class="h2">Ton programme, tes règles</h2><p class="small muted">Séances, exercices, séries une par une, top set et back-off, % du 1RM ou kg, RPE, règles de surcharge, techniques et tempo semaine par semaine.</p>${lockVeil("Bâtisseur")}</div></main>${tabbar("train")}`;
     return;
   }
+  if (R.param?.startsWith("lib/") || (R.param === "lib" && R.param2)) { const id = +(R.param2 || R.param.slice(4)), lp = E.extra.programs.find(x => x.lib === id); if (lp) { draft = JSON.parse(JSON.stringify(lp)); draft.custom = true; draft.weeks = draft.weeks || E.weeksOf(lp); } history.replaceState(null, "", "#/builder"); R.param = null; R.param2 = null; }
+  if (window.__bdPublish) { window.__bdPublish = false; draft = null; R.param = null; draft = { id: "my-" + Date.now(), custom: true, name: "Nouveau programme", lvl: "Tous niveaux", split: "", weeks: 12, deload: { every: 4 }, days: [true, false, true, false, true, false, false], s: [["Séance A", "Lundi", []]], prof: "", desc: "", publish: true }; }
   if (R.param === "copie" && R.param2) { const src = E.program(R.param2); if (src) draft = toDraft(src); history.replaceState(null, "", "#/builder"); R.param = null; }
-  if (!draft || (R.param && draft.id !== R.param)) {
+  if (!draft || (R.param && draft.id !== R.param && !draft.lib)) {
     const ex = R.param && (S().customPrograms || []).find(p => p.id === R.param);
     draft = ex ? JSON.parse(JSON.stringify(ex)) : { id: "my-" + Date.now(), custom: true, name: "Mon programme", lvl: "Perso", split: "Perso", weeks: 8, deload: { every: 4 }, days: [true, false, true, false, true, false, false], s: [["Séance A", "Lundi", []]], prof: "", desc: "Programme créé par moi." };
   }
@@ -602,6 +607,7 @@ routes.builder = async () => {
     <button class="btn btn-ghost mt12" data-a="bd-sadd">+ Ajouter une séance</button>
     <p class="xs muted mt12">Touche un exercice pour écrire ses séries, ses règles de surcharge et chaque semaine du cycle. Les charges en % se calculent sur ton 1RM estimé.</p>
     <div class="row mt12" style="gap:8px"><button class="btn btn-red grow" data-a="bd-save">Enregistrer</button><button class="btn btn-line grow" data-a="bd-use">Enregistrer et suivre</button></div>
+    ${isCoach() ? `<label class="field mt12"><span>Pour qui (affiché dans la banque)</span><input data-c="bd" data-k="prof" value="${esc(D.prof || "")}" placeholder="Ex. père de famille, 3 séances, reprise"></label><button class="btn btn-red mt8" data-a="bd-publish" style="width:100%">📤 ${D.lib ? "Mettre à jour dans la banque des membres" : "Publier dans la banque des membres"}</button>` : ""}
     ${(S().customPrograms || []).some(p => p.id === D.id) ? `<button class="btn btn-ghost mt8" data-a="bd-del" style="color:var(--red)">Supprimer ce programme</button>` : ""}
   </main>${tabbar("train")}`;
 };
@@ -714,6 +720,12 @@ function saveDraft() {
   update(st => { st.customPrograms = (st.customPrograms || []).filter(p => p.id !== draft.id); st.customPrograms.push(JSON.parse(JSON.stringify(draft))); });
   return true;
 }
+actions["bd-publish"] = async () => {
+  if (!draft.s.some(s => s[2].length)) return toast("Ajoute au moins un exercice.");
+  let k = 0; draft.days.forEach((on, i) => { if (on && draft.s[k]) draft.s[k++][1] = E.DAY_NAMES[i]; });
+  const { id, from, lib, publish, ...data } = JSON.parse(JSON.stringify(draft));
+  const c = await cloud(); try { if (lib) await c.libraryUpdate(lib, { name: draft.name, data }); else await c.libraryAdd("program", draft.name, data); const { refreshLibrary } = await import("../library.js"); await refreshLibrary(); toast(lib ? "Programme mis à jour pour tous" : "Programme publié : tes membres le voient dans la banque"); draft = null; go("admin-db"); } catch (e) { toast("Publication impossible : " + e.message); }
+};
 actions["bd-save"] = () => { if (saveDraft()) { toast("Programme enregistré"); tab = "banque"; draft = null; go("train", "banque"); } };
 actions["bd-use"] = () => {
   if (!saveDraft()) return; if (S().current) return toast("Enregistré. Termine ta séance en cours pour changer.");

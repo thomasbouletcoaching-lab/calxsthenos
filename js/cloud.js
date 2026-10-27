@@ -94,3 +94,33 @@ export async function allSummaries() {
   const { data, error } = await sb.from("member_data").select("user_id,summary,updated_at").order("updated_at", { ascending: false }).limit(500);
   if (error) throw error; return data || [];
 }
+
+// Espace coach : données privées (to-do, business, notes), bibliothèque partagée, derniers messages
+export async function storeGet(keys) {
+  const { data, error } = await sb.from("coach_store").select("key,value").in("key", keys);
+  if (error) throw error; return Object.fromEntries((data || []).map(r => [r.key, r.value]));
+}
+export async function storeSet(key, value) {
+  const { error } = await sb.from("coach_store").upsert({ key, value, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+export async function libraryAll() {
+  const { data, error } = await sb.from("library").select("id,kind,name,data,updated_at").order("id", { ascending: true }).limit(2000);
+  if (error) throw error; return data || [];
+}
+export async function libraryAdd(kind, name, data) {
+  const { data: r, error } = await sb.from("library").insert({ kind, name, data }).select("id").single();
+  if (error) throw error; return r.id;
+}
+export async function libraryUpdate(id, fields) {
+  const { error } = await sb.from("library").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+export async function libraryDel(id) { const { error } = await sb.from("library").delete().eq("id", id); if (error) throw error; }
+export async function lastMessages() {
+  const { data, error } = await sb.from("messages").select("user_id,sender,body,created_at,read_at").order("created_at", { ascending: false }).limit(2000);
+  if (error) throw error;
+  const by = {};
+  (data || []).forEach(m => { const t = by[m.user_id] = by[m.user_id] || { last: m, unread: 0, bilan: false }; if (m.sender === m.user_id && !m.read_at) { t.unread++; if (/^📝 Bilan/.test(m.body)) t.bilan = true; } });
+  return by;
+}

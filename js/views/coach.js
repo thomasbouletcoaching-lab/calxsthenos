@@ -3,11 +3,11 @@ import { S, update, today, withState } from "../store.js";
 import * as N from "../nutrition.js";
 import * as E from "../engine.js";
 import { CONFIG, OFFERS, offer } from "../config.js";
-import { $app, esc, num, fr, buzz, toast, ago, routes, R, actions, forms, go, I, header, tabbar, seg, chips, sheet, closeSheet, badges, fmtDate, addDays, rerender, tier, rank, premium, isCoach, msgQuotaText, cloud, cloudNow, render, onLeave } from "../core.js";
+import { $app, esc, num, fr, buzz, toast, ago, routes, R, actions, forms, go, I, header, tabbar, adminTabbar, seg, chips, sheet, closeSheet, badges, fmtDate, addDays, rerender, tier, rank, premium, isCoach, msgQuotaText, cloud, cloudNow, render, onLeave } from "../core.js";
 import { refreshMe, syncProfile } from "../sync.js";
 
 routes.coach = () => {
-  if (isCoach()) return adminHome();
+  if (isCoach()) return go("admin");
   const o = offer(tier());
   $app.innerHTML = header("Coach", esc(CONFIG.coachName)) + `<main class="page">
     <div class="card grad"><div class="row" style="gap:12px"><span style="width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.95);display:grid;place-items:center;flex:none;color:#151515">${I.x(28)}</span><div><div class="h2">${esc(CONFIG.coachName)}</div><div class="small" style="opacity:.85">${esc(CONFIG.coachTitle)}</div></div></div>
@@ -114,7 +114,7 @@ function msgHtml(x) {
 routes.chat = async () => {
   const memberId = isCoach() ? R.param : null;
   const m = memberId ? (window.__members || []).find(x => x.id === memberId) : null;
-  $app.innerHTML = header(memberId ? esc(m?.name || "Membre") : "Thomas", memberId ? esc(m?.email || "") : "Je réponds moi-même", { back: memberId ? "member/" + memberId : "coach" })
+  $app.innerHTML = header(memberId ? esc(m?.name || "Membre") : "Thomas", memberId ? esc(m?.email || "") : "Je réponds moi-même", { back: memberId ? "admin-msg" : "coach" })
     + `<main class="page" style="padding-bottom:calc(100px + var(--safe-b))"><div class="thread" id="thread"><p class="empty small">Chargement…</p></div>${memberId ? "" : `<p class="xs muted center">${msgQuotaText()} · touche un message pour réagir</p>`}</main>
     <form class="composer" data-f="send"><textarea name="v" rows="1" placeholder="Ton message" maxlength="2000" aria-label="Message">${esc(window.__prefill || "")}</textarea><button class="send" aria-label="Envoyer">${I.send}</button></form>`;
   window.__prefill = "";
@@ -225,10 +225,10 @@ routes.member = async () => {
   if (!isCoach()) return go("home");
   const c = await cloud();
   if (!window.__members) { try { window.__members = await c.members(); } catch { } }
-  const m = (window.__members || []).find(x => x.id === R.param); if (!m) return go("coach");
+  const m = (window.__members || []).find(x => x.id === R.param); if (!m) return go("admin");
   const o = m.onboarding || {}, ap = o.application, st = m.stats || {};
   if (mbr.id !== m.id) Object.assign(mbr, { id: m.id, tab: "jour", day: null, data: null });
-  if (!mbr.data) { $app.innerHTML = header(esc(m.name || "Membre"), "", { back: "coach" }) + `<main class="page"><p class="empty">Chargement de ses données…</p></main>`; await Promise.all([E.loadPrograms(), N.loadModels()]); try { mbr.data = (await c.memberData(m.id)) || { data: null }; } catch (e) { mbr.data = { data: null, err: e.message }; } }
+  if (!mbr.data) { $app.innerHTML = header(esc(m.name || "Membre"), "", { back: "admin" }) + `<main class="page"><p class="empty">Chargement de ses données…</p></main>`; await Promise.all([E.loadPrograms(), N.loadModels()]); try { mbr.data = (await c.memberData(m.id)) || { data: null }; } catch (e) { mbr.data = { data: null, err: e.message }; } }
   const tabs = [["jour", "☀️ Journée"], ["seances", "🏋️ Séances"], ["agenda", "🗓️ Agenda"], ["corps", "⚖️ Corps"], ["profil", "👤 Profil"]];
   const D = mbr.data.data;
   const top = `<div class="row" style="gap:8px"><a class="btn btn-red btn-sm grow" href="#/chat/${m.id}">💬 Messages${m.unread ? ` · ${m.unread}` : ""}</a>${m.email ? `<a class="btn btn-line btn-sm grow" href="mailto:${esc(m.email)}">✉️ E-mail</a>` : ""}</div>
@@ -236,11 +236,11 @@ routes.member = async () => {
     ${D ? `<p class="xs muted mt4">Données mises à jour ${ago(mbr.data.updated_at)}</p>` : ""}`;
   if (mbr.tab !== "profil") {
     const body = !D ? `<p class="empty small">${mbr.data.err ? esc(mbr.data.err) : "Pas encore de données : elles arrivent la prochaine fois que ce membre ouvre l'app (version à jour)."}</p>` : withState(D, () => mbr.tab === "jour" ? memberDay(D) : mbr.tab === "seances" ? memberSessions(D) : mbr.tab === "agenda" ? memberAgenda(D) : memberBody(D));
-    $app.innerHTML = header(esc(m.name || "Membre"), esc(D?.plan ? `${(E.program(D.plan.programId)?.name || "").split("·")[0]} · semaine ${D.plan.week}` : m.email || ""), { back: "coach" }) + `<main class="page">${top}${body}</main>${tabbar("coach")}`;
+    $app.innerHTML = header(esc(m.name || "Membre"), esc(D?.plan ? `${(E.program(D.plan.programId)?.name || "").split("·")[0]} · semaine ${D.plan.week}` : m.email || ""), { back: "admin" }) + `<main class="page">${top}${body}</main>${adminTabbar("admin")}`;
     return;
   }
   const L = { goal: "Objectif", discipline: "Discipline", level: "Niveau", place: "Lieu", days: "Jours / semaine", sex: "Sexe", age: "Âge", height: "Taille", weight: "Poids", diet: "Alimentation", activity: "Activité", backPain: "Gêne lombaire", word: "Parole", news: "Accepte les e-mails" };
-  $app.innerHTML = header(esc(m.name || "Membre"), esc(m.email || ""), { back: "coach" }) + `<main class="page">${top}
+  $app.innerHTML = header(esc(m.name || "Membre"), esc(m.email || ""), { back: "admin" }) + `<main class="page">${top}
     <h2 class="sec">Formule</h2>
     <div class="card"><div class="row" style="gap:8px"><select id="tier" class="inp grow" style="text-align:left">${OFFERS.map(x => `<option value="${x.id}" ${x.id === m.tier ? "selected" : ""}>${esc(x.name)} · ${esc(x.price)}</option>`).join("")}</select><button class="btn btn-red btn-sm" style="width:auto" data-a="set-tier" data-id="${m.id}">Valider</button></div></div>
     ${ap ? `<h2 class="sec">Candidature <small>${new Date(ap.at).toLocaleDateString("fr-FR")}</small></h2><div class="card small"><b>${esc(offer(ap.offer).name)}</b><p class="mt8"><b>Objectif :</b> ${esc(ap.goal)}</p><p><b>Frein :</b> ${esc(ap.obstacle)}</p><p><b>Temps :</b> ${esc(ap.time)} · <b>Urgence :</b> ${esc(ap.urgency)}/10</p>${ap.phone ? `<p><b>Téléphone :</b> <a href="tel:${esc(ap.phone)}">${esc(ap.phone)}</a></p>` : ""}</div>` : ""}
@@ -252,7 +252,8 @@ routes.member = async () => {
       ${Object.entries(o.records || {}).map(([k, v]) => `<div class="li"><span class="grow small muted">Record ${esc(k)}</span><span class="small"><b>${v.r} × ${E.fmtKg(v.k)} kg</b></span></div>`).join("")}</div>
     <h2 class="sec">Notification à ${esc(m.name || "ce membre")}</h2>
     <form class="card stack" data-f="notify-one" data-id="${m.id}"><label class="field"><span>Titre</span><input name="t" required maxlength="80"></label><label class="field"><span>Message</span><textarea name="b" maxlength="300"></textarea></label><button class="btn btn-red btn-sm">Envoyer</button></form>
-  </main>${tabbar("coach")}`;
+    ${A_NOTE(m.id)}
+  </main>${adminTabbar("admin")}`;
 };
 actions["set-tier"] = async (b, d) => {
   const t = document.getElementById("tier").value, c = await cloud();
@@ -317,3 +318,5 @@ function memberBody(D) {
     ${ms.length ? ms.map(m => `<div class="card mt8"><b class="small">${fmtDate(m.d, { day: "numeric", month: "long", year: "numeric" })}</b><p class="xs mt4" style="margin:0">${Object.entries(m).filter(([k]) => k !== "d" && k !== "weight").map(([k, v]) => `${L[k] || k.replace(/_l_/, " G ").replace(/_r_/, " D ").replace(/r$/, "rel.").replace(/ c$/, " contr.").replace("forearm", "Avant-bras").replace(/^arm/, "Bras").replace("thigh", "Cuisse").replace("calf", "Mollet")} ${fr(v, 1)}`).join(" · ")}</p></div>`).join("") : `<p class="small muted">Pas de mensurations.</p>`}
     <p class="xs muted mt12">Les photos restent sur le téléphone du membre : demande-lui de te les envoyer s'il le souhaite.</p>`;
 }
+
+const A_NOTE = () => "";

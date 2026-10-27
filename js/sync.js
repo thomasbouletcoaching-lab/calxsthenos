@@ -44,6 +44,17 @@ export function snapshot() {
   const summary = { today: t, session: ag ? { st: ag.st, title: ag.title } : null, inProgress: st.current ? { title: st.current.title, start: st.current.start, done: st.current.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0) } : null,
     kcal: Math.round(tot.kcal), prot: Math.round(tot.p), meals: N.dayLog(t).length, weight: D.weight || null, steps: D.steps || null, sleep: D.sleep || null, focus: D.ritual?.focus || null,
     program: ns ? ns.p.name : null, week: ns?.week || null, lastWorkout: lw ? { title: lw.title, end: lw.end } : null, workouts: st.workouts.length };
+  try {
+    const from = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10), to = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10);
+    const ag2 = E.agenda(from, to);
+    summary.agenda = Object.entries(ag2).filter(([, a]) => a.st !== "rest").map(([d, a]) => ({ d, st: a.st, title: a.title || "", time: a.time || (a.w?.[0] ? new Date(a.w[0].start).toTimeString().slice(0, 5) : null), dur: a.dur || null, place: a.place || null, moved: !!a.moved }));
+    const since = Date.now() - 7 * 864e5, w7 = st.workouts.filter(w => new Date(w.end).getTime() >= since);
+    const days7 = Array.from({ length: 7 }, (_, i) => new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+    const acts = [lw?.end?.slice(0, 10), ...Object.keys(st.food || {}).filter(k => (st.food[k] || []).length), ...Object.keys(st.daily || {}).filter(k => Object.keys(st.daily[k] || {}).length)].filter(Boolean).sort();
+    summary.s7 = { workouts: w7.length, ex: w7.reduce((a, w) => a + w.exercises.filter(e => e.sets.some(s => s.done)).length, 0), nutri: days7.filter(k => (st.food?.[k] || []).length).length };
+    summary.lastActive = acts.at(-1) || null;
+    summary.alerts = [...E.stalls().map(x => `Plateau ${x.name} (${x.weeks} sem.)`), ...E.injuryAlerts().map(a => `Douleur ${a.name}`)].slice(0, 6);
+  } catch { }
   return { data, summary };
 }
 let tmr = null, last = 0;

@@ -4,7 +4,7 @@ import { S, update, today } from "./store.js";
 let CQ = null, MODELS = null;
 export async function loadModels() { if (!MODELS) MODELS = await (await fetch("data/nutrition-models.json")).json(); return MODELS; }
 export async function loadCiqual() {
-  if (!CQ) { const j = await (await fetch("data/ciqual.json")).json(); CQ = [...j.foods, ...EXTRA].map(f => ({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], k: norm(f[0]), a: f[0].toLowerCase() })); }
+  if (!CQ) { const j = await (await fetch("data/ciqual.json")).json(); CQ = [...j.foods, ...EXTRA, ...EXTRA_COACH].map(f => ({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], k: norm(f[0]), a: f[0].toLowerCase() })); }
   return CQ;
 }
 export const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/œ/g, "oe").replace(/æ/g, "ae").replace(/['’‘`´,;.()\/-]+/g, " ").replace(/\s+/g, " ").trim();
@@ -14,6 +14,13 @@ const EXTRA = [
   ["Skyr aux fruits", "Produits laitiers", 80, 9, 10, 0.2],
   ["Protéine whey en poudre", "Compléments", 380, 75, 8, 6],
 ];
+// Aliments ajoutés par le coach (bibliothèque partagée)
+export const EXTRA_COACH = [];
+export function setCoachFoods(list) {
+  EXTRA_COACH.length = 0; list.forEach(f => EXTRA_COACH.push([f.n, f.cat || "Ajouts du coach", f.kcal, f.p, f.c, f.f]));
+  if (CQ) { CQ = CQ.filter(x => !x.coach); EXTRA_COACH.forEach(f => CQ.push({ n: f[0], cat: f[1], kcal: f[2], p: f[3], c: f[4], f: f[5], k: norm(f[0]), a: f[0].toLowerCase(), coach: true })); }
+}
+export const ciqual = () => CQ;
 // Mots ignorés et pluriels : « flocons d'avoine » trouve « Flocon d'avoine »
 const STOP = new Set(["d", "l", "de", "du", "des", "la", "le", "les", "au", "aux", "a", "et", "en", "un", "une"]);
 const stem = (t) => t.length > 3 ? t.replace(/(s|x)$/, "") : t;
