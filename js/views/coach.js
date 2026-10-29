@@ -1,3 +1,4 @@
+import { PUBLIC_OFFERS } from "../config.js";
 // Coach : messagerie (avec réactions), offres et démo, candidature, bilans, notifications, espace coach.
 import { S, update, today, withState } from "../store.js";
 import * as N from "../nutrition.js";
@@ -38,8 +39,8 @@ routes.offers = () => {
     ${trialLeft() > 0 ? `<div class="card grad"><b>🎁 Ton essai : encore ${trialLeft()} jour${trialLeft() > 1 ? "s" : ""}</b><p class="small mt4" style="margin:0">Pendant 7 jours, tout Bâtisseur est ouvert. Ensuite tu gardes le Gratuit, ou tu continues avec Bâtisseur.</p></div>` : `<div class="card grad"><b>🎁 7 jours d'essai de l'app complète</b><p class="small mt4" style="margin:0">Chaque nouveau compte essaie Bâtisseur gratuitement pendant 7 jours.</p></div>`}
     <div class="card soft mt12"><b>✝ La Parole reste gratuite, pour toujours.</b><p class="small muted mt4" style="margin:0">Le journal du bâtisseur, les défis, Le Rocher et la Bible ne sont dans aucune offre payante.</p></div>
     <h2 class="sec">Comparer</h2>
-    <div class="card" style="padding:6px"><table class="cmp"><thead><tr><th></th><th>Gratuit</th><th>Bâtis&shy;seur</th><th>Frater&shy;nité</th><th>Coa&shy;ching</th></tr></thead><tbody>${COMPARE.map(r => `<tr><td>${esc(r[0])}</td>${r.slice(1).map(c => `<td class="${c === "–" ? "muted" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
-    ${OFFERS.map(o => `<div class="offer ${o.id === cur ? "cur" : ""} mt16">${o.id === cur ? `<span class="ribbon">Ta formule</span>` : o.ribbon ? `<span class="ribbon">${esc(o.ribbon)}</span>` : ""}
+    <div class="card" style="padding:6px"><table class="cmp"><thead><tr><th></th><th>Gratuit</th><th>Bâtis&shy;seur</th><th>Coa&shy;ching</th></tr></thead><tbody>${COMPARE.map(r => `<tr><td>${esc(r[0])}</td>${r.filter((_, i) => i !== 3).slice(1).map(c => `<td class="${c === "–" ? "muted" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    ${PUBLIC_OFFERS.map(o => `<div class="offer ${o.id === cur ? "cur" : ""} mt16">${o.id === cur ? `<span class="ribbon">Ta formule</span>` : o.ribbon ? `<span class="ribbon">${esc(o.ribbon)}</span>` : ""}
       <div class="row between" style="align-items:flex-end"><div><div class="h2">${esc(o.name)}</div><div class="small muted">${esc(o.tagline)}</div></div><div class="price" style="text-align:right;white-space:nowrap">${esc(o.price)}<small>${esc(o.per)}</small></div></div>
       ${o.alt ? `<div class="small red mt4" style="text-align:right">${esc(o.alt)}</div>` : ""}${o.was ? `<div class="small mt4" style="text-align:right"><span class="muted">au lieu de <s>${esc(o.was)}</s></span></div>` : ""}
       <ul>${o.feats.map(f => `<li>${I.check}<span>${esc(f)}</span></li>`).join("")}<li>${I.check}<span>${esc(o.msgs)}</span></li></ul>

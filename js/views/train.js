@@ -41,7 +41,7 @@ routes.carnet = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
   const ns = E.nextSession();
   const body = carnetMain === "progres" ? statsBody() : carnetTab === "faites" ? historyBody() : programBody(ns);
-  $app.innerHTML = header("Carnet", ns ? `Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : "") + `<main class="page"><div class="mt12">${seg([["seances", "Séances"], ["progres", "Progrès"]], carnetMain, "carnet-main")}</div>
+  $app.innerHTML = header("Carnet", ns ? `Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : "") + `<main class="page"><div class="mt12">${seg([["seances", "Séances"], ["progres", "Progrès"]], carnetMain, "carnet-main")}</div><button class="link small mt8" data-a="go" data-r="train">🧰 Programmes, banque et outils →</button>
     ${carnetMain === "seances" ? `<div class="mt8">${chips([["remplir", "✍️ À remplir"], ["faites", "✅ Séances faites"]], carnetTab, "carnet-tab")}</div>` : ""}${body}</main>${tabbar("carnet")}`;
 };
 actions["carnet-main"] = (b, d) => { carnetMain = d.v; rerender(false); window.scrollTo(0, 0); };

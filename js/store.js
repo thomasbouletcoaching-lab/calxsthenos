@@ -13,7 +13,7 @@ const blank = () => ({
   measures: [],           // { d, weight, waist, hips, chest, arm, thigh }
   application: null,      // candidature coaching
   swaps: {},              // exercice d'origine -> remplaçant choisi
-  settings: { word: "daily", haptics: true },
+  settings: { word: "discreet", haptics: true },
   favorites: [],          // ids de versets et d'affirmations
   me: { tier: "free", isCoach: false, msgsLeft: null }, // dernier état connu du serveur
   demoTier: null,         // aperçu d'une formule
@@ -35,6 +35,7 @@ const blank = () => ({
   budget: { weekly: null, people: 1 }, // budget courses (Premium)
   receipts: [],           // tickets de caisse { id, d, shop, amount }
   prices: {},             // prix personnels { ingrédient: €/kg }
+  crises: [],             // « Je craque » : notes { d, note }
 });
 
 let state;

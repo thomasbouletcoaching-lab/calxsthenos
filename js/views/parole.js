@@ -37,7 +37,7 @@ routes.word = async () => {
       ${W.AFFIRMATIONS.filter(a => a.cat === affCat).map(a => `<div class="card mt8"><div class="row" style="align-items:flex-start"><p class="affirm grow" style="font-size:22px">${esc(a.t)}</p>${heartBtn(a.id)}</div><div class="aref">${esc(a.ref)}</div>${readBtn(a.ref)}</div>`).join("")}`;
   else body = favBody();
   const TABS = [["jour", "☀️ Aujourd'hui"], ["journal", "📓 Mon journal"], ["defis", "🔥 Défis"], ["rocher", "🪨 Le Rocher"], ["affirm", "📜 Vérités"], ["favoris", "❤️ Favoris"], ...(tab === "bible" ? [["bible", "📖 Bible"]] : [])];
-  $app.innerHTML = header("Parole", "Pour l'âme et l'esprit · gratuit, pour toujours") + `<main class="page">${chips(TABS, tab, "word-tab")}${body}</main>${tabbar("word")}`;
+  $app.innerHTML = header("Esprit", "Pour l'âme et l'esprit · gratuit, pour toujours") + `<main class="page">${chips(TABS, tab, "word-tab")}${body}</main>${tabbar("word")}`;
   if (tab === "bible") afterBible();
 };
 actions["word-tab"] = (b, d) => { tab = d.v; R.param = d.v; history.replaceState(null, "", "#/word/" + d.v); rerender(false); window.scrollTo(0, 0); };

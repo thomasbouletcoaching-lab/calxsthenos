@@ -18,7 +18,7 @@ export const OFFERS = [
   { id: "free", rank: 0, name: "Gratuit", price: "0 €", per: "", msgs: "2 messages par semaine avec Thomas",
     tagline: "La Parole et l'essentiel, pour toujours.",
     feats: ["Toute la Parole : journal du bâtisseur, défis de 7 jours, Le Rocher, vérités, Bible", "Apprendre : tous les chapitres de base", "Journal alimentaire : calories, macros, fibres, base Ciqual et produits de marque", "Carnet de séance, minuteur, séances libres", "6 programmes complets : reprise, débutant salle, maison, dos, street workout"] },
-  { id: "premium", rank: 1, name: "Bâtisseur", price: "19,99 €", per: "/mois", alt: "ou 119,99 € par an", msgs: "5 messages par semaine",
+  { id: "premium", rank: 1, name: "Bâtisseur", price: "14,99 €", per: "/mois", alt: "ou 119 € par an, soit 2 mois offerts", msgs: "5 messages par semaine",
     tagline: "L'app complète, pour avancer seul avec ma méthode.", ribbon: "7 jours d'essai offerts",
     feats: ["Tout le Gratuit", "Les 111 programmes (salle, maison, street, force, femmes, parents, santé) et les cycles de 12 semaines", "Charges calculées et surcharge progressive selon ton RPE, alertes plateau et blessure", "Plan alimentaire selon ton profil, ton régime et ton nombre de repas, modifiable au gramme", "Recettes, batch cooking, liste de courses et budget par magasin", "Vitamines, minéraux et compléments : ce qu'il te faut, à quelle dose", "Bilan énergétique, statistiques, photos et mensurations", "Créer et modifier tes propres programmes"],
     pay: { month: "", year: "" } },
@@ -28,8 +28,8 @@ export const OFFERS = [
   { id: "suivi", rank: 3, name: "Coaching Essentiel", price: "99 €", per: "/mois", msgs: "20 messages par semaine",
     tagline: "Ton programme et ton plan, écrits pour toi.",
     feats: ["Tout Fraternité", "Programme 100 % sur mesure : ta semaine, ta salle ou ta maison", "Plan alimentaire selon tes goûts et ton budget de courses", "Bilan chaque semaine, ajustements chaque mois", "Réponse sous 24 h"] },
-  { id: "avance", rank: 4, name: "Coaching Proximité", price: "249 €", per: "/mois", msgs: "50 messages par semaine",
-    tagline: "Je corrige, j'ajuste et je te suis de près.", ribbon: "Le plus choisi",
+  { id: "avance", rank: 4, name: "Coaching personnalisé", price: "Sur candidature", per: "", msgs: "Messages avec Thomas, réponse sous 24 h",
+    tagline: "Ton programme et ta technique, suivis de près par Thomas.", ribbon: "Sur candidature",
     feats: ["Tout le Coaching Essentiel", "Corrections vidéo illimitées", "Ajustements chaque semaine", "Un appel visio de 30 min par mois", "Accompagnement corps, âme et esprit"] },
   { id: "surmesure", rank: 5, name: "Coaching Élite", price: "339 €", per: "/mois", msgs: "Messages et vocaux illimités, réponse prioritaire",
     tagline: "Le mentorat complet. Je ne prends que 5 hommes à la fois.",
@@ -42,6 +42,9 @@ export const COMPARE = [
   ["Micronutriments et compléments", "–", "✓", "✓", "✓"], ["Stats, photos, bilan énergétique", "–", "✓", "✓", "✓"], ["Groupe, live, corrections vidéo", "–", "–", "✓", "✓"],
   ["Connaissances version experte", "–", "–", "✓", "✓"], ["Bilans par Thomas", "–", "–", "Mensuel", "Hebdo"], ["Messages / semaine", "2", "5", "10", "20+"],
 ];
+// Ce qui est proposé à la vente dans l'app : Gratuit, Bâtisseur, et le coaching personnalisé sur candidature.
+// Les autres formules restent dans la base (le coach peut les attribuer) mais ne sont plus affichées.
+export const PUBLIC_OFFERS = OFFERS.filter(o => ["free", "premium", "avance"].includes(o.id));
 export const offer = (id) => OFFERS.find(o => o.id === id) || OFFERS[0];
 export const MSGS_PER_WEEK = { free: 2, premium: 5, essentiel: 10, suivi: 20, avance: 50, surmesure: null };
 // Programmes accessibles sans Premium

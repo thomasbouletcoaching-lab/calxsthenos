@@ -99,6 +99,33 @@ function progressCard() {
     <div class="card"><div class="lbl">🏋️ Séances par semaine</div><div class="mt8">${barChart(wk.map(w => ({ v: w.count, l: `${w.start.getDate()}/${w.start.getMonth() + 1}` })))}</div></div>`;
 }
 
+// Triade de discipline : corps, nutrition, foi. Une journée compte dans la série dès 2 piliers sur 3.
+export function triade(d = today()) {
+  const st = E.agenda(d, d)[d]?.st;
+  const corps = st === "done" || st === "rest" || st === "away";
+  const t = N.targets(), p = N.dayTotals(d).p || 0;
+  const nutriFrac = t?.prot ? Math.min(1, p / t.prot) : 0;
+  const nutri = nutriFrac >= .9;
+  const foi = !!S().daily[d]?.ritual?.verse;
+  return { corps, nutri, nutriFrac, foi, score: [corps, nutri, foi].filter(Boolean).length };
+}
+function triadeStreak() {
+  let n = 0, k = today();
+  if (triade(k).score < 2) k = addDays(k, -1);
+  while (triade(k).score >= 2 && n < 366) { n++; k = addDays(k, -1); }
+  return n;
+}
+function triadeCard() {
+  const x = triade(today()), s = triadeStreak();
+  const item = (ico, label, on, frac, col) => `<div><div class="mini"><svg viewBox="0 0 66 66">${ring(frac, 66, 7, col)}</svg><b>${on ? "✓" : Math.round(frac * 100) + "%"}</b></div><div class="v">${ico} ${label}</div></div>`;
+  return `<div class="card"><div class="row between"><div class="lbl">✝ Triade de discipline</div><span class="xs muted">${s ? `🔥 Série : ${s} jour${s > 1 ? "s" : ""}` : "Série à démarrer"}</span></div>
+    <div class="minis mt8">${item("🏋️", "Corps", x.corps, x.corps ? 1 : 0, "#B3263A")}${item("🍽️", "Nutrition", x.nutri, x.nutriFrac, "#E0A93B")}${item("🙏", "Foi", x.foi, x.foi ? 1 : 0, "#4F5D2A")}</div>
+    <p class="xs muted mt8" style="margin:8px 0 0">2 piliers sur 3 suffisent pour compter le jour. Un écart n'efface rien : tu reprends le lendemain.</p></div>`;
+}
+function quickActions() {
+  return `<div class="row mt12" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="go" data-r="food">🍽️ Ajouter un repas</button><button class="btn btn-line btn-sm grow" data-a="go" data-r="carnet">🏋️ Séance</button><button class="btn btn-red btn-sm grow" data-a="go" data-r="crise">🆘 Je craque</button></div>`;
+}
+
 routes.home = async () => {
   await Promise.all([N.loadModels(), E.loadPrograms()]);
   const pr = S().profile; const d = homeDay || today();
@@ -115,6 +142,7 @@ routes.home = async () => {
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
     ${d === today() && sabbatOn() ? sabbatCard() : ""}
+    ${d === today() ? triadeCard() + quickActions() : ""}
     ${d === today() ? ritualCard() : ""}
     ${d === today() ? eveningCard() : ""}
     ${trainingCard(d)}

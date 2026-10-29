@@ -15,9 +15,9 @@ routes.profile = async () => {
     <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(S().me?.tier || "free").name)}</span><button class="link" data-a="go" data-r="offers">Changer</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
     ${ALL_FREE ? `<div class="card mt12"><div class="lbl">🧪 Phase de test</div><p class="small mt4" style="margin-bottom:8px">Toutes les fonctionnalités sont ouvertes pour l'instant. Pour voir l'app exactement comme un abonné de chaque formule (avec les cadenas), choisis-en une :</p>
       <div class="chips wrap">${OFFERS.map(o => `<button class="chip ${S().demoTier === o.id ? "on" : ""}" data-a="demo" data-v="${o.id}">${esc(o.name)}</button>`).join("")}${S().demoTier ? `<button class="chip" data-a="demo-exit">Tout ouvrir</button>` : ""}</div></div>` : ""}
-    <h2 class="sec">✝ La Parole dans l'app</h2>
-    ${seg([["daily", "Chaque jour"], ["discreet", "Accueil seul"], ["off", "Pause"]], w, "word-set")}
-    <p class="xs muted mt8">La Bible reste toujours accessible dans l'onglet Parole.</p>
+    <h2 class="sec">🕊️ Dimension spirituelle</h2>
+    ${seg([["daily", "Active"], ["discreet", "Discrète"], ["off", "Désactivée"]], w, "word-set")}
+    <p class="xs muted mt8">La Bible reste toujours accessible dans l'onglet Esprit.</p>
     <h2 class="sec">⚙️ Réglages</h2>
     <div class="list">
       <button class="li" data-a="edit-body"><span class="em">🔥</span><span class="grow">Mes infos et mon carburant<br><span class="xs muted">${t ? `${fr(t.kcal)} kcal · ${esc(t.model.name)}` : ""}</span></span>${I.chev}</button>
