@@ -393,9 +393,20 @@ actions["rc-open"] = (b, d) => {
     <ul id="ring" class="small" style="padding-left:18px"></ul>
     <b>Préparation</b><ol class="small" style="padding-left:18px">${r.steps.map(s => `<li style="margin-bottom:6px">${esc(s)}</li>`).join("")}</ol>
     <div class="lbl mt12">Ajouter 1 portion au journal</div><div class="chips wrap mt8">${N.MEALS.map(m => `<button class="chip" data-a="rc-eat" data-id="${r.id}" data-m="${m}">${m}</button>`).join("")}</div>
+    <div class="card soft mt12"><div class="lbl">⚖️ Plat entier pesé : ma part au poids</div><p class="xs muted" style="margin:4px 0 8px">Grosse préparation pour la famille ? Pèse le plat cuit en entier une fois, puis ta part : l'app calcule ta part des macros du plat entier.</p>
+      <div class="grid2"><label class="field"><span>Plat cuit entier (g)</span><input id="rc-tot" inputmode="decimal" value="${r.cookedG ? fr(r.cookedG) : ""}" placeholder="ex. 3500"></label><label class="field"><span>Ma part (g)</span><input id="rc-part" inputmode="decimal" placeholder="ex. 300"></label></div>
+      <div id="rc-calc" class="small mt8"></div><div class="chips wrap mt8">${N.MEALS.map(m => `<button class="chip" data-a="rc-eatg" data-id="${r.id}" data-m="${m}">${m}</button>`).join("")}</div></div>
     <div class="row mt12" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="bt-add" data-id="${r.id}">🥡 Ajouter au batch</button>${r.mine ? `<button class="btn btn-ghost btn-sm" data-a="rc-del" data-id="${r.id}" style="color:var(--red)">Supprimer</button>` : ""}</div>`, (w) => { draw(w); w.__draw = (n) => { por = Math.max(1, por + n); draw(w); }; });
 };
 actions["rc-por"] = (b, d) => document.getElementById("sheet")?.__draw?.(+d.v);
+// Part au poids d'un plat entier : (ma part / poids cuit total) × macros de toute la recette
+const partOf = (r) => { const tot = num(document.getElementById("rc-tot")?.value), part = num(document.getElementById("rc-part")?.value); if (!(tot > 0 && part > 0)) return null; const k = part / tot * r.portions; return { tot, part, kcal: Math.round(r.m.kcal * k), p: +(r.m.p * k).toFixed(1), c: +(r.m.c * k).toFixed(1), f: +(r.m.f * k).toFixed(1) }; };
+document.addEventListener("input", (e) => { if (!["rc-tot", "rc-part"].includes(e.target.id)) return; const id = document.querySelector('[data-a="rc-eatg"]')?.dataset.id, r = allRecipes().find(x => x.id === id), box = document.getElementById("rc-calc"); if (!r || !box) return; const x = partOf(r); box.innerHTML = x ? `Ta part : <b>${fr(x.kcal)} kcal</b> · P ${fr(x.p)} g · G ${fr(x.c)} g · L ${fr(x.f)} g <span class="xs muted">(${fr(Math.round(x.part / x.tot * 100))} % du plat)</span>` : ""; });
+actions["rc-eatg"] = (b, d) => {
+  const r = allRecipes().find(x => x.id === d.id), x = partOf(r); if (!x) return toast("Indique le poids du plat entier et ta part");
+  if (r.mine) update(st => { const m = (st.myRecipes || []).find(y => y.id === r.id); if (m) m.cookedG = x.tot; });
+  N.addEntry({ meal: d.m, label: `${r.n} (${fr(x.part)} g)`, g: x.part, kcal: x.kcal, p: x.p, c: x.c, f: x.f }); closeSheet(); toast(`Ajouté au ${d.m.toLowerCase()}`);
+};
 actions["rc-eat"] = (b, d) => { const r = allRecipes().find(x => x.id === d.id); N.addEntry({ meal: d.m, label: `${r.n} (1 portion)`, g: null, ...r.m }); closeSheet(); toast(`Ajouté au ${d.m.toLowerCase()}`); };
 actions["rc-del"] = (b, d) => { if (!confirm("Supprimer cette recette ?")) return; update(st => st.myRecipes = st.myRecipes.filter(r => r.id !== d.id)); closeSheet(); rerender(); };
 let newR = null, nrSave = null;
@@ -407,7 +418,7 @@ function recipeForm() {
     <label class="field mt12"><span>Nom</span><input value="${esc(newR.n)}" data-c="nr" data-k="n" maxlength="60" placeholder="Ex. Poulet coco du dimanche"></label>
     <div class="grid3 mt8"><label class="field"><span>Catégorie</span><select data-c="nr" data-k="cat">${RC.CATS.map(c => `<option ${c === newR.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label><label class="field"><span>Portions</span><input inputmode="numeric" value="${newR.portions}" data-c="nr" data-k="portions"></label><label class="field"><span>Minutes</span><input inputmode="numeric" value="${newR.min}" data-c="nr" data-k="min"></label></div>
     <div class="lbl mt12">Emoji</div><div class="chips wrap mt8">${["🍽️", "🍗", "🥩", "🐟", "🥚", "🍝", "🍚", "🥗", "🍲", "🥣", "🥞", "🍰"].map(e => `<button class="chip ${newR.e === e ? "on" : ""}" data-a="nr-e" data-v="${e}">${e}</button>`).join("")}</div>
-    <div class="lbl mt12">Ingrédients (poids total, pesés cuits)</div>
+    <div class="lbl mt12">Ingrédients (poids total mis dans la préparation)</div><p class="xs muted" style="margin:2px 0 0">Pèse ce que tu mets : pâtes crues si tu choisis « pâtes crues », etc. Pour un plat familial, mets tout, puis pèse le plat cuit au moment de servir.</p>
     ${Object.entries(newR.ing).map(([k, g]) => `<div class="row between small mt8"><span>${g} g ${esc(RC.ingLabel(k))}</span><button class="icon-btn" data-a="nr-del" data-k="${k}" aria-label="Retirer">${I.close}</button></div>`).join("") || `<p class="xs muted">Aucun ingrédient.</p>`}
     <div class="search mt8">${I.search}<input id="nrq" placeholder="Ajouter un aliment : riz, poulet, une marque…" autocomplete="off"></div><div id="nrr"></div>
     <div class="card soft mt12 center"><b>${m.kcal} kcal</b> · ${m.p} g P · ${m.c} g G · ${m.f} g L <span class="xs muted">par portion</span></div>
