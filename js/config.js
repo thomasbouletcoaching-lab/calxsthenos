@@ -18,7 +18,7 @@ export const OFFERS = [
   { id: "free", rank: 0, name: "Gratuit", price: "0 €", per: "", msgs: "Messages avec Thomas réservés aux coachés",
     tagline: "L'essentiel, pour toujours.",
     feats: ["Apprendre : tous les chapitres de base", "Journal alimentaire : calories, macros, fibres, base Ciqual et produits de marque", "Carnet de séance, minuteur, séances libres", "6 programmes complets : reprise, débutant salle, maison, dos, street workout"] },
-  { id: "premium", rank: 1, name: "Bâtisseur", price: "14,99 €", per: "/mois", alt: "ou 99,99 € par an, soit 5 mois offerts", msgs: "5 messages par semaine",
+  { id: "premium", rank: 1, name: "Bâtisseur", price: "14,99 €", per: "/mois", alt: "ou 99,99 € par an, soit 5 mois offerts", msgs: "Messages avec Thomas : avec le coaching",
     tagline: "L'app complète, pour avancer seul avec ma méthode.", ribbon: "7 jours d'essai offerts",
     feats: ["Tout le Gratuit", "Les 111 programmes (salle, maison, street, force, femmes, parents, santé) et les cycles de 12 semaines", "Charges calculées et surcharge progressive selon ton RPE, alertes plateau et blessure", "Plan alimentaire selon ton profil, ton régime et ton nombre de repas, modifiable au gramme", "Recettes, batch cooking, liste de courses et budget par magasin", "Vitamines, minéraux et compléments : ce qu'il te faut, à quelle dose", "Bilan énergétique, statistiques, photos et mensurations", "Créer et modifier tes propres programmes"],
     pay: { month: "", year: "" } },
@@ -40,13 +40,13 @@ export const COMPARE = [
   ["Apprendre (chapitres de base)", "✓", "✓", "✓", "✓"], ["Journal alimentaire et carnet", "✓", "✓", "✓", "✓"],
   ["Programmes", "6", "111", "111", "Sur mesure"], ["Surcharge progressive automatique", "–", "✓", "✓", "✓"], ["Plan alimentaire, recettes, courses", "–", "✓", "✓", "Sur mesure"],
   ["Micronutriments et compléments", "–", "✓", "✓", "✓"], ["Stats, photos, bilan énergétique", "–", "✓", "✓", "✓"], ["Groupe, live, corrections vidéo", "–", "–", "✓", "✓"],
-  ["Connaissances version experte", "–", "–", "✓", "✓"], ["Bilans par Thomas", "–", "–", "Mensuel", "Hebdo"], ["Messages / semaine", "–", "5", "10", "20+"],
+  ["Connaissances version experte", "–", "–", "✓", "✓"], ["Bilans par Thomas", "–", "–", "Mensuel", "Hebdo"], ["Messages avec Thomas", "–", "–", "10 / sem.", "20+ / sem."],
 ];
 // Ce qui est proposé à la vente dans l'app : Gratuit, Bâtisseur, et le coaching personnalisé sur candidature.
 // Les autres formules restent dans la base (le coach peut les attribuer) mais ne sont plus affichées.
 export const PUBLIC_OFFERS = OFFERS.filter(o => ["free", "premium", "avance"].includes(o.id));
 export const offer = (id) => OFFERS.find(o => o.id === id) || OFFERS[0];
-export const MSGS_PER_WEEK = { free: 0, premium: 5, essentiel: 10, suivi: 20, avance: 50, surmesure: null };
+export const MSGS_PER_WEEK = { free: 0, premium: 0, essentiel: 10, suivi: 20, avance: 50, surmesure: null };
 // Programmes accessibles sans Premium
 // Phase de test : toutes les fonctionnalités sont ouvertes à tous (les offres restent visibles pour le coaching)
 export const ALL_FREE = true;

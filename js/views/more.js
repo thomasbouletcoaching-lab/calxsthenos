@@ -4,37 +4,93 @@ import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as W from "../word.js";
 import { CONFIG, offer, OFFERS, ALL_FREE } from "../config.js";
-import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, expert, render, rerender } from "../core.js";
+import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, expert, render, rerender, barChart } from "../core.js";
 import { syncProfile } from "../sync.js";
 import { ONB_STEPS, resetOnboarding } from "./onboarding.js";
 
+// ---------- Profil (façon Hevy) : en-tête crayon + réglages, graphiques, tableau de bord ----------
+let pStat = "dur";
+const monday = (d = new Date()) => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
+// Chiffres par semaine : durée (min), volume (kg), répétitions, exercices
+export function weeklyStats(n = 12) {
+  const m0 = monday(), out = [];
+  for (let k = n - 1; k >= 0; k--) {
+    const a = new Date(m0); a.setDate(a.getDate() - 7 * k); const b = new Date(a); b.setDate(b.getDate() + 7);
+    const ws = S().workouts.filter(w => w.end && new Date(w.end) >= a && new Date(w.end) < b);
+    let dur = 0, vol = 0, reps = 0, exos = 0;
+    ws.forEach(w => {
+      dur += Math.max(0, Math.round((new Date(w.end) - new Date(w.start)) / 6e4));
+      vol += w.volume || 0;
+      (w.exercises || []).forEach(ex => { const done = (ex.sets || []).filter(s => s.done && s.type !== "W"); if (done.length) exos++; done.forEach(s => { if (ex.unit !== "s") reps += s.reps || 0; }); });
+    });
+    out.push({ l: `${String(a.getDate()).padStart(2, "0")}/${String(a.getMonth() + 1).padStart(2, "0")}`, dur, vol, reps, exos, n: ws.length });
+  }
+  return out;
+}
+const STATS = [["dur", "Durée", (v) => v >= 60 ? `${fr(v / 60, 1)} h` : `${v} min`], ["vol", "Volume", (v) => v >= 1000 ? `${fr(v / 1000, 1)} t` : `${v} kg`], ["reps", "Reps", (v) => String(v)], ["exos", "Exercices", (v) => String(v)]];
 routes.profile = async () => {
+  await Promise.all([N.loadModels(), E.loadPrograms()]);
+  const p = S().profile, ws = S().workouts, wk = weeklyStats(12), cur = wk.at(-1);
+  const st = STATS.find(x => x[0] === pStat) || STATS[0];
+  const total = wk.reduce((a, w) => a + w[pStat], 0);
+  const recs = Object.keys(S().lifts || {}).length;
+  const tile = (r, ic, l, sub = "") => `<button class="tile" data-a="go" data-r="${r}"><span class="tile-ic">${ic}</span><span><b>${l}</b>${sub ? `<br><span class="xs muted">${sub}</span>` : ""}</span></button>`;
+  const acts = `<button class="pill ic" data-a="edit-body" aria-label="Modifier mon profil">${I.pen}</button><button class="pill ic" data-a="go" data-r="settings" aria-label="Réglages">${I.gear}</button>`;
+  const last = [...ws].reverse().slice(0, 3);
+  $app.innerHTML = header("Profil", "", { actions: acts, offers: false }) + `<main class="page">
+    <div class="card mt12"><div class="row" style="gap:14px"><span class="avatar">${esc((p.name || "?")[0].toUpperCase())}</span><div class="grow"><b class="h2">${esc(p.name)}</b><div class="small muted">${esc(offer(S().me?.tier || "free").name)} · ${p.age} ans · ${p.height} cm · ${E.fmtKg(S().daily?.[today()]?.weight || p.weight)} kg</div></div></div>
+      <div class="minis mt12"><div><div class="v">${ws.length}</div><div class="l">entraînements</div></div><div><div class="v">${recs}</div><div class="l">exercices suivis</div></div><div><div class="v">${E.streakWeeks()}</div><div class="l">semaines de série</div></div></div></div>
+    ${rank() < 1 ? `<button class="card tap grad mt12" data-a="go" data-r="offers" style="display:flex;gap:12px;align-items:center;text-align:left;width:100%"><span style="font-size:28px">🚀</span><span class="grow"><b>Passe au Bâtisseur</b><br><span class="small" style="opacity:.9">Charges calculées, plan alimentaire, stats complètes · 7 jours offerts</span></span>${I.chev}</button>` : ""}
+    <div class="card mt12"><div class="row between"><b>${st[2](cur[pStat])} <span class="small muted" style="font-weight:500">cette semaine</span></b><span class="xs muted">12 dernières semaines</span></div>
+      <div class="mt8">${barChart(wk.map(w => ({ l: w.l.slice(0, 2), v: w[pStat] })), { fmt: (v) => pStat === "vol" ? (v >= 1000 ? fr(v / 1000, 1) + "t" : Math.round(v)) : pStat === "dur" ? (v >= 60 ? fr(v / 60, 1) + "h" : v) : v })}</div>
+      <div class="chips mt8">${STATS.map(([k, l]) => `<button class="chip ${k === pStat ? "on" : ""}" data-a="p-stat" data-v="${k}">${l}</button>`).join("")}</div>
+      <p class="xs muted mt8" style="margin-bottom:0">Total sur 12 semaines : <b>${st[2](total)}</b> · ${wk.reduce((a, w) => a + w.n, 0)} séances</p></div>
+    <h2 class="sec">Tableau de bord</h2>
+    <div class="tiles">
+      ${tile("train/stats", I.chart, "Statistiques", "Volume par muscle, séances")}
+      ${tile("simu", "🏆", "Exercices et records", "1RM, toutes tes charges")}
+      ${tile("body", "📏", "Mesures et photos", "Poids, mensurations")}
+      ${tile("home/month", I.cal, "Calendrier", "Jour, semaine, mois, année")}
+      ${tile("moncorps", "🔥", "Mon corps", "Déficit, dépense, projection")}
+      ${tile("train/saison", "🎯", "Objectifs et cycles", "Charges visées, blocs")}
+    </div>
+    <h2 class="sec">Entraînements</h2>
+    ${last.length ? `<div class="list">${last.map(w => `<button class="li" data-a="ag-day" data-v="${today(new Date(w.end))}"><span class="em">🏋️</span><span class="grow"><b>${esc(w.title)}</b><br><span class="xs muted">${new Date(w.end).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" })} · ${Math.round((new Date(w.end) - new Date(w.start)) / 6e4)} min · ${fr((w.volume || 0) / 1000, 1)} t</span></span>${I.chev}</button>`).join("")}</div>` : `<p class="empty small">Ta première séance apparaîtra ici.</p>`}
+  </main>${tabbar("profile")}`;
+};
+actions["p-stat"] = (b, d) => { pStat = d.v; rerender(); };
+
+// ---------- Réglages (roue en haut du profil) ----------
+routes.settings = async () => {
   await N.loadModels();
-  const p = S().profile, t = N.targets(), w = S().settings.word;
-  $app.innerHTML = header(esc(p.name), `${p.age} ans · ${p.height} cm · ${E.fmtKg(p.weight)} kg`, { back: "home" }) + `<main class="page">
-    <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(S().me?.tier || "free").name)}</span><button class="link" data-a="go" data-r="offers">Changer</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
-    ${ALL_FREE ? `<div class="card mt12"><div class="lbl">🧪 Phase de test</div><p class="small mt4" style="margin-bottom:8px">Toutes les fonctionnalités sont ouvertes pour l'instant. Pour voir l'app exactement comme un abonné de chaque formule (avec les cadenas), choisis-en une :</p>
-      <div class="chips wrap">${OFFERS.map(o => `<button class="chip ${S().demoTier === o.id ? "on" : ""}" data-a="demo" data-v="${o.id}">${esc(o.name)}</button>`).join("")}${S().demoTier ? `<button class="chip" data-a="demo-exit">Tout ouvrir</button>` : ""}</div></div>` : ""}
-    <h2 class="sec">⚙️ Réglages</h2>
+  const p = S().profile, t = N.targets();
+  $app.innerHTML = header("Réglages", "", { back: "profile" }) + `<main class="page">
+    <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(S().me?.tier || "free").name)}</span><button class="link" data-a="go" data-r="offers">Voir les offres</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
+    <h2 class="sec">Profil et objectifs</h2>
     <div class="list">
-      <button class="li" data-a="edit-body"><span class="em">🔥</span><span class="grow">Mes infos et mon carburant<br><span class="xs muted">${t ? `${fr(t.kcal)} kcal · ${esc(t.model.name)}` : ""}</span></span>${I.chev}</button>
-      <button class="li" data-a="go" data-r="simu"><span class="em">🏆</span><span class="grow">Mes records (1RM)</span>${I.chev}</button>
-      <button class="li" data-a="go" data-r="kb"><span class="em">📚</span><span class="grow">Connaissances</span>${I.chev}</button>
+      <button class="li" data-a="edit-body"><span class="em">✏️</span><span class="grow">Mes infos et mon carburant<br><span class="xs muted">${t ? `${fr(t.kcal)} kcal · ${esc(t.model.name)}` : ""}</span></span>${I.chev}</button>
+      <div class="li"><span class="em">🥩</span><span class="grow">Suivi simple : calories et protéines<br><span class="xs muted">Masque glucides, lipides et micronutriments</span></span><button class="switch ${S().settings.simpleNutri ? "on" : ""}" data-a="simple-nutri" aria-label="Suivi simple"></button></div>
       <div class="li"><span class="em">📊</span><span class="grow">Afficher les % et l'e1RM dans le carnet</span><button class="switch ${S().settings.adv ?? p.level === "advanced" ? "on" : ""}" data-a="adv-toggle" aria-label="Mode avancé"></button></div>
-      <div class="li"><span class="em">🕊️</span><span class="grow">Jour de repos<br><span class="xs muted">Ce jour-là, l'accueil ne pousse plus à la performance</span></span><select class="inp" style="width:auto;font-size:15px" data-c="sabbat-dow" aria-label="Jour de repos">${[["-1", "Désactivé"], ...["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((n, i) => [String(i), n])].map(([v, n]) => `<option value="${v}" ${String(S().settings.sabbat?.on === false ? -1 : S().settings.sabbat?.dow ?? 6) === v ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      <div class="li"><span class="em">🛌</span><span class="grow">Jour de repos<br><span class="xs muted">Ce jour-là, l'accueil ne pousse plus à la performance</span></span><select class="inp" style="width:auto;font-size:15px" data-c="sabbat-dow" aria-label="Jour de repos">${[["-1", "Désactivé"], ...E.DAY_NAMES.map((n, i) => [String(i), n])].map(([v, l]) => `<option value="${v}" ${String(S().settings.sabbat?.on === false || !S().settings.sabbat ? -1 : S().settings.sabbat.dow) === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    </div>
+    <h2 class="sec">Application</h2>
+    <div class="list">
       <div class="li"><span class="em">📳</span><span class="grow">Vibrations</span><button class="switch ${S().settings.haptics ? "on" : ""}" data-a="haptics" aria-label="Vibrations"></button></div>
       <div class="li"><span class="em">🌗</span><span class="grow">Thème</span><select data-c="theme" class="inp" style="width:auto;padding:4px 8px;font-size:15px"><option value="">Automatique</option><option value="light" ${localStorage.getItem("cxs.theme") === "light" ? "selected" : ""}>Clair</option><option value="dark" ${localStorage.getItem("cxs.theme") === "dark" ? "selected" : ""}>Sombre</option></select></div>
+      <button class="li" data-a="go" data-r="kb"><span class="em">📚</span><span class="grow">Connaissances</span>${I.chev}</button>
       <button class="li" data-a="go" data-r="x"><span class="em">✖️</span><span class="grow">Pourquoi le X ?</span>${I.chev}</button>
     </div>
-    <h2 class="sec">💾 Mes données</h2>
+    <h2 class="sec">Mes données</h2>
     <p class="small muted">Tes séances, ton journal et tes notes restent sur ce téléphone. Télécharge une sauvegarde chaque mois.</p>
     <div class="list"><button class="li" data-a="export"><span class="grow">Télécharger ma sauvegarde</span>${I.chev}</button>
       <label class="li" style="cursor:pointer"><span class="grow">Restaurer une sauvegarde</span>${I.chev}<input type="file" accept="application/json" data-c="import" hidden></label>
       <a class="li" href="#/privacy" style="color:inherit;text-decoration:none"><span class="grow">Confidentialité</span>${I.chev}</a>
       <button class="li" data-a="reset"><span class="grow" style="color:var(--red)">Tout effacer et recommencer</span></button></div>
-    <p class="xs muted mt24">CalXsthenos · version 3.0 · ${esc(CONFIG.coachName)}. Les conseils de l'app ne remplacent pas un avis médical : en cas de douleur ou de problème de santé, consulte un médecin avant de t'entraîner.</p>
-  </main>${tabbar("")}`;
+    <p class="xs muted mt24">CalXsthenos · version 4.0 · ${esc(CONFIG.coachName)}. Les conseils de l'app ne remplacent pas un avis médical : en cas de douleur ou de problème de santé, consulte un médecin avant de t'entraîner.</p>
+  </main>${tabbar("settings")}`;
 };
+actions["simple-nutri"] = () => { update(st => st.settings.simpleNutri = !st.settings.simpleNutri); rerender(); };
+
 actions["word-set"] = (b, d) => { update(st => st.settings.word = d.v); rerender(); };
 changes["sabbat-dow"] = (el) => { const v = +el.value; update(st => st.settings.sabbat = v < 0 ? { on: false, dow: 6 } : { on: true, dow: v }); toast(v < 0 ? "Jour de repos désactivé" : "Jour de repos enregistré"); };
 actions.haptics = () => { update(st => st.settings.haptics = !st.settings.haptics); rerender(); };

@@ -40,6 +40,16 @@ routes.food = async () => {
 actions["food-tab"] = (b, d) => { if (d.v === "learn") return go("kb"); tab = d.v; R.param = d.v; history.replaceState(null, "", "#/food/" + d.v); rerender(false); window.scrollTo(0, 0); };
 actions["food-day"] = (b, d) => { const n = addDays(D(), +d.v); day = n >= today() ? null : n; rerender(); };
 
+// Profil → « Mesures et photos » et « Mon corps » (dépense, déficit, projection)
+routes.body = async () => {
+  await N.loadModels();
+  $app.innerHTML = header("Mesures et photos", "Poids, mensurations, photos datées", { back: "profile" }) + `<main class="page">${await bodyBody()}</main>${tabbar("body")}`;
+};
+routes.moncorps = async () => {
+  await N.loadModels(); day = null;
+  $app.innerHTML = header("Mon corps", "Dépense, déficit et projection", { back: "profile" }) + `<main class="page">${ML.balanceCard(lineChart)}${burnBody()}</main>${tabbar("body")}`;
+};
+
 // ---------- Journal ----------
 function journalBody(t) {
   const d = D(), log = N.dayLog(d), water = S().daily[d]?.water || 0;
@@ -347,7 +357,7 @@ actions["bt-eat"] = (b, d) => {
 };
 
 // ---------- Jeûne ----------
-function fastBody() {
+export function fastBody() {
   const fs = EN.fastState(), last = N.lastMealTime(), hist = (S().fasts || []).slice(-7).reverse();
   const goal = fs?.goal || S().fastGoal || 16;
   const pct = fs ? Math.min(1, fs.hours / goal) : 0;
@@ -370,15 +380,15 @@ actions["fast-start"] = (b, d) => {
 actions["fast-stop"] = () => { update(st => { st.fasts = [...(st.fasts || []), { ...st.fast, end: new Date().toISOString() }].slice(-60); st.fast = null; }); toast("Jeûne terminé. Bon appétit !"); rerender(); };
 
 // ---------- Dépense calorique ----------
-function burnBody() {
+export function burnBody() {
   const d = D(), b = EN.breakdown(d), bn = EN.burnedNow(d), p = S().profile, t = N.targets();
   if (!premium()) return `<div class="card mt12"><div class="lbl">🔥 Brûlées aujourd'hui</div><b class="num" style="font-size:34px">${fr(bn.now)} kcal</b><p class="small muted">à cette heure, sur environ ${fr(bn.total)} kcal prévues</p></div>
     <div class="card mt12 locked" style="position:relative;min-height:240px"><h3 class="h3">Le calcul complet</h3><p class="small muted">Métabolisme de base, NEAT (pas et mouvements), EAT (séances et cardio), effet thermique des aliments, TDEE.</p>${lockVeil("Bâtisseur", "Le détail de ta dépense et l'ajout de ton cardio.")}</div>`;
   const stepTxt = b.activitySteps ? `${fr(b.steps)} pas hors activité (${fr(b.totalSteps)} au total, dont ${fr(b.activitySteps)} déjà comptés dans ton sport)` : `${fr(b.steps)} pas`;
-  const rows = [["MB", "Métabolisme de base", b.bmr, "L'énergie pour vivre au repos : cœur, cerveau, organes (Mifflin-St Jeor)."],
+  const rows = [["MB", "Métabolisme de base", b.bmr, `L'énergie pour vivre au repos : cœur, cerveau, organes (${EN.bmrMethod()}).`],
     ["NEAT", "Activité du quotidien", b.neat, `Ton mode de vie et ${stepTxt}.`],
     ["EAT", "Exercice", b.eat, `Musculation ${fr(b.lifts)} kcal · sport et cardio ${fr(b.cardio)} kcal (au-delà du repos).`],
-    ["TEF", "Digestion", b.tef, "≈ 10 % de ce que tu manges."]];
+    ["TEF", "Digestion", b.tef, "Selon tes macros : protéines ≈ 25 %, glucides ≈ 7,5 %, lipides ≈ 2 % de leurs calories."]];
   // semaine en cours
   const mon = addDays(today(), -((new Date().getDay() + 6) % 7)), days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   const wkLifts = S().workouts.filter(w => (w.end || "").slice(0, 10) >= mon);

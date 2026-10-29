@@ -22,6 +22,8 @@ export const expert = () => (ALL_FREE && !S().demoTier) || rank() >= 2; // conte
 export const isCoach = () => APP_MODE === "coach" && !!S().me?.isCoach && !S().demoTier;
 export const programOpen = (id) => premium() || FREE_PROGRAMS.includes(id) || id === S().profile?.startProgram || (S().customPrograms || []).some(p => p.id === id);
 export const weekOpen = (w) => premium() || w <= FREE_WEEKS;
+// Messagerie avec Thomas : réservée aux coachés (0 message = pas d'accès)
+export const canMsg = () => MSGS_PER_WEEK[tier()] !== 0;
 export function msgQuotaText() {
   const lim = MSGS_PER_WEEK[tier()];
   if (lim == null) return "Messages illimités";
@@ -47,6 +49,11 @@ export const I = {
   book: svg('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 1 2-2h13v2H6"/><path d="M11.5 7v7M9 9.5h5"/>'),
   coach: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/>'),
   bell: svg('<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'),
+  moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', 1.6),
+  pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
+  clip: svg('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>'),
+  chart: svg('<path d="M4 20V4M4 20h16"/><path d="m8 15 3.5-4 3 2.5L20 7"/>'),
   user: svg('<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.3-3.4 3.8-5 7-5s5.7 1.6 7 5"/>'),
   back: svg('<path d="M15 5l-7 7 7 7"/>', 2.2),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>', 2.2),
@@ -124,18 +131,19 @@ export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bo
 
 // ---------- En-tête et barre d'onglets ----------
 export const badges = { msgs: 0, notifs: 0 };
-export function header(title, sub = "", { back = null, actions = "" } = {}) {
+export function header(title, sub = "", { back = null, actions = "", offers = true } = {}) {
   const demo = S().demoTier ? `<div class="demo-bar"><span class="grow">Démo · <b>${esc(offer(S().demoTier).name)}</b></span><button data-a="demo-choose">Choisir</button><button data-a="demo-exit">Quitter</button></div>` : "";
   const lead = back ? `<button class="icon-btn" ${back === "__hist" ? `data-a="hist-back"` : `data-a="go" data-r="${back}"`} aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil"><img src="assets/logo-grec.jpg" alt="" width="40" height="40" style="width:100%;height:100%;border-radius:inherit;display:block"></button>`;
   return demo + `<header class="top"><div class="row1">${lead}<h1>${title}</h1>
     ${actions}<button class="pill ic" data-a="notifs" aria-label="Notifications">${I.bell}${badges.notifs ? `<span class="badge">${badges.notifs}</span>` : ""}</button>
-    ${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
+    ${isCoach() || !offers ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
 }
 export function tabbar(active) {
   if (APP_MODE === "coach") return adminTabbar("admin");
-  // L'entraînement vit dans le Carnet : le même onglet reste allumé sur ces écrans
-  const act = active === "train" ? "carnet" : active;
-  const t = [["home", "Temple", I.home], ["carnet", "Carnet", I.bar], ["food", "Nutrition", I.fork], ["coach", isCoach() ? "Membres" : "Coaching", I.coach]];
+  // Chaque écran secondaire allume l'onglet auquel il appartient
+  const PARENT = { train: "carnet", workout: "carnet", builder: "carnet", fiche: "carnet", simu: "profile", settings: "profile", stats: "profile", body: "profile", chat: "coach", offers: "coach", apply: "coach" };
+  const act = PARENT[active] || active;
+  const t = [["home", "Accueil", I.home], ["carnet", "Entraînement", I.bar], ["food", "Nutrition", I.fork], ["recup", "Récupération", I.moon], ["coach", "Coaching", I.clip], ["profile", "Profil", I.user]];
   const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;width:auto;max-width:616px;margin:0 auto;box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:12px;text-align:left;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
   return cur + `<nav class="tabbar" aria-label="Navigation">${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === act ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }

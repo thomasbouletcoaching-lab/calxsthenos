@@ -19,11 +19,17 @@ export const CARDIO = [
 export const EXTRA_SPORT = { 0: 0, 1.5: 1.5, 3.5: 3.5, 6: 6 };
 
 export const day = (d = today()) => S().daily?.[d] || {};
+// MB : Katch-McArdle quand la masse grasse est connue (plus précis chez les pratiquants), sinon Mifflin-St Jeor
+export const lastFat = () => [...(S().measures || [])].reverse().find(m => m.fat > 3 && m.fat < 60)?.fat || null;
 export function bmr(p = S().profile) {
   if (!p) return 1600;
-  const w = day().weight || p.weight;
+  const w = day().weight || p.weight, bf = lastFat();
+  if (bf) return 370 + 21.6 * w * (1 - bf / 100);
   return 10 * w + 6.25 * p.height - 5 * p.age + (p.sex === "f" ? -161 : 5);
 }
+export const bmrMethod = () => lastFat() ? `Katch-McArdle (masse grasse ${String(lastFat()).replace(".", ",")} %)` : "Mifflin-St Jeor";
+// Effet thermique selon les macros : protéines ≈ 25 %, glucides ≈ 7,5 %, lipides ≈ 2 % de leurs calories
+export const tefOf = (t) => Math.round((t.p || 0) * 4 * .25 + (t.c || 0) * 4 * .075 + (t.f || 0) * 9 * .02);
 const weight = () => day().weight || S().profile?.weight || 75;
 // kcal des pas : ~0,0005 kcal par pas et par kg (≈ 0,04 kcal/pas à 80 kg)
 export const stepsKcal = (steps, w = weight()) => Math.round((steps || 0) * 0.0005 * w);
@@ -48,8 +54,9 @@ export function breakdown(d = today()) {
   const lifts = sessions.reduce((a, x) => a + liftKcal(x.min), 0);
   const cardio = list.reduce((a, c) => a + cardioKcal(c.met, c.min), 0);
   const eat = lifts + cardio;
-  const intake = (S().food?.[d] || []).reduce((a, e) => a + e.kcal, 0);
-  const tef = Math.round((intake || 0) * 0.1);
+  const log = S().food?.[d] || [];
+  const intake = log.reduce((a, e) => a + e.kcal, 0);
+  const tef = tefOf(log.reduce((a, e) => ({ p: a.p + (e.p || 0), c: a.c + (e.c || 0), f: a.f + (e.f || 0) }), { p: 0, c: 0, f: 0 }));
   return { bmr: B, neat, steps, totalSteps, activitySteps, sessions, list, eat, lifts, cardio, tef, intake, tdee: B + neat + eat + tef };
 }
 // Dépense « à cette heure » : MB et NEAT de base au prorata de l'heure + ce qui a été fait
