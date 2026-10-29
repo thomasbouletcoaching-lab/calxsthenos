@@ -68,10 +68,11 @@ const afsTime = () => document.getElementById("afs-time")?.value || afs.time;
 export async function addFoodSheet(meal) {
   afs.meal = meal; afs.date = D(); afs.tab = afs.tab || "search";
   afs.time = N.dayLog(afs.date).find(e => e.meal === meal)?.time || (afs.date === today() ? hhmm() : N.MEAL_TIMES[meal] || "12:00");
-  const w = sheet(`<div class="row between" style="gap:10px"><h2 class="h2">${esc(meal)}</h2><label class="row xs muted" style="gap:6px">Heure du repas <input id="afs-time" class="inp" type="time" style="width:116px" value="${afs.time}"></label></div>
+  const w = sheet(`<div class="row between" style="gap:10px"><h2 class="h2">${esc(meal)}</h2><button class="btn btn-red btn-sm" data-a="afs-done" style="width:auto">Terminé</button></div>
+    <label class="row xs muted mt8" style="gap:6px">Heure du repas <input id="afs-time" class="inp" type="time" style="width:116px" value="${afs.time}"></label>
     <div id="afs-sum" class="mt8"></div>
     <div class="mt12">${seg([["search", "Chercher"], ["fav", "Favoris"], ["recent", "Récents"], ["dishes", "Mes repas"], ["rec", "Recettes"]], afs.tab, "afs-tab")}</div><div id="afsb" class="mt12"></div>
-    <button class="btn btn-red mt16" data-a="afs-done" style="position:sticky;bottom:12px;width:100%">Terminé</button>`, (w) => { drawSum(); drawAfs(w); });
+`, (w) => { drawSum(); drawAfs(w); });
   w.dataset.rr = "1";
   w.querySelector("#afs-time").addEventListener("change", (e) => { afs.time = e.target.value; });
 }
@@ -160,22 +161,50 @@ export async function scanBarcode(meal = afs.meal, date = afs.date || D(), back 
   const done = async (code) => { const f = await N.lookupBarcode(code); if (f) gramsSheet(f, (e) => { N.addEntry(e, date); toast("Ajouté"); if (back) addFoodSheet(meal); else rerender(); }, meal); else { closeSheet(); toast("Produit introuvable : cherche-le par son nom."); } };
   const manual = () => sheet(`<h2 class="h2">🔎 Code-barres</h2><p class="small muted">Ton navigateur ne lit pas les codes-barres avec la caméra. Tape les chiffres sous le code-barres (13 en général).</p><form data-f="bc-code" class="row mt12" style="gap:8px"><input name="c" class="inp grow" inputmode="numeric" pattern="[0-9]*" placeholder="3017620422003" required><button class="btn btn-red btn-sm" style="width:auto">Chercher</button></form>`);
   forms["bc-code"] = (v) => { const c = String(v.c).replace(/\D/g, ""); if (c.length < 8) return toast("Code incomplet"); done(c); };
-  if (!("BarcodeDetector" in window)) return manual();
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    sheet(`<h2 class="h2">Scanner</h2><video id="cam" playsinline autoplay muted style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video><p class="small muted mt8">Place le code-barres dans le cadre.</p>`, async (w) => {
-      const v = w.querySelector("#cam"); v.srcObject = stream;
-      const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
-      let alive = true; const stop = () => { alive = false; stream.getTracks().forEach(t => t.stop()); };
-      w.addEventListener("click", e => { if (e.target === w) stop(); });
-      while (alive && document.body.contains(v)) {
-        try { const c = await det.detect(v); if (c[0]) { stop(); return done(c[0].rawValue); } } catch { }
-        await new Promise(r => setTimeout(r, 300));
-      }
-      stop();
-    });
-  } catch { manual(); }
+  const stopAll = (stream) => stream.getTracks().forEach(t => t.stop());
+  if ("BarcodeDetector" in window) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      sheet(`<h2 class="h2">Scanner</h2><video id="cam" playsinline autoplay muted style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video><p class="small muted mt8">Place le code-barres dans le cadre.</p>`, async (w) => {
+        const v = w.querySelector("#cam"); v.srcObject = stream;
+        const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+        let alive = true; const stop = () => { alive = false; stopAll(stream); };
+        w.addEventListener("click", e => { if (e.target === w) stop(); });
+        while (alive && document.body.contains(v)) {
+          try { const c = await det.detect(v); if (c[0]) { stop(); return done(c[0].rawValue); } } catch { }
+          await new Promise(r => setTimeout(r, 300));
+        }
+        stop();
+      });
+    } catch { manual(); }
+    return;
+  }
+  // Safari (iPhone) : lecture par la caméra avec ZXing, chargé seulement à la demande
+  let ZX;
+  try { ZX = await loadZxing(); } catch { return manual(); }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); } catch { return manual(); }
+  sheet(`<h2 class="h2">Scanner</h2><video id="cam" playsinline autoplay muted style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video><p class="small muted mt8">Place le code-barres dans le cadre.</p><button class="btn btn-line btn-sm mt8" data-a="scan-manual" style="width:100%">Taper le code à la place</button>`, async (w) => {
+    const v = w.querySelector("#cam"); v.srcObject = stream;
+    let found = false, ctl = null;
+    const stop = () => { try { ctl?.stop(); } catch { } stopAll(stream); };
+    const timer = setInterval(() => { if (!document.body.contains(v)) { clearInterval(timer); if (!found) stop(); } }, 500);
+    try {
+      const reader = new ZX.BrowserMultiFormatReader();
+      ctl = await reader.decodeFromVideoElement(v, (res) => {
+        if (!res || found) return;
+        found = true; clearInterval(timer); stop(); done(res.getText());
+      });
+    } catch { clearInterval(timer); stop(); manual(); }
+  });
 }
+let zxingP = null;
+function loadZxing() {
+  if (window.ZXing) return Promise.resolve(window.ZXing);
+  if (!zxingP) zxingP = new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"; s.onload = () => ok(window.ZXing); s.onerror = () => { zxingP = null; ko(new Error("zxing")); }; document.head.appendChild(s); });
+  return zxingP;
+}
+actions["scan-manual"] = () => sheet(`<h2 class="h2">🔎 Code-barres</h2><p class="small muted">Tape les chiffres sous le code-barres (13 en général).</p><form data-f="bc-code" class="row mt12" style="gap:8px"><input name="c" class="inp grow" inputmode="numeric" pattern="[0-9]*" placeholder="3017620422003" required><button class="btn btn-red btn-sm" style="width:auto">Chercher</button></form>`);
 actions.scan = () => scanBarcode(afs.meal, afs.date, true);
 
 // ---------- Plan alimentaire écrit ----------
