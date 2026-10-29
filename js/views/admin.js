@@ -5,7 +5,7 @@ import * as E from "../engine.js";
 import * as N from "../nutrition.js";
 import * as RC from "../recipes.js";
 import { CONFIG, OFFERS, offer } from "../config.js";
-import { $app, esc, num, fr, toast, ago, routes, R, actions, forms, changes, go, I, header, seg, chips, sheet, closeSheet, fmtDate, addDays, rerender, isCoach, cloud, barChart, adminTabbar, adminBadges } from "../core.js";
+import { $app, esc, num, fr, toast, ago, routes, R, actions, forms, changes, go, I, header, seg, chips, sheet, closeSheet, fmtDate, addDays, rerender, isCoach, cloud, barChart, adminTabbar, adminBadges, hbars } from "../core.js";
 import { libraryRows, refreshLibrary } from "../library.js";
 import { filterExercises, ficheSheet } from "./train.js";
 import { openRecipeEditor } from "./food.js";
@@ -245,7 +245,7 @@ routes["admin-biz"] = async () => {
       <div class="card mt12"><div class="row between"><b class="h3">CA encaissé ${y}</b><div class="row" style="gap:6px"><button class="icon-btn sm" data-a="biz-y" data-v="-1">‹</button><button class="icon-btn sm" data-a="biz-y" data-v="1">›</button></div></div>
         <div class="mt8">${barChart(byM.map((v, i) => ({ v, l: "JFMAMJJASOND"[i] })), { fmt: (x) => Math.round(x), hi: y === t.slice(0, 4) ? new Date().getMonth() : -1 })}</div>
         <table class="qtab"><tr><th>Trimestre</th><th>T1</th><th>T2</th><th>T3</th><th>T4</th></tr><tr><td>CA à déclarer</td>${Q.map(q => `<td>${eur(q)}</td>`).join("")}</tr>${rate ? `<tr><td>Cotisations (${fr(rate, 1)} %)</td>${Q.map(q => `<td>${eur(q * rate / 100)}</td>`).join("")}</tr>` : ""}</table>
-        <p class="xs muted mt8" style="margin-bottom:0">En micro-entreprise, tu déclares le CA encaissé (date de paiement), chaque mois ou chaque trimestre selon ton choix à l'URSSAF.${rate ? "" : " Renseigne ton taux de cotisations dans Réglages pour voir l'estimation."}</p></div>`;
+        <p class="xs muted mt8" style="margin-bottom:0">En micro-entreprise, tu déclares le CA encaissé (date de paiement), chaque mois ou chaque trimestre selon ton choix à l'URSSAF.${rate ? "" : " Renseigne ton taux de cotisations dans Réglages pour voir l'estimation."}</p></div>` + acquisitionCard();
   } else if (bizTab === "enc") {
     const l = P.slice().sort((a, b) => b.d.localeCompare(a.d));
     body = `<button class="btn btn-red btn-sm mt12" data-a="pay-new" style="width:100%">+ Ajouter un encaissement</button>
@@ -414,3 +414,17 @@ forms["exo-new2"] = async (v) => {
 };
 actions["prog-new2"] = () => { window.__bdPublish = true; go("builder"); };
 actions["prog-pub"] = async (b, d) => { const p = S().customPrograms.find(x => x.id === d.id); if (!p) return; const { id, from, ...data } = JSON.parse(JSON.stringify(p)); if (await libAdd("program", p.name, data)) { toast("Programme publié dans la banque des membres"); rerender(); } };
+
+// Acquisition : d'où viennent les inscrits (onboarding) et ce qu'ils cherchent en premier
+const SRC = { instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", friend: "Bouche-à-oreille", gym: "En salle", thomas: "Thomas directement", google: "Google ou App Store", other: "Autre" };
+const PRIO = { strength: "Force sans stagner", fat: "Perdre du gras", time: "Peu de temps", regular: "Tenir dans la durée", food: "Savoir quoi manger", coach: "Être coaché" };
+const WHO = { student: "Étudiant", employee: "Salarié", freelance: "Indépendant", parent: "Parent", shift: "Horaires décalés", retired: "Retraité", other: "Autre" };
+function acquisitionCard() {
+  const ms = window.__members || []; if (!ms.length) return "";
+  const count = (k, map) => { const o = {}; ms.forEach(m => { const v = m.onboarding?.[k]; if (v) o[v] = (o[v] || 0) + 1; }); return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ l: map[v] || v, v: n })); };
+  const src = count("source", SRC), pr = count("priority", PRIO), who = count("who", WHO);
+  if (!src.length && !pr.length) return `<div class="card mt12"><b class="h3">📣 Acquisition</b><p class="small muted mt4" style="margin:0">Les nouveaux inscrits répondent à 3 questions (qui, priorité, source) : les résultats s'afficheront ici.</p></div>`;
+  return `<div class="card mt12"><b class="h3">📣 Comment ils ont connu l'app</b><div class="mt8">${hbars(src, (v) => String(v))}</div></div>
+    <div class="card mt12"><b class="h3">🎯 Ce qu'ils cherchent en premier</b><div class="mt8">${hbars(pr, (v) => String(v))}</div></div>
+    ${who.length ? `<div class="card mt12"><b class="h3">👤 Qui ils sont</b><div class="mt8">${hbars(who, (v) => String(v))}</div></div>` : ""}`;
+}

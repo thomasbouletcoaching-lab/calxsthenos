@@ -2,9 +2,8 @@
 import { S, update, resetAll, exportJSON, importJSON, today } from "../store.js";
 import * as E from "../engine.js";
 import * as N from "../nutrition.js";
-import * as W from "../word.js";
 import { CONFIG, offer, OFFERS, ALL_FREE } from "../config.js";
-import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, expert, render, rerender, barChart } from "../core.js";
+import { $app, esc, num, fr, toast, routes, R, actions, forms, changes, go, I, logo, markImg, header, tabbar, seg, sheet, closeSheet, lockVeil, premium, rank, expert, render, rerender, barChart, tier, trialLeft } from "../core.js";
 import { syncProfile } from "../sync.js";
 import { ONB_STEPS, resetOnboarding } from "./onboarding.js";
 
@@ -38,7 +37,7 @@ routes.profile = async () => {
   const acts = `<button class="pill ic" data-a="edit-body" aria-label="Modifier mon profil">${I.pen}</button><button class="pill ic" data-a="go" data-r="settings" aria-label="Réglages">${I.gear}</button>`;
   const last = [...ws].reverse().slice(0, 3);
   $app.innerHTML = header("Profil", "", { actions: acts, offers: false }) + `<main class="page">
-    <div class="card mt12"><div class="row" style="gap:14px"><span class="avatar">${esc((p.name || "?")[0].toUpperCase())}</span><div class="grow"><b class="h2">${esc(p.name)}</b><div class="small muted">${esc(offer(S().me?.tier || "free").name)} · ${p.age} ans · ${p.height} cm · ${E.fmtKg(S().daily?.[today()]?.weight || p.weight)} kg</div></div></div>
+    <div class="card mt12"><div class="row" style="gap:14px"><span class="avatar">${esc((p.name || "?")[0].toUpperCase())}</span><div class="grow"><b class="h2">${esc(p.name)}</b><div class="small muted">${esc(offer(tier()).name)}${trialLeft() > 0 ? " (essai)" : ""} · ${p.age} ans · ${p.height} cm · ${E.fmtKg(S().daily?.[today()]?.weight || p.weight)} kg</div></div></div>
       <div class="minis mt12"><div><div class="v">${ws.length}</div><div class="l">entraînements</div></div><div><div class="v">${recs}</div><div class="l">exercices suivis</div></div><div><div class="v">${E.streakWeeks()}</div><div class="l">semaines de série</div></div></div></div>
     ${rank() < 1 ? `<button class="card tap grad mt12" data-a="go" data-r="offers" style="display:flex;gap:12px;align-items:center;text-align:left;width:100%"><span style="font-size:28px">🚀</span><span class="grow"><b>Passe au Bâtisseur</b><br><span class="small" style="opacity:.9">Charges calculées, plan alimentaire, stats complètes · 7 jours offerts</span></span>${I.chev}</button>` : ""}
     <div class="card mt12"><div class="row between"><b>${st[2](cur[pStat])} <span class="small muted" style="font-weight:500">cette semaine</span></b><span class="xs muted">12 dernières semaines</span></div>
@@ -65,7 +64,7 @@ routes.settings = async () => {
   await N.loadModels();
   const p = S().profile, t = N.targets();
   $app.innerHTML = header("Réglages", "", { back: "profile" }) + `<main class="page">
-    <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(S().me?.tier || "free").name)}</span><button class="link" data-a="go" data-r="offers">Voir les offres</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
+    <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(tier()).name)}${trialLeft() > 0 ? ` <span class="tag r">essai · ${trialLeft()} j</span>` : ""}</span><button class="link" data-a="go" data-r="offers">Voir les offres</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
     <h2 class="sec">Profil et objectifs</h2>
     <div class="list">
       <button class="li" data-a="edit-body"><span class="em">✏️</span><span class="grow">Mes infos et mon carburant<br><span class="xs muted">${t ? `${fr(t.kcal)} kcal · ${esc(t.model.name)}` : ""}</span></span>${I.chev}</button>
@@ -166,12 +165,9 @@ routes.x = () => {
   $app.innerHTML = header("Pourquoi le X ?", "", { back: S().profile ? "profile" : "onboarding" }) + `<main class="page full prose">
     <img src="assets/logo-grec-complet.jpg" alt="Le logo Cal X Sthenos : un athlète grec en figure noire, vu de dos, fait une traction sur la barre d'une croix, dans un médaillon à frise grecque" style="width:100%;border-radius:18px;margin-top:12px;display:block">
     <p class="mt24"><i>Kalos</i>, en grec, c'est le beau, le noble. <i>Sthenos</i>, c'est la force. Ensemble, ils ont donné la calisthénie : l'art de bâtir un corps fort.</p>
-    <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Et le X : la lettre grecque Chi, la première du nom du Christ.</p>
-    <p>Sur le logo, un athlète peint comme sur un vase grec fait une traction sur la barre d'une croix. La force se construit en s'élevant, et la croix est ce qui nous relève : « Je puis tout par celui qui me fortifie » (Philippiens 4:13).</p>
+    <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Le X, c'est le point où les deux se croisent : la nutrition et l'entraînement, menés ensemble.</p>
+    <p>Sur le logo, un athlète peint comme sur un vase grec fait une traction : la force se construit en s'élevant, une répétition après l'autre.</p>
     <p>Nous croyons que le corps compte et mérite d'être servi avec exigence : des données, de la régularité, et une méthode qui tient dans la vraie vie.</p>
-    <div class="card mt16">${W.wordCard(W.VERSES[0])}</div>
-    <p class="mt16">La force que tu construis ici est réelle. Celle que Dieu offre l'est davantage, et elle ne se gagne pas : elle se reçoit.</p>
-    <button class="btn btn-line mt16" data-a="go" data-r="eternal" data-p="jesus">Qui est Jésus ?</button>
   </main>`;
 };
 routes.privacy = () => {

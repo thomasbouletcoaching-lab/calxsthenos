@@ -1,7 +1,6 @@
 // Entraînement : programme et cycle, banque, programme perso, carnet de séance, stats, records, simulateur, fiches.
 import { S, update, save, today } from "../store.js";
 import * as E from "../engine.js";
-import * as W from "../word.js";
 import { CONFIG } from "../config.js";
 import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave, isCoach, cloud, modeBar } from "../core.js";
 import { kbSection } from "./more.js";
@@ -612,10 +611,10 @@ actions["fiche-sheet"] = (b, d) => ficheSheet(d.n);
 // Minuteur de repos (démarre seul à la validation d'une série)
 function showRest() {
   document.querySelector(".rest")?.remove();
-  const v = wordOn("rest") && restTotal >= 60 ? W.verseFor("repos", Math.floor(restEnd / 1000)) : null;
+  const v = null;
   const el = document.createElement("div"); el.className = "rest";
   el.className = "rest" + (sessionStorage.getItem("cxs.restBig") === "1" ? " big" : "");
-  el.innerHTML = `<div class="row between" style="gap:8px"><div class="row" style="gap:8px;align-items:baseline"><span class="xs" style="opacity:.8">⏱️</span><span class="t" id="rest-t"></span></div><div class="row" style="gap:5px">${v ? `<button class="xp" data-a="rest-big" aria-label="Afficher le verset">${sessionStorage.getItem("cxs.restBig") === "1" ? "▾" : "✝ ▴"}</button>` : ""}<button class="btn btn-xs" data-a="rest-add" data-v="-15">−15</button><button class="btn btn-xs" data-a="rest-add" data-v="30">+30</button><button class="btn btn-xs" data-a="rest-skip">Passer</button></div></div><div class="bar"><i id="rest-bar"></i></div>${v ? `<div class="wv">${W.wordCard(v, "small")}</div>` : ""}`;
+  el.innerHTML = `<div class="row between" style="gap:8px"><div class="row" style="gap:8px;align-items:baseline"><span class="xs" style="opacity:.8">⏱️</span><span class="t" id="rest-t"></span></div><div class="row" style="gap:5px">${v ? `<button class="xp" data-a="rest-big" aria-label="Afficher le verset">${sessionStorage.getItem("cxs.restBig") === "1" ? "▾" : "✝ ▴"}</button>` : ""}<button class="btn btn-xs" data-a="rest-add" data-v="-15">−15</button><button class="btn btn-xs" data-a="rest-add" data-v="30">+30</button><button class="btn btn-xs" data-a="rest-skip">Passer</button></div></div><div class="bar"><i id="rest-bar"></i></div>`;
   document.body.append(el);
   const tick = () => {
     const left = Math.max(0, Math.ceil((restEnd - Date.now()) / 1000)), t = document.getElementById("rest-t"), b = document.getElementById("rest-bar");
@@ -650,7 +649,6 @@ routes.done = () => {
     <div style="width:100%;max-width:560px"><div class="stat3"><div><b>${mins}</b><span>minutes</span></div><div><b>${w.setsDone}</b><span>séries</span></div><div><b>${(w.volume / 1000).toFixed(1).replace(".", ",")}</b><span>tonnes</span></div></div></div>
     ${w.records.length ? `<div style="width:100%;max-width:560px;text-align:left;background:rgba(255,255,255,.12);border-radius:18px;padding:14px"><b>🏆 Nouveau${w.records.length > 1 ? "x" : ""} record${w.records.length > 1 ? "s" : ""}</b>${w.records.map(r => `<div class="row between small mt8"><span>${esc(r.name)}</span><b>${Math.round(r.after)} kg <span style="opacity:.7;font-weight:400">1RM estimé</span></b></div>`).join("")}</div>` : ""}
     ${adj.length ? `<div style="width:100%;max-width:560px;text-align:left;background:rgba(255,255,255,.12);border-radius:18px;padding:14px"><b>🎯 Pour la prochaine séance</b>${premium() ? adj.map(a => `<div class="small mt8"><b>${esc(a.n)}</b><br><span style="opacity:.85">${esc(a.s.txt)}</span></div>`).join("") : `<p class="small mt8" style="opacity:.85">Tes charges sont recalculées. Les conseils détaillés (charge ou reps à viser selon ton RPE) sont dans Premium.</p>`}</div>` : ""}
-    ${wordOn("fin") ? `<div style="width:100%;max-width:560px;text-align:left">${W.wordCard(W.verseFor("fin", w.id % 1000))}</div>` : ""}
     <button class="btn" style="max-width:560px;background:#fff;color:var(--red)" data-a="go" data-r="home">Retour à l'accueil</button></section>`;
 };
 

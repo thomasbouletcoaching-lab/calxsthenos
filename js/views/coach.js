@@ -4,25 +4,32 @@ import { S, update, today, withState } from "../store.js";
 import * as N from "../nutrition.js";
 import * as E from "../engine.js";
 import { CONFIG, OFFERS, offer, COMPARE } from "../config.js";
-import { trialLeft, $app, esc, num, fr, buzz, toast, ago, routes, R, actions, forms, go, I, header, tabbar, adminTabbar, seg, chips, sheet, closeSheet, badges, fmtDate, addDays, rerender, tier, rank, premium, isCoach, msgQuotaText, cloud, cloudNow, render, onLeave } from "../core.js";
+import { trialLeft, $app, esc, num, fr, buzz, toast, ago, routes, R, actions, forms, changes, go, I, header, tabbar, adminTabbar, seg, chips, sheet, closeSheet, badges, fmtDate, addDays, rerender, tier, rank, premium, isCoach, msgQuotaText, cloud, cloudNow, render, onLeave, canMsg } from "../core.js";
 import { refreshMe, syncProfile } from "../sync.js";
+import { fromCoach, libraryRows } from "../library.js";
 
-routes.coach = () => {
+routes.coach = async () => {
   if (isCoach()) return go("admin");
-  const o = offer(tier());
-  $app.innerHTML = header("Coach", esc(CONFIG.coachName)) + `<main class="page">
-    <div class="card grad"><div class="row" style="gap:12px"><span style="width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.95);display:grid;place-items:center;flex:none;color:#151515">${I.x(28)}</span><div><div class="h2">${esc(CONFIG.coachName)}</div><div class="small" style="opacity:.85">${esc(CONFIG.coachTitle)}</div></div></div>
-      <p class="mt12">Je lis et je réponds moi-même à chaque message.</p>
-      <button class="btn mt8" style="background:#fff;color:var(--red)" data-a="go" data-r="chat">💬 Écrire à Thomas${badges.msgs ? ` · ${badges.msgs} nouveau${badges.msgs > 1 ? "x" : ""}` : ""}</button>
-      <p class="xs mt8" style="opacity:.85;margin-bottom:0">${msgQuotaText()}</p></div>
+  await E.loadPrograms();
+  const o = offer(tier()), sent = fromCoach(), progs = sent.filter(r => r.kind === "program"), plans = sent.filter(r => r.kind === "plan");
+  const bubble = `<button class="pill ic" data-a="coach-msg" aria-label="Messages avec Thomas" style="position:relative">${I.coach}${badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</button>`;
+  const coached = canMsg();
+  const curP = S().plan?.programId;
+  $app.innerHTML = header("Coaching", esc(CONFIG.coachName), { actions: bubble, offers: false }) + `<main class="page">
+    ${badges.msgs || badges.notifs ? `<button class="card tap mt12" data-a="${badges.msgs ? "coach-msg" : "notifs"}" style="display:flex;gap:12px;align-items:center;width:100%;text-align:left;box-shadow:0 0 0 2px var(--red) inset"><span style="font-size:26px">🔔</span><span class="grow"><b>${badges.msgs ? `${badges.msgs} nouveau${badges.msgs > 1 ? "x" : ""} message${badges.msgs > 1 ? "s" : ""} de Thomas` : `${badges.notifs} notification${badges.notifs > 1 ? "s" : ""} de ton coach`}</b><br><span class="small muted">Touche pour lire</span></span>${I.chev}</button>`
+      : `<p class="small muted mt12">${coached ? "Aucune nouvelle notification de ton coach." : "Les messages avec Thomas sont réservés aux personnes coachées."}</p>`}
+    <h2 class="sec">📋 Mon programme du coach</h2>
+    ${progs.length || plans.length ? `${progs.map(r => { const id = "lib-" + r.id, on = curP === id; return `<div class="card"><div class="lbl">🏋️ Entraînement</div><b class="h3">${esc(r.name)}</b><p class="small muted mt4">${esc(r.data?.desc || "Écrit pour toi par Thomas.")}</p>${on ? `<span class="tag r">Programme suivi</span> <button class="link small" data-a="go" data-r="carnet">Ouvrir le carnet</button>` : `<button class="btn btn-red btn-sm mt8" data-a="coach-follow" data-id="${id}">Suivre ce programme</button>`}</div>`; }).join("")}
+      ${plans.map(r => { const k = (r.data?.meals || []).flatMap(m => m.items || []).reduce((a, x) => a + (x.kcal || 0), 0); return `<div class="card"><div class="lbl">🍽️ Nutrition</div><b class="h3">${esc(r.name)}</b><p class="small muted mt4">${(r.data?.meals || []).length} repas · ${fr(k)} kcal par jour${r.data?.note ? " · " + esc(r.data.note) : ""}</p><button class="btn ${S().coachPlanId === r.id ? "btn-line" : "btn-red"} btn-sm mt8" data-a="coach-plan" data-id="${r.id}">${S().coachPlanId === r.id ? "✓ Plan appliqué · le réappliquer" : "Appliquer ce plan à mon journal"}</button></div>`; }).join("")}`
+      : `<div class="card"><p class="small" style="margin:0">${coached ? "Thomas t'envoie ici ton programme d'entraînement et ton plan alimentaire, écrits pour toi. Ils apparaissent dès qu'il les a préparés." : "Avec le coaching personnalisé, Thomas écrit ton programme d'entraînement et ton plan alimentaire : ils arrivent ici, et il suit tes séances et ton journal."}</p>${coached ? "" : `<button class="btn btn-red btn-sm mt12" data-a="go" data-r="apply">Candidater au coaching</button>`}</div>`}
     <h2 class="sec">🎯 Ta formule <small>${esc(o.name)}</small></h2>
-    ${rank() >= 2 ? followUp() : `<button class="card tap" data-a="go" data-r="offers" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">🚀</span><span class="grow"><b>${premium() ? "Passer au suivi avec Thomas" : "Voir toutes les offres"}</b><br><span class="small muted">De 0 € à l'accompagnement complet. Chaque offre se teste en démo.</span></span>${I.chev}</button>`}
-    ${rank() >= 2 ? `<button class="card tap mt12" data-a="go" data-r="offers" style="display:flex;align-items:center;gap:12px"><span class="grow"><b>Toutes les offres</b><br><span class="small muted">Comparer et changer de formule</span></span>${I.chev}</button>` : ""}
-    <h2 class="sec">📚 Pour aller plus loin</h2>
-    <div class="list"><button class="li" data-a="go" data-r="kb"><span class="em">📚</span><span class="grow"><b>Connaissances</b><br><span class="xs muted">Science de l'entraînement, physiologie, biomécanique</span></span>${I.chev}</button>
-      <button class="li" data-a="go" data-r="simu"><span class="em">🧮</span><span class="grow"><b>Records, simulateur 1RM et objectif</b><br><span class="xs muted">Combien de cycles pour atteindre ta performance</span></span>${I.chev}</button></div>
+    ${rank() >= 2 ? followUp() : `<button class="card tap" data-a="go" data-r="offers" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left"><span style="font-size:28px">🚀</span><span class="grow"><b>${premium() ? "Passer au coaching avec Thomas" : "Voir les offres"}</b><br><span class="small muted">${premium() ? "Programme et plan écrits pour toi, bilans, messages" : "Bâtisseur : 7 jours offerts, puis 14,99 €/mois"}</span></span>${I.chev}</button>`}
+    ${rank() >= 2 ? `<button class="card tap mt12" data-a="go" data-r="offers" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left"><span class="grow"><b>Toutes les offres</b><br><span class="small muted">Comparer et changer de formule</span></span>${I.chev}</button>` : ""}
   </main>${tabbar("coach")}`;
 };
+actions["coach-msg"] = () => { if (canMsg()) return go("chat"); toast("Les messages avec Thomas sont réservés aux coachés"); go("offers"); };
+actions["coach-follow"] = (b, d) => { const p = E.program(d.id); if (!p) return toast("Programme indisponible hors connexion"); if (!confirm(`Suivre « ${p.name} » ? Ton programme actuel s'arrête, tes charges sont gardées.`)) return; update(st => st.plan = { programId: d.id, startedAt: today(), week: 1, idx: 0, cycle: 1 }); toast("C'est parti : ton nouveau programme est dans le carnet"); go("carnet"); };
+actions["coach-plan"] = (b, d) => { const r = libraryRows().find(x => x.id === +d.id); if (!r?.data?.meals) return; update(st => { st.myPlan = { meals: JSON.parse(JSON.stringify(r.data.meals)) }; st.coachPlanId = r.id; st.editVar = null; }); toast("Plan de Thomas appliqué : il s'affiche chaque jour dans ton journal"); rerender(); };
 function followUp() {
   const r = rank(), weekly = r >= 3;
   return `<div class="card"><div class="h3">📝 ${weekly ? "Bilan de la semaine" : "Bilan du mois"}</div><p class="small muted mt4">Envoie-le chaque ${weekly ? "dimanche" : "fin de mois"} : je te réponds avec tes ajustements.</p><button class="btn btn-red btn-sm mt8" data-a="checkin">Remplir mon bilan</button></div>
@@ -34,8 +41,12 @@ function followUp() {
 // ---------- Offres et démo ----------
 routes.offers = () => {
   const cur = S().me?.tier || "free";
-  $app.innerHTML = header("Les offres", "Essaie chaque formule en démo", { back: "coach" }) + `<main class="page">
-    <p class="muted">Touche « Voir la démo » : l'app passe dans cette formule pour te montrer tout ce qu'elle débloque. Rien n'est payé.</p>
+  $app.innerHTML = header("Les offres", "7 jours d'essai, sans engagement", { back: "__hist", offers: false }) + `<main class="page">
+    <h2 class="sec" style="margin-top:8px">Ce qui accélère vraiment tes progrès</h2>
+    <div class="list">${[["🎯", "Des charges calculées à chaque séance", "Fini le hasard : l'app te dit quoi soulever selon ton RPE, et détecte tes plateaux avant qu'ils durent."],
+      ["🍽️", "Un plan alimentaire au gramme", "Ton plan selon ton profil, tes jours d'entraînement et de repos, tes courses et ton budget."],
+      ["📈", "Toutes tes données, lisibles", "Tonnage, records, mensurations, projections : tu vois si tu avances, semaine après semaine."],
+      ["🧑‍🏫", "Le coaching : quelqu'un qui ajuste pour toi", "Thomas écrit ton programme et ton plan, lit tes séances, répond à tes messages."]].map(([e, t, d]) => `<div class="li"><span class="em">${e}</span><span class="grow small"><b>${t}</b><br><span class="xs muted">${d}</span></span></div>`).join("")}</div>
     ${trialLeft() > 0 ? `<div class="card grad"><b>🎁 Ton essai : encore ${trialLeft()} jour${trialLeft() > 1 ? "s" : ""}</b><p class="small mt4" style="margin:0">Pendant 7 jours, tout Bâtisseur est ouvert. Ensuite tu gardes le Gratuit, ou tu continues avec Bâtisseur.</p></div>` : `<div class="card grad"><b>🎁 7 jours d'essai de l'app complète</b><p class="small mt4" style="margin:0">Chaque nouveau compte essaie Bâtisseur gratuitement pendant 7 jours.</p></div>`}
     <h2 class="sec">Comparer</h2>
     <div class="card" style="padding:6px"><table class="cmp"><thead><tr><th></th><th>Gratuit</th><th>Bâtis&shy;seur</th><th>Coa&shy;ching</th></tr></thead><tbody>${COMPARE.map(r => `<tr><td>${esc(r[0])}</td>${r.filter((_, i) => i !== 3).slice(1).map(c => `<td class="${c === "–" ? "muted" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
@@ -43,7 +54,7 @@ routes.offers = () => {
       <div class="row between" style="align-items:flex-end"><div><div class="h2">${esc(o.name)}</div><div class="small muted">${esc(o.tagline)}</div></div><div class="price" style="text-align:right;white-space:nowrap">${esc(o.price)}<small>${esc(o.per)}</small></div></div>
       ${o.alt ? `<div class="small red mt4" style="text-align:right">${esc(o.alt)}</div>` : ""}${o.was ? `<div class="small mt4" style="text-align:right"><span class="muted">au lieu de <s>${esc(o.was)}</s></span></div>` : ""}
       <ul>${o.feats.map(f => `<li>${I.check}<span>${esc(f)}</span></li>`).join("")}<li>${I.check}<span>${esc(o.msgs)}</span></li></ul>
-      ${o.id === "free" ? "" : `<div class="row" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="demo" data-v="${o.id}">Voir la démo</button>${o.id === cur ? "" : `<button class="btn btn-red btn-sm grow" data-a="choose" data-v="${o.id}">${o.rank >= 2 ? "Candidater" : "Choisir"}</button>`}</div>`}
+      ${o.id === "free" || o.id === cur ? "" : `<button class="btn btn-red" data-a="choose" data-v="${o.id}">${o.rank >= 2 ? "Candidater au coaching" : trialLeft() > 0 ? "Continuer avec le Bâtisseur" : "Essayer 7 jours gratuitement"}</button>`}
     </div>`).join("")}
     <p class="xs muted mt16">Sans engagement, résiliable à tout moment. Les formules de suivi démarrent après un appel de 15 minutes pour vérifier que je peux vraiment t'aider.</p>
   </main>${tabbar("coach")}`;
@@ -115,6 +126,7 @@ function msgHtml(x) {
   return `<div class="msg ${mine ? "me" : "them"}" data-a="msg" data-id="${x.id}">${esc(x.body)}<time>${ago(x.created_at)}${mine && x.read_at ? " · lu" : ""}</time></div>${rs.length ? `<div class="reacts ${mine ? "me" : "them"}">${Object.entries(grouped).map(([e, n]) => `<span>${e}${n > 1 ? " " + n : ""}</span>`).join("")}</div>` : ""}`;
 }
 routes.chat = async () => {
+  if (!isCoach() && !canMsg()) { toast("Les messages avec Thomas sont réservés aux coachés"); return go("offers"); }
   const memberId = isCoach() ? R.param : null;
   const m = memberId ? (window.__members || []).find(x => x.id === memberId) : null;
   $app.innerHTML = header(memberId ? esc(m?.name || "Membre") : "Thomas", memberId ? esc(m?.email || "") : "Je réponds moi-même", { back: memberId ? "admin-msg" : "coach" })
@@ -235,6 +247,7 @@ routes.member = async () => {
   const tabs = [["jour", "☀️ Journée"], ["seances", "🏋️ Séances"], ["agenda", "🗓️ Agenda"], ["corps", "⚖️ Corps"], ["profil", "👤 Profil"]];
   const D = mbr.data.data;
   const top = `<div class="row" style="gap:8px"><a class="btn btn-red btn-sm grow" href="#/chat/${m.id}">💬 Messages${m.unread ? ` · ${m.unread}` : ""}</a>${m.email ? `<a class="btn btn-line btn-sm grow" href="mailto:${esc(m.email)}">✉️ E-mail</a>` : ""}</div>
+    <div class="row mt8" style="gap:8px"><button class="btn btn-line btn-sm grow" data-a="mb-assign">📋 Assigner un programme</button><button class="btn btn-line btn-sm grow" data-a="mb-plan">🍽️ Envoyer un plan</button></div>
     <div class="mt12">${chips(tabs, mbr.tab, "mb-tab")}</div>
     ${D ? `<p class="xs muted mt4">Données mises à jour ${ago(mbr.data.updated_at)}</p>` : ""}`;
   if (mbr.tab !== "profil") {
@@ -323,3 +336,46 @@ function memberBody(D) {
 }
 
 const A_NOTE = () => "";
+
+// ---------- Espace coach : programme et plan alimentaire envoyés à un client ----------
+let asQ = "", plDraft = null;
+actions["mb-assign"] = () => {
+  const draw = () => {
+    const q = N.norm(asQ), mine = E.programs().filter(p => p.custom || p.lib), bank = E.programs().filter(p => !p.custom && !p.lib && (!q || N.norm(p.name).includes(q))).slice(0, q ? 40 : 12);
+    const li = (p) => `<button class="li" data-a="mb-assign-go" data-id="${esc(p.id)}"><span class="grow small"><b>${esc(p.name)}</b><br><span class="xs muted">${p.s?.length || "?"} séances / sem. · ${esc(p.lvl || "")}</span></span>${I.chev}</button>`;
+    return `<h2 class="h2">📋 Assigner un programme</h2><p class="xs muted">Il arrive dans l'onglet Coaching de ton client, qui le suit en un geste. Une notification lui est envoyée.</p>
+      ${mine.length ? `<div class="lbl mt12">Mes programmes</div><div class="list mt4">${mine.map(li).join("")}</div>` : ""}
+      <div class="lbl mt12">Banque</div><div class="search mt4">${I.search}<input id="as-q" value="${esc(asQ)}" placeholder="Chercher : force, haut bas, 3 jours…" autocomplete="off"></div><div class="list mt4" id="as-l">${bank.map(li).join("")}</div>`;
+  };
+  sheet(draw(), (w) => { const i = w.querySelector("#as-q"); i?.addEventListener("input", () => { asQ = i.value; const h = document.createElement("div"); h.innerHTML = draw(); w.querySelector("#as-l").innerHTML = h.querySelector("#as-l").innerHTML; }); });
+};
+actions["mb-assign-go"] = async (b, d) => {
+  const p = E.program(d.id), m = (window.__members || []).find(x => x.id === mbr.id); if (!p || !m) return;
+  const { id, lib, name, ...data } = JSON.parse(JSON.stringify(p));
+  const nm = String(name).split("·")[0].trim() + ` · ${m.name || "client"}`;
+  try { const c = await cloud(); await c.libraryAdd("program", nm, { ...data, custom: true, for: m.id }); await c.notify("📋 Ton nouveau programme", `Thomas t'a préparé « ${String(name).split("·")[0].trim()} ». Ouvre l'onglet Coaching pour le suivre.`, m.id).catch(() => { }); closeSheet(); toast("Programme envoyé"); }
+  catch (e) { toast("Envoi impossible : " + (e.message || "serveur indisponible")); }
+};
+actions["mb-plan"] = () => {
+  const D = mbr.data?.data; if (!D?.profile) return toast("Données du client indisponibles");
+  const own = D.myPlan?.meals?.length ? D.myPlan.meals : null;
+  const auto = withState(D, () => { const t = N.targets(); return t ? N.dayPlan(t).map(x => ({ name: x.meal, time: x.time, title: x.n, items: (x.items || []).map(i => ({ label: i.n, g: i.g, kcal: Math.round(i.kcal), p: i.p, c: i.c, f: i.f })) })) : []; });
+  plDraft = { meals: JSON.parse(JSON.stringify(own || auto)), note: "" };
+  planSheet(own ? "son plan actuel" : "le plan calculé pour son profil");
+};
+function planSheet(src = "") {
+  const tot = plDraft.meals.flatMap(m => m.items).reduce((a, x) => ({ kcal: a.kcal + (x.kcal || 0), p: a.p + (x.p || 0) }), { kcal: 0, p: 0 });
+  sheet(`<h2 class="h2">🍽️ Plan pour ce client</h2>${src ? `<p class="xs muted">Base : ${esc(src)}. Ajuste les grammes ou retire un aliment, puis envoie.</p>` : ""}
+    <div class="card soft mt8 center"><b>${fr(tot.kcal)} kcal</b> · ${fr(tot.p)} g de protéines par jour</div>
+    ${plDraft.meals.map((m, mi) => `<div class="lbl mt12">${esc(m.name)}${m.time ? " · " + esc(m.time) : ""}</div>${m.items.map((it, ii) => `<div class="row mt4" style="gap:6px">${it.g ? `<input class="inp" style="width:70px;padding:4px 6px;font-size:15px" inputmode="decimal" value="${fr(it.g)}" data-c="pd-g" data-m="${mi}" data-i="${ii}" aria-label="Grammes">` : ""}<span class="grow xs">${esc(it.label)}<br><span class="muted">${Math.round(it.kcal)} kcal · P ${fr(it.p, 1)} g</span></span><button class="icon-btn" data-a="pd-del" data-m="${mi}" data-i="${ii}" aria-label="Retirer">${I.close}</button></div>`).join("")}`).join("")}
+    <label class="field mt12"><span>Message pour ton client (facultatif)</span><input id="pd-note" value="${esc(plDraft.note)}" placeholder="ex. Jours de repos : retire la collation"></label>
+    <button class="btn btn-red mt12" data-a="pd-send">Envoyer ce plan</button>`, null, { keep: !!document.getElementById("sheet") });
+}
+changes["pd-g"] = (el) => { const it = plDraft.meals[+el.dataset.m].items[+el.dataset.i], g = num(el.value); if (!(g > 0) || !it.g) return; const k = g / it.g; Object.assign(it, { g, kcal: Math.round(it.kcal * k), p: +(it.p * k).toFixed(1), c: +(it.c * k).toFixed(1), f: +(it.f * k).toFixed(1) }); plDraft.note = document.getElementById("pd-note")?.value || plDraft.note; planSheet(); };
+actions["pd-del"] = (b, d) => { plDraft.meals[+d.m].items.splice(+d.i, 1); plDraft.meals = plDraft.meals.filter(m => m.items.length); plDraft.note = document.getElementById("pd-note")?.value || plDraft.note; planSheet(); };
+actions["pd-send"] = async () => {
+  const m = (window.__members || []).find(x => x.id === mbr.id); if (!m) return;
+  const note = document.getElementById("pd-note")?.value.trim() || "";
+  try { const c = await cloud(); await c.libraryAdd("plan", `Plan alimentaire · ${m.name || "client"}`, { meals: plDraft.meals, note, for: m.id }); await c.notify("🍽️ Ton plan alimentaire", "Thomas t'a envoyé ton plan. Ouvre l'onglet Coaching pour l'appliquer.", m.id).catch(() => { }); closeSheet(); toast("Plan envoyé"); }
+  catch (e) { toast("Envoi impossible : " + (e.message || "serveur indisponible")); }
+};

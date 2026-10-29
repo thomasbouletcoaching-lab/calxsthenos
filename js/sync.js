@@ -20,7 +20,7 @@ export async function refreshMe() {
     if (!(await c.currentSession())) await c.ensureSession();
     if (!S().synced) return syncProfile();
     const me = await c.fetchMe();
-    if (me) update(st => st.me = { tier: me.tier, isCoach: me.is_coach, msgsLeft: me.msgsLeft, until: me.tier_until });
+    if (me) update(st => st.me = { id: me.id, tier: me.tier, isCoach: me.is_coach, msgsLeft: me.msgsLeft, until: me.tier_until });
     const [un, ns] = await Promise.all([c.unreadFromCoach(), c.notifications()]);
     badges.msgs = un; badges.notifs = ns.filter(n => new Date(n.created_at).getTime() > S().notifSeen).length;
     if (isCoach()) { const ms = await c.members(); window.__members = ms; badges.msgs = ms.reduce((a, m) => a + m.unread, 0); }
