@@ -1,5 +1,5 @@
 // Noyau d'interface : état partagé, routeur, en-tête, barre d'onglets, feuilles, graphiques, formules.
-import { S, update, today } from "./store.js";
+import { S, update, today, APP_MODE } from "./store.js";
 import { CONFIG, offer, MSGS_PER_WEEK, FREE_PROGRAMS, FREE_WEEKS, ALL_FREE, TRIAL_DAYS } from "./config.js";
 
 export const $app = document.getElementById("app");
