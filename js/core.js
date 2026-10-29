@@ -131,10 +131,11 @@ export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bo
 
 // ---------- En-tête et barre d'onglets ----------
 export const badges = { msgs: 0, notifs: 0 };
+const TAB_TITLES = ["Accueil", "Entraînement", "Nutrition", "Récupération", "Coaching", "Profil"]; // déjà affichés dans la barre du bas
 export function header(title, sub = "", { back = null, actions = "", offers = true } = {}) {
   const demo = false ? `<div class="demo-bar"><span class="grow">Démo · <b>${esc(offer(S().demoTier).name)}</b></span><button data-a="demo-choose">Choisir</button><button data-a="demo-exit">Quitter</button></div>` : "";
-  const lead = back ? `<button class="icon-btn" ${back === "__hist" ? `data-a="hist-back"` : `data-a="go" data-r="${back}"`} aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil"><img src="assets/logo-grec.jpg" alt="" width="40" height="40" style="width:100%;height:100%;border-radius:inherit;display:block"></button>`;
-  return demo + `<header class="top"><div class="row1">${lead}<h1>${title}</h1>
+  const lead = back ? `<button class="icon-btn" ${back === "__hist" ? `data-a="hist-back"` : `data-a="go" data-r="${back}"`} aria-label="Retour">${I.back}</button>` : "";
+  return demo + `<header class="top"><div class="row1">${lead}<h1>${!back && TAB_TITLES.includes(title) ? "" : title}</h1>
     ${actions}<button class="pill ic" data-a="notifs" aria-label="Notifications">${I.bell}${badges.notifs ? `<span class="badge">${badges.notifs}</span>` : ""}</button>
     ${isCoach() || !offers ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
 }
@@ -144,8 +145,9 @@ export function tabbar(active) {
   const PARENT = { train: "carnet", workout: "carnet", builder: "carnet", fiche: "carnet", simu: "profile", settings: "profile", stats: "profile", body: "profile", chat: "coach", offers: "coach", apply: "coach" };
   const act = PARENT[active] || active;
   const t = [["home", "Accueil", I.home], ["carnet", "Entraînement", I.bar], ["food", "Nutrition", I.fork], ["recup", "Récupération", I.moon], ["coach", "Coaching", I.clip], ["profile", "Profil", I.user]];
-  const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;width:auto;max-width:616px;margin:0 auto;box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:12px;text-align:left;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
-  return cur + `<nav class="tabbar" aria-label="Navigation">${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === act ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
+  const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(92px + var(--safe-b));z-index:29;width:auto;max-width:616px;margin:0 auto;box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:12px;text-align:left;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
+  const ix = Math.max(0, t.findIndex(([r]) => r === act));
+  return cur + `<nav class="tabbar" aria-label="Navigation" style="--n:${t.length};--i:${ix}"><span class="lens" aria-hidden="true"></span>${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === act ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }
 // Sélecteur de mode en haut d'un onglet (Carnet / Explorer / Connaissances), comme Hevy
 export const modeBar = (items, cur, act) => `<div class="modes" role="tablist">${items.map(([v, l]) => `<button role="tab" class="${v === cur ? "on" : ""}" data-a="${act}" data-v="${v}" aria-selected="${v === cur}">${l}</button>`).join("")}</div>`;
@@ -157,7 +159,8 @@ export function adminTabbar(active) {
     subs: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>`,
     db: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="7.5" ry="2.8"/><path d="M4.5 6v12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V6M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg>` };
   const t = [["admin", "Mes clients", ic.clients], ["admin-msg", `Messages${adminBadges.msgs ? ` (${adminBadges.msgs})` : ""}`, ic.msgs], ["admin-biz", "Business", ic.biz], ["admin-subs", "Abonnés", ic.subs], ["admin-db", "Base de données", ic.db]];
-  return `<nav class="tabbar" aria-label="Espace coach">${t.map(([r, l, i]) => `<a href="#/${r}" class="tab" ${r === active ? 'aria-current="page"' : ""}>${i}<span>${l}</span></a>`).join("")}</nav>`;
+  const ix = Math.max(0, t.findIndex(([r]) => r === active));
+  return `<nav class="tabbar" aria-label="Espace coach" style="--n:${t.length};--i:${ix}"><span class="lens" aria-hidden="true"></span>${t.map(([r, l, i]) => `<a href="#/${r}" class="tab" ${r === active ? 'aria-current="page"' : ""}>${i}<span>${l}</span></a>`).join("")}</nav>`;
 }
 export const lockVeil = (label = "Bâtisseur", why = "") => `<div class="veil"><span class="lock">🔒 ${esc(label)}</span>${why ? `<p class="small muted" style="max-width:280px;margin:0">${esc(why)}</p>` : ""}<button class="btn btn-red btn-sm" data-a="go" data-r="offers">Voir les offres</button></div>`;
 export const lockBtn = (label = "Bâtisseur") => `<button class="lock" data-a="go" data-r="offers">🔒 ${esc(label)}</button>`;
@@ -246,3 +249,37 @@ export function installEvents() {
 }
 actions.go = (b, d) => { closeSheet(); go(d.r, d.p ?? null); };
 actions.close = () => closeSheet();
+
+// ---------- Barre « liquid glass » : la bulle glisse sous le doigt, le relâchement ouvre l'onglet ----------
+let drag = null, swallow = false;
+document.addEventListener("pointerdown", (e) => {
+  const nav = e.target.closest?.(".tabbar"); if (!nav) return;
+  drag = { nav, x0: e.clientX, y0: e.clientY, on: false, i: Number(nav.style.getPropertyValue("--i")) || 0, n: nav.querySelectorAll(".tab").length, f: null };
+});
+document.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (!drag.on) {
+    const dx = Math.abs(e.clientX - drag.x0), dy = Math.abs(e.clientY - drag.y0);
+    if (dx < 10 || dx < dy) return;
+    drag.on = true; drag.nav.classList.add("dragging");
+  }
+  const r = drag.nav.getBoundingClientRect(), w = (r.width - 12) / drag.n;
+  drag.f = Math.min(drag.n - 1, Math.max(0, (e.clientX - r.left - 6 - w / 2) / w));
+  drag.nav.style.setProperty("--i", drag.f.toFixed(3));
+});
+const endDrag = () => {
+  if (!drag) return; const d = drag; drag = null;
+  if (!d.on) return;
+  d.nav.classList.remove("dragging");
+  const tab = d.nav.querySelectorAll(".tab")[Math.round(d.f ?? d.i)];
+  swallow = true; setTimeout(() => { swallow = false; }, 350);
+  if (tab && tab.getAttribute("aria-current") !== "page") location.hash = tab.getAttribute("href");
+  else d.nav.style.setProperty("--i", d.i);
+};
+document.addEventListener("dragstart", (e) => { if (e.target.closest?.(".tabbar")) e.preventDefault(); }); // pas de glisser natif de lien
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", (e) => { if (drag && e.pointerType === "touch") endDrag(); });
+document.addEventListener("click", (e) => { if (swallow && e.target.closest?.(".tabbar")) { e.preventDefault(); e.stopPropagation(); swallow = false; } }, true);
+// En-tête qui s'estompe et floute le contenu défilé derrière lui (variable --sp de 0 à 1)
+const onScroll = () => document.documentElement.style.setProperty("--sp", Math.min(1, scrollY / 160).toFixed(3));
+addEventListener("scroll", onScroll, { passive: true });

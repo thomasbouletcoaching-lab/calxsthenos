@@ -674,12 +674,36 @@ function budgetBody() {
     <h2 class="sec">🏷️ Mes prix <small>€ par kg</small></h2>
     <div class="search">${I.search}<input id="prq" placeholder="Chercher un ingrédient" value="${esc(prQ)}" autocomplete="off"></div>
     <div class="list mt8" id="prl">${priceRows(q)}</div>
+    <form data-f="price-add" class="card mt8"><div class="grid2"><label class="field"><span>Aliment</span><input name="name" maxlength="40" required placeholder="ex. Riz basmati"></label><label class="field"><span>€ par kg</span><input name="kg" inputmode="decimal" placeholder="ex. 3,50"></label></div><button class="btn btn-line btn-sm mt8" style="width:100%">Ajouter cet aliment</button></form>
     <p class="xs muted mt8">Les prix servent à chiffrer tes recettes, ton batch cooking et ta liste de courses. Œufs : prix pour 1 kg (≈ 18 œufs).</p>`;
 }
-function priceRows(q) {
-  return Object.entries(RC.ING).filter(([k, v]) => !q || N.norm(v[0]).includes(q)).sort((a, b) => a[1][0].localeCompare(b[1][0], "fr")).slice(0, q ? 40 : 12)
-    .map(([k, v]) => `<div class="li"><span class="grow small">${esc(v[0])}${S().prices[k] != null ? ` <span class="tag r">perso</span>` : ""}</span><input class="inp" style="width:84px" inputmode="decimal" value="${String(RC.priceOf(k, S().prices)).replace(".", ",")}" data-c="price" data-k="${k}" aria-label="Prix au kilo de ${esc(v[0])}"></div>`).join("") + (q ? "" : `<p class="xs muted center" style="margin:8px 0 0">Cherche un ingrédient pour voir les autres.</p>`);
+function priceEntries(q) {
+  const rows = new Map();
+  Object.entries(RC.ING).forEach(([k, v]) => rows.set(k, { k, label: v[0] }));
+  Object.entries(S().priceNames || {}).forEach(([k, label]) => rows.set(k, { k, label, custom: true }));
+  (S().myFoods || []).forEach(f => { const k = "m:" + N.norm(f.n); if (!rows.has(k)) rows.set(k, { k, label: f.n, eur: f.eur, g: f.g }); });
+  return [...rows.values()].filter(r => !q || N.norm(r.label).includes(q)).sort((a, b) => a.label.localeCompare(b.label, "fr"));
 }
+function priceRows(q) {
+  const list = priceEntries(q);
+  if (!list.length) return `<p class="xs muted center">Aucun aliment trouvé. Ajoute-le ci-dessous.</p>`;
+  let letter = "", out = "";
+  for (const r of list) {
+    const c = (N.norm(r.label).charAt(0) || "#").toUpperCase(), L = /[A-Z]/.test(c) ? c : "#";
+    if (L !== letter) { letter = L; out += `<div class="xs muted" style="padding:10px 4px 2px;font-weight:700">${L}</div>`; }
+    const val = S().prices[r.k] ?? (r.eur && r.g ? Math.round(r.eur * 1000 / r.g * 100) / 100 : RC.priceOf(r.k, S().prices));
+    out += `<div class="li"><span class="grow small">${esc(r.label)}${S().prices[r.k] != null ? ` <span class="tag r">perso</span>` : ""}${r.custom || r.k.startsWith("m:") ? ` <span class="tag">ajouté</span>` : ""}</span><input class="inp" style="width:84px" inputmode="decimal" value="${String(val).replace(".", ",")}" data-c="price" data-k="${esc(r.k)}" aria-label="Prix au kilo de ${esc(r.label)}"></div>`;
+  }
+  return out;
+}
+forms["price-add"] = (v) => {
+  const name = String(v.name || "").trim(), p = num(v.kg);
+  if (!name) return toast("Indique le nom de l'aliment");
+  if (!(p > 0)) return toast("Indique le prix au kilo");
+  const k = "m:" + N.norm(name);
+  update(st => { st.priceNames = st.priceNames || {}; st.priceNames[k] = name; st.prices = st.prices || {}; st.prices[k] = Math.round(p * 100) / 100; });
+  toast("Aliment ajouté"); rerender();
+};
 forms["budget-set"] = (v) => { const w = num(v.weekly); update(st => st.budget = { weekly: w > 0 ? Math.round(w * 100) / 100 : null, people: Math.max(1, Math.round(num(v.people)) || 1) }); toast("Budget enregistré"); rerender(); };
 // Ticket de caisse : montant, magasin, articles (lus sur la photo ou tapés). Les articles alimentent « Mes aliments ».
 const SKIP_LINE = /total|sous.?total|tva|carte|cb\b|esp[eè]ce|rendu|monnaie|merci|ticket|caisse|siret|tel\b|t[eé]l[eé]phone|remise|fidelit|points|avoir|montant|paiement|visa|contact/i;
