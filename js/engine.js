@@ -312,6 +312,43 @@ export function blankExercise(name) {
   return { orig: name, name, kind: "X", note: "", scheme: "3x8-12 RPE8", unit, bw, step, rest: 120, sets, e1: e, sug: bw ? null : suggestion(name, 8, 8, 12, step), myNote: "" };
 }
 
+// Séance express (10, 20, 30 ou 45 min) : on garde les mouvements principaux, dans l'ordre du programme,
+// en retirant d'abord les exercices d'isolation et les dernières séries, avec des repos raccourcis.
+const PRIO = { F: 0, N: 0, P: 1, S: 2, U: 3, J: 3, A: 4, X: 4, I: 5, C: 6, G: 6, K: 7, M: 8, R: 8 };
+export function expressSession(s, min) {
+  const cap = min <= 10 ? 75 : min <= 20 ? 90 : min <= 30 ? 120 : 150;
+  const warm = min <= 10 ? 1 : min <= 20 ? 3 : 5;
+  let budget = (min - warm) * 60;
+  const work = 40; // secondes par série de travail
+  const ex = s.exercises.map((x, i) => ({ x, i, p: PRIO[x.kind] ?? 4 })).sort((a, b) => a.p - b.p || a.i - b.i);
+  const keep = new Map();
+  const minSets = min <= 10 ? 2 : 2;
+  // 1er passage : chaque exercice prioritaire reçoit ses séries minimales tant que le temps le permet
+  for (const e of ex) {
+    const rest = Math.min(cap, e.x.rest || 90), sets = e.x.sets.filter(st => st.type !== "W");
+    const need = Math.min(minSets, sets.length) * (work + rest);
+    if (need > budget) continue;
+    keep.set(e.i, Math.min(minSets, sets.length)); budget -= need;
+    if (min <= 10 && keep.size >= 2) break;
+  }
+  // 2e passage : séries supplémentaires, mouvements principaux d'abord
+  for (const e of ex) {
+    if (!keep.has(e.i)) continue;
+    const rest = Math.min(cap, e.x.rest || 90), total = e.x.sets.filter(st => st.type !== "W").length;
+    while (keep.get(e.i) < total && budget >= work + rest) { keep.set(e.i, keep.get(e.i) + 1); budget -= work + rest; }
+  }
+  const out = s.exercises.map((x, i) => {
+    if (!keep.has(i)) return null;
+    let n = keep.get(i);
+    const warmups = min <= 20 ? [] : x.sets.filter(st => st.type === "W").slice(0, 1);
+    const sets = [...warmups, ...x.sets.filter(st => st.type !== "W").slice(0, n)];
+    return { ...x, sets, rest: Math.min(cap, x.rest || 90) };
+  }).filter(Boolean);
+  if (!out.length && s.exercises.length) { const x = s.exercises[0]; out.push({ ...x, sets: x.sets.filter(st => st.type !== "W").slice(0, 2), rest: Math.min(cap, x.rest || 90) }); }
+  const dropped = s.exercises.length - out.length;
+  return { ...s, exercises: out, express: min, title: s.title, expressNote: (dropped ? `${dropped} exercice${dropped > 1 ? "s" : ""} retiré${dropped > 1 ? "s" : ""}, repos` : "Repos") + ` ${Math.floor(cap / 60)} min${cap % 60 ? " " + (cap % 60) : ""} max` };
+}
+
 // Fin de séance : e1RM, records, volume, avance le plan (sauf séance libre)
 export function finishSession(cur) {
   const d = today(), records = [];

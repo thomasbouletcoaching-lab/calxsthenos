@@ -15,10 +15,10 @@ export const hhmm = (d = new Date()) => d.toTimeString().slice(0, 5);
 // ---------- Formules ----------
 // Essai : les 7 premiers jours, l'app complète (Bâtisseur) est ouverte
 export const trialLeft = () => { const t = S().trialStart; if (!t || (S().me?.tier && S().me.tier !== "free")) return 0; return Math.max(0, TRIAL_DAYS - Math.floor((Date.now() - new Date(t + "T00:00:00").getTime()) / 864e5)); };
-export const tier = () => S().demoTier || (S().me?.tier && S().me.tier !== "free" ? S().me.tier : trialLeft() > 0 ? "premium" : "free");
+export const tier = () => (S().me?.isCoach ? "surmesure" : null) || (S().me?.tier && S().me.tier !== "free" ? S().me.tier : trialLeft() > 0 ? "premium" : "free");
 export const rank = () => offer(tier()).rank;
-export const premium = () => (ALL_FREE && !S().demoTier) || rank() >= 1;
-export const expert = () => (ALL_FREE && !S().demoTier) || rank() >= 2; // contenus « suivi » (connaissances expertes)
+export const premium = () => ALL_FREE || rank() >= 1;
+export const expert = () => ALL_FREE || rank() >= 2; // contenus « suivi » (connaissances expertes)
 export const isCoach = () => APP_MODE === "coach" && !!S().me?.isCoach && !S().demoTier;
 export const programOpen = (id) => premium() || FREE_PROGRAMS.includes(id) || id === S().profile?.startProgram || (S().customPrograms || []).some(p => p.id === id);
 export const weekOpen = (w) => premium() || w <= FREE_WEEKS;
@@ -132,7 +132,7 @@ export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bo
 // ---------- En-tête et barre d'onglets ----------
 export const badges = { msgs: 0, notifs: 0 };
 export function header(title, sub = "", { back = null, actions = "", offers = true } = {}) {
-  const demo = S().demoTier ? `<div class="demo-bar"><span class="grow">Démo · <b>${esc(offer(S().demoTier).name)}</b></span><button data-a="demo-choose">Choisir</button><button data-a="demo-exit">Quitter</button></div>` : "";
+  const demo = false ? `<div class="demo-bar"><span class="grow">Démo · <b>${esc(offer(S().demoTier).name)}</b></span><button data-a="demo-choose">Choisir</button><button data-a="demo-exit">Quitter</button></div>` : "";
   const lead = back ? `<button class="icon-btn" ${back === "__hist" ? `data-a="hist-back"` : `data-a="go" data-r="${back}"`} aria-label="Retour">${I.back}</button>` : `<button class="appic" data-a="go" data-r="profile" aria-label="Profil"><img src="assets/logo-grec.jpg" alt="" width="40" height="40" style="width:100%;height:100%;border-radius:inherit;display:block"></button>`;
   return demo + `<header class="top"><div class="row1">${lead}<h1>${title}</h1>
     ${actions}<button class="pill ic" data-a="notifs" aria-label="Notifications">${I.bell}${badges.notifs ? `<span class="badge">${badges.notifs}</span>` : ""}</button>

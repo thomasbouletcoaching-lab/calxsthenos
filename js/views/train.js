@@ -3,7 +3,8 @@ import { S, update, save, today } from "../store.js";
 import * as E from "../engine.js";
 import * as W from "../word.js";
 import { CONFIG } from "../config.js";
-import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave, isCoach, cloud } from "../core.js";
+import { $app, esc, num, fr, buzz, toast, routes, R, actions, changes, forms, go, I, header, tabbar, chips, seg, sheet, closeSheet, lockVeil, lineChart, barChart, hbars, wordOn, premium, rank, programOpen, weekOpen, fmtDate, addDays, rerender, onLeave, isCoach, cloud, modeBar } from "../core.js";
+import { kbSection } from "./more.js";
 import { pushStats } from "../sync.js";
 import { seasonBody } from "./season.js";
 
@@ -30,19 +31,43 @@ routes.train = async () => {
   else if (tab === "banque") body = bankBody();
   else if (tab === "saison") body = seasonBody();
   else body = historyBody();
-  $app.innerHTML = header("Entraînement", ns ? esc(ns.p.name.split("·")[0].trim()) : "") + `<main class="page"><div class="mt12">${seg(MAIN, mainOf(tab), "train-main")}</div>${mainOf(tab) === "mine" ? `<div class="mt8">${chips([...TABS.slice(0, 4), ["learn", "📚 Apprendre"]], tab, "train-tab")}</div>` : ""}${body}</main>${tabbar("train")}`;
+  $app.innerHTML = header("Entraînement", ns ? esc(ns.p.name.split("·")[0].trim()) : "", { back: "carnet" }) + `<main class="page"><div class="mt12">${seg(MAIN, mainOf(tab), "train-main")}</div>${mainOf(tab) === "mine" ? `<div class="mt8">${chips([...TABS.slice(0, 4), ["learn", "📚 Apprendre"]], tab, "train-tab")}</div>` : ""}${body}</main>${tabbar("train")}`;
   if (tab === "exos") bindExoSearch();
   if (tab === "banque") bindBankSearch();
 };
 actions["train-main"] = (b, d) => actions["train-tab"](b, { v: d.v === "mine" ? "programme" : d.v });
 // ---------- Carnet : séances à remplir, séances faites, progrès ----------
 let carnetMain = "seances", carnetTab = "remplir";
+let tMode = "carnet";
 routes.carnet = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
+  if (["carnet", "explorer", "savoir"].includes(R.param)) tMode = R.param;
   const ns = E.nextSession();
-  const body = carnetMain === "progres" ? statsBody() : carnetTab === "faites" ? historyBody() : programBody(ns);
-  $app.innerHTML = header("Carnet", ns ? `Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : "") + `<main class="page"><div class="mt12">${seg([["seances", "Séances"], ["progres", "Progrès"]], carnetMain, "carnet-main")}</div><button class="link small mt8" data-a="go" data-r="train">🧰 Programmes, banque et outils →</button>
-    ${carnetMain === "seances" ? `<div class="mt8">${chips([["remplir", "✍️ À remplir"], ["faites", "✅ Séances faites"]], carnetTab, "carnet-tab")}</div>` : ""}${body}</main>${tabbar("carnet")}`;
+  let body;
+  if (tMode === "explorer") body = `<h2 class="sec">🗂️ Programmes</h2>${bankBody()}<h2 class="sec">📖 Exercices</h2>${exosBody()}`;
+  else if (tMode === "savoir") body = await kbSection("train");
+  else {
+    const inner = carnetMain === "progres" ? statsBody() : carnetTab === "faites" ? historyBody() : programBody(ns);
+    body = `<div class="card mt12"><div class="row between"><b class="small">⚡ Séance express</b><span class="xs muted">mouvements principaux gardés</span></div><div class="chips wrap mt8">${[10, 20, 30, 45].map(m => `<button class="chip" data-a="express-go" data-v="${m}">${m} min</button>`).join("")}</div></div>
+      <div class="tiles mt12">
+        <button class="tile" data-a="go" data-r="train" data-p="saison"><span class="tile-ic">🗓️</span><span><b>Mes cycles</b><br><span class="xs muted">Blocs sur plusieurs semaines, objectifs</span></span></button>
+        <button class="tile" data-a="go" data-r="builder"><span class="tile-ic">✍️</span><span><b>Créer</b><br><span class="xs muted">Séances, programmes, cycles${premium() ? "" : " · 1 en gratuit"}</span></span></button>
+      </div>
+      <div class="mt12">${seg([["seances", "Séances"], ["progres", "Graphiques"]], carnetMain, "carnet-main")}</div>
+      ${carnetMain === "seances" ? `<div class="mt8">${chips([["remplir", "✍️ À remplir"], ["faites", "🕘 Historique"]], carnetTab, "carnet-tab")}</div>` : ""}${inner}
+      <button class="link small mt12" data-a="go" data-r="train" data-p="outils">🧮 Records, 1RM et outils →</button>`;
+  }
+  $app.innerHTML = header("Entraînement", ns ? `Semaine ${ns.week}/${ns.weeks} · ${esc(ns.phase)}` : "") + `<main class="page">${modeBar([["carnet", "Carnet"], ["explorer", "Explorer"], ["savoir", "Connaissances"]], tMode, "train-mode")}${body}</main>${tabbar("carnet")}`;
+  if (tMode === "explorer") { bindBankSearch(); bindExoSearch(); }
+};
+actions["train-mode"] = (b, d) => { tMode = d.v; R.param = null; history.replaceState(null, "", "#/carnet" + (d.v === "carnet" ? "" : "/" + d.v)); rerender(false); window.scrollTo(0, 0); };
+actions["express-go"] = async (b, d) => {
+  const min = +d.v, ns = E.nextSession();
+  if (S().current) return go("workout");
+  if (ns && !weekOpen(ns.week)) return go("offers");
+  const s0 = E.buildSession(); if (!s0) return toast("Choisis d'abord un programme.");
+  const s = E.expressSession(s0, min); s.target = min; s.start = new Date().toISOString();
+  update(st => { st.current = s; st.settings.sessionMin = min; }); toast(`⚡ ${min} min : ${s.expressNote}`); go("workout");
 };
 actions["carnet-main"] = (b, d) => { carnetMain = d.v; rerender(false); window.scrollTo(0, 0); };
 actions["carnet-tab"] = (b, d) => { carnetTab = d.v; rerender(false); };
@@ -264,18 +289,21 @@ actions.start = async () => {
   if (cur) return go("workout");
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
   const s0 = E.buildSession(); if (!s0) return toast("Choisis d'abord un programme.");
-  durationSheet((min, mode) => { const s = mode === "adapt" ? E.buildMerged(true) : mode === "full" ? E.buildMerged(false) : s0; s.target = min; s.start = new Date().toISOString(); update(st => st.current = s); go("workout"); }, s0.title, E.mergeCandidate());
+  durationSheet((min, mode) => { let s = mode === "adapt" ? E.buildMerged(true) : mode === "full" ? E.buildMerged(false) : s0; if (mode === "express") s = E.expressSession(s, min); s.target = min; s.start = new Date().toISOString(); update(st => st.current = s); if (s.expressNote) toast(`⚡ Séance express ${min} min : ${s.expressNote}`); go("workout"); }, s0.title, E.mergeCandidate());
 };
 // Durée visée de la séance : compte à rebours pendant toute la séance
 export function durationSheet(onGo, title = "Ta séance", merge = null) {
   const last = S().settings.sessionMin ?? (S().profile?.sessionMin || 45);
   sheet(`<h2 class="h2">${esc(title)}</h2>${merge ? `<div class="card soft mt8"><b class="small">🔗 Une séance à rattraper ?</b><p class="xs muted" style="margin:4px 0 8px">Tu peux faire aujourd'hui « ${esc(title)} » et « ${esc(merge.title)} » en une seule séance. Ce n'est pas obligatoire : souvent, mieux vaut simplement reprendre le fil.</p>
       <div class="chips wrap"><button class="chip on" data-a="mg-pick" data-v="">Seulement celle-ci</button><button class="chip" data-a="mg-pick" data-v="adapt">Fusionner, version adaptée</button><button class="chip" data-a="mg-pick" data-v="full">Fusionner tout</button></div>
-      <p class="xs muted" style="margin:6px 0 0">Adaptée : exercices en double regroupés, environ un tiers de séries en moins. Tu peux ensuite retirer ou changer des exercices.</p></div>` : ""}<p class="small muted mt8">Combien de temps as-tu ? Le compte à rebours te dit si tu es dans les temps.</p>
+      <p class="xs muted" style="margin:6px 0 0">Adaptée : exercices en double regroupés, environ un tiers de séries en moins. Tu peux ensuite retirer ou changer des exercices.</p></div>` : ""}<div class="card soft mt12"><b class="small">⚡ Séance express</b><p class="xs muted" style="margin:4px 0 8px">Peu de temps ? Les mouvements principaux sont gardés, l'isolation et les dernières séries sautent, les repos raccourcissent.</p>
+      <div class="chips wrap">${[10, 20, 30, 45].map(m => `<button class="chip" data-a="dur-express" data-v="${m}">${m} min</button>`).join("")}</div></div>
+    <p class="small muted mt12">Ou la séance complète : combien de temps as-tu ? Le compte à rebours te dit si tu es dans les temps.</p>
     <div class="chips wrap mt12">${[30, 40, 45, 50, 60, 75, 90].map(m => `<button class="chip ${m === last ? "on" : ""}" data-a="dur-pick" data-v="${m}">${m} min</button>`).join("")}<button class="chip ${last === 0 ? "on" : ""}" data-a="dur-pick" data-v="0">Sans chrono</button></div>
     <label class="field mt12"><span>Ou une durée précise (minutes)</span><input id="dur-x" inputmode="numeric" placeholder="ex. 35"></label>
     <button class="btn btn-red mt16" data-a="dur-go">C'est parti</button>`, (w) => { w._go = onGo; w._min = last; });
 }
+actions["dur-express"] = (b, d) => { const w = document.getElementById("sheet"), go2 = w._go; update(st => st.settings.sessionMin = +d.v); closeSheet(); go2(+d.v, "express"); };
 actions["dur-pick"] = (b, d) => { const w = document.getElementById("sheet"); w._min = +d.v; w.querySelectorAll('[data-a="dur-pick"]').forEach(x => x.classList.toggle("on", x === b)); w.querySelector("#dur-x").value = ""; };
 actions["dur-go"] = () => { const w = document.getElementById("sheet"), x = num(w.querySelector("#dur-x").value); const min = x > 0 && x < 300 ? Math.round(x) : w._min; update(st => st.settings.sessionMin = min); const go2 = w._go, mode = w._mode || ""; closeSheet(); go2(min, mode); };
 actions["mg-pick"] = (b, d) => { const w = document.getElementById("sheet"); w._mode = d.v; w.querySelectorAll('[data-a="mg-pick"]').forEach(x => x.classList.toggle("on", x === b)); if (d.v) w._min = Math.max(w._min || 0, d.v === "full" ? 90 : 75); w.querySelectorAll('[data-a="dur-pick"]').forEach(x => x.classList.toggle("on", +x.dataset.v === w._min)); };
@@ -652,7 +680,12 @@ function toDraft(p) {
 }
 routes.builder = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
-  if (!premium()) {
+  const mineP = S().customPrograms || [], editing = R.param && mineP.some(p => p.id === R.param);
+  if (!premium() && mineP.length >= 1 && !editing && !(draft && mineP.some(p => p.id === draft.id))) {
+    $app.innerHTML = header("Créer mon programme", "", { back: "carnet" }) + `<main class="page"><div class="card"><h2 class="h2">Un programme personnel en gratuit</h2><p class="small muted">Tu as déjà créé « ${esc(mineP[0].name)} ». Avec le Bâtisseur, crée autant de séances, de programmes et de cycles que tu veux.</p><button class="btn btn-red mt12" data-a="go" data-r="offers">Voir le Bâtisseur · 7 jours offerts</button><button class="btn btn-line mt8" data-a="go" data-r="builder" data-p="${mineP[0].id}">Modifier mon programme</button></div></main>${tabbar("builder")}`;
+    return;
+  }
+  if (false) {
     $app.innerHTML = header("Créer mon programme", "", { back: "train" }) + `<main class="page"><div class="card locked" style="min-height:300px;position:relative"><h2 class="h2">Ton programme, tes règles</h2><p class="small muted">Séances, exercices, séries une par une, top set et back-off, % du 1RM ou kg, RPE, règles de surcharge, techniques et tempo semaine par semaine.</p>${lockVeil("Bâtisseur")}</div></main>${tabbar("train")}`;
     return;
   }
@@ -787,6 +820,7 @@ actions["bx-wcopy"] = () => { const x = edRow()[5], src = JSON.parse(JSON.string
 
 function saveDraft() {
   if (!draft.s.some(s => s[2].length)) { toast("Ajoute au moins un exercice."); return false; }
+  if (!premium() && (S().customPrograms || []).some(p => p.id !== draft.id)) { toast("Gratuit : un seul programme personnel. Passe au Bâtisseur pour en créer d'autres."); return false; }
   const nd = draft.days.filter(Boolean).length; if (!nd) { toast("Choisis au moins un jour."); return false; }
   let k = 0; draft.days.forEach((on, i) => { if (on && draft.s[k]) draft.s[k++][1] = E.DAY_NAMES[i]; });
   update(st => { st.customPrograms = (st.customPrograms || []).filter(p => p.id !== draft.id); st.customPrograms.push(JSON.parse(JSON.stringify(draft))); });

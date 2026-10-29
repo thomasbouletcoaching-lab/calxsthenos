@@ -48,8 +48,7 @@ export const PUBLIC_OFFERS = OFFERS.filter(o => ["free", "premium", "avance"].in
 export const offer = (id) => OFFERS.find(o => o.id === id) || OFFERS[0];
 export const MSGS_PER_WEEK = { free: 0, premium: 0, essentiel: 10, suivi: 20, avance: 50, surmesure: null };
 // Programmes accessibles sans Premium
-// Phase de test : toutes les fonctionnalités sont ouvertes à tous (les offres restent visibles pour le coaching)
-export const ALL_FREE = true;
+export const ALL_FREE = false; // fin de la phase de test : essai de 7 jours, puis Gratuit ou Bâtisseur
 export const FREE_PROGRAMS = ["tb-rep2", "tb-rep3", "bk-home-rien-30", "bk-sa-dos3-30", "bk-sw-deb3", "bk-bb-fbdeb3-45"];
 export const FREE_WEEKS = 4;
 export const FREE_FAVORITES = 5;

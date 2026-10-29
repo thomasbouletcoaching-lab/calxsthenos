@@ -26,6 +26,7 @@ window.addEventListener("hashchange", render);
   try { applyTheme(); } catch { }
   await Promise.all([E.loadPrograms(), N.loadModels()]).catch(() => { });
   if (S().profile && !S().trialStart) update(st => st.trialStart = today());
+  if (S().demoTier) update(st => st.demoTier = null); // plus de mode démo : essai de 7 jours seulement
   render();
   refreshMe().then(() => { if (["home", "coach"].includes(R.route) && !document.querySelector(".sheet-wrap, .composer, input:focus, textarea:focus")) render(); });
   setInterval(refreshMe, 60000);
