@@ -12,6 +12,7 @@ import "./views/train.js";
 import "./views/food.js";
 import "./views/parole.js";
 import "./views/crise.js";
+import "./views/trophees.js";
 import "./views/coach.js";
 import "./views/season.js";
 import "./views/admin.js";

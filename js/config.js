@@ -18,7 +18,7 @@ export const OFFERS = [
   { id: "free", rank: 0, name: "Gratuit", price: "0 €", per: "", msgs: "2 messages par semaine avec Thomas",
     tagline: "La Parole et l'essentiel, pour toujours.",
     feats: ["Toute la Parole : journal du bâtisseur, défis de 7 jours, Le Rocher, vérités, Bible", "Apprendre : tous les chapitres de base", "Journal alimentaire : calories, macros, fibres, base Ciqual et produits de marque", "Carnet de séance, minuteur, séances libres", "6 programmes complets : reprise, débutant salle, maison, dos, street workout"] },
-  { id: "premium", rank: 1, name: "Bâtisseur", price: "14,99 €", per: "/mois", alt: "ou 119 € par an, soit 2 mois offerts", msgs: "5 messages par semaine",
+  { id: "premium", rank: 1, name: "Bâtisseur", price: "19,99 €", per: "/mois", alt: "ou 119,99 € par an, soit 6 mois offerts", msgs: "5 messages par semaine",
     tagline: "L'app complète, pour avancer seul avec ma méthode.", ribbon: "7 jours d'essai offerts",
     feats: ["Tout le Gratuit", "Les 111 programmes (salle, maison, street, force, femmes, parents, santé) et les cycles de 12 semaines", "Charges calculées et surcharge progressive selon ton RPE, alertes plateau et blessure", "Plan alimentaire selon ton profil, ton régime et ton nombre de repas, modifiable au gramme", "Recettes, batch cooking, liste de courses et budget par magasin", "Vitamines, minéraux et compléments : ce qu'il te faut, à quelle dose", "Bilan énergétique, statistiques, photos et mensurations", "Créer et modifier tes propres programmes"],
     pay: { month: "", year: "" } },

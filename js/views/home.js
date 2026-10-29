@@ -10,6 +10,7 @@ import { sabbatOn, sabbatCard } from "./parole.js";
 import { durationSheet } from "./train.js";
 import { seasonTimeline, goalsMini } from "./season.js";
 import { FREE_WEEKS } from "../config.js";
+import { gamCard } from "../quests.js";
 
 let homeTab = "today", homeDay = null;
 const WATER_GOAL = 8; // verres de 25 cl
@@ -142,7 +143,7 @@ routes.home = async () => {
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
     ${d === today() && sabbatOn() ? sabbatCard() : ""}
-    ${d === today() ? triadeCard() + quickActions() : ""}
+    ${d === today() ? triadeCard() + gamCard() + quickActions() : ""}
     ${d === today() ? ritualCard() : ""}
     ${d === today() ? eveningCard() : ""}
     ${trainingCard(d)}
