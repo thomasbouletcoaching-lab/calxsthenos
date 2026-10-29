@@ -15,16 +15,13 @@ routes.profile = async () => {
     <div class="card"><div class="lbl">Ta formule</div><div class="row between mt4"><span class="h2">${esc(offer(S().me?.tier || "free").name)}</span><button class="link" data-a="go" data-r="offers">Changer</button></div>${p.email ? `<p class="xs muted mt4" style="margin:0">${esc(p.email)}</p>` : ""}</div>
     ${ALL_FREE ? `<div class="card mt12"><div class="lbl">🧪 Phase de test</div><p class="small mt4" style="margin-bottom:8px">Toutes les fonctionnalités sont ouvertes pour l'instant. Pour voir l'app exactement comme un abonné de chaque formule (avec les cadenas), choisis-en une :</p>
       <div class="chips wrap">${OFFERS.map(o => `<button class="chip ${S().demoTier === o.id ? "on" : ""}" data-a="demo" data-v="${o.id}">${esc(o.name)}</button>`).join("")}${S().demoTier ? `<button class="chip" data-a="demo-exit">Tout ouvrir</button>` : ""}</div></div>` : ""}
-    <h2 class="sec">🕊️ Dimension spirituelle</h2>
-    ${seg([["daily", "Active"], ["discreet", "Discrète"], ["off", "Désactivée"]], w, "word-set")}
-    <p class="xs muted mt8">La Bible reste toujours accessible dans l'onglet Esprit.</p>
     <h2 class="sec">⚙️ Réglages</h2>
     <div class="list">
       <button class="li" data-a="edit-body"><span class="em">🔥</span><span class="grow">Mes infos et mon carburant<br><span class="xs muted">${t ? `${fr(t.kcal)} kcal · ${esc(t.model.name)}` : ""}</span></span>${I.chev}</button>
       <button class="li" data-a="go" data-r="simu"><span class="em">🏆</span><span class="grow">Mes records (1RM)</span>${I.chev}</button>
       <button class="li" data-a="go" data-r="kb"><span class="em">📚</span><span class="grow">Connaissances</span>${I.chev}</button>
       <div class="li"><span class="em">📊</span><span class="grow">Afficher les % et l'e1RM dans le carnet</span><button class="switch ${S().settings.adv ?? p.level === "advanced" ? "on" : ""}" data-a="adv-toggle" aria-label="Mode avancé"></button></div>
-      <div class="li"><span class="em">🕊️</span><span class="grow">Jour de repos (sabbat)<br><span class="xs muted">Ce jour-là, l'accueil ne pousse plus à la performance</span></span><select class="inp" style="width:auto;font-size:15px" data-c="sabbat-dow" aria-label="Jour de repos">${[["-1", "Désactivé"], ...["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((n, i) => [String(i), n])].map(([v, n]) => `<option value="${v}" ${String(S().settings.sabbat?.on === false ? -1 : S().settings.sabbat?.dow ?? 6) === v ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      <div class="li"><span class="em">🕊️</span><span class="grow">Jour de repos<br><span class="xs muted">Ce jour-là, l'accueil ne pousse plus à la performance</span></span><select class="inp" style="width:auto;font-size:15px" data-c="sabbat-dow" aria-label="Jour de repos">${[["-1", "Désactivé"], ...["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((n, i) => [String(i), n])].map(([v, n]) => `<option value="${v}" ${String(S().settings.sabbat?.on === false ? -1 : S().settings.sabbat?.dow ?? 6) === v ? "selected" : ""}>${n}</option>`).join("")}</select></div>
       <div class="li"><span class="em">📳</span><span class="grow">Vibrations</span><button class="switch ${S().settings.haptics ? "on" : ""}" data-a="haptics" aria-label="Vibrations"></button></div>
       <div class="li"><span class="em">🌗</span><span class="grow">Thème</span><select data-c="theme" class="inp" style="width:auto;padding:4px 8px;font-size:15px"><option value="">Automatique</option><option value="light" ${localStorage.getItem("cxs.theme") === "light" ? "selected" : ""}>Clair</option><option value="dark" ${localStorage.getItem("cxs.theme") === "dark" ? "selected" : ""}>Sombre</option></select></div>
       <button class="li" data-a="go" data-r="x"><span class="em">✖️</span><span class="grow">Pourquoi le X ?</span>${I.chev}</button>
@@ -108,7 +105,7 @@ routes.x = () => {
     <p class="mt24"><i>Kalos</i>, en grec, c'est le beau, le noble. <i>Sthenos</i>, c'est la force. Ensemble, ils ont donné la calisthénie : l'art de bâtir un corps fort.</p>
     <p>« Cal », ce sont aussi les calories : ce qui te nourrit. « Sthenos », ce qui te rend fort. Et le X : la lettre grecque Chi, la première du nom du Christ.</p>
     <p>Sur le logo, un athlète peint comme sur un vase grec fait une traction sur la barre d'une croix. La force se construit en s'élevant, et la croix est ce qui nous relève : « Je puis tout par celui qui me fortifie » (Philippiens 4:13).</p>
-    <p>Nous croyons que le corps compte et mérite d'être servi avec exigence. Et qu'il n'est pas tout : nous voulons édifier le corps, l'âme et l'esprit, pour cette vie et pour l'éternité.</p>
+    <p>Nous croyons que le corps compte et mérite d'être servi avec exigence : des données, de la régularité, et une méthode qui tient dans la vraie vie.</p>
     <div class="card mt16">${W.wordCard(W.VERSES[0])}</div>
     <p class="mt16">La force que tu construis ici est réelle. Celle que Dieu offre l'est davantage, et elle ne se gagne pas : elle se reçoit.</p>
     <button class="btn btn-line mt16" data-a="go" data-r="eternal" data-p="jesus">Qui est Jésus ?</button>
@@ -121,6 +118,5 @@ routes.privacy = () => {
     <p><b>Ce qui reste uniquement sur ton téléphone :</b> le détail de tes séances, ton journal alimentaire, tes jeûnes, ta routine, tes mensurations, tes photos, tes surlignages et tes notes de la Bible.</p>
     <p><b>Pourquoi :</b> te proposer un programme adapté, te répondre et, si tu l'as accepté, t'envoyer des conseils par e-mail. Tes données ne sont jamais vendues.</p>
     <p><b>Tes droits :</b> accès, rectification, suppression. Écris à Thomas depuis l'onglet Coach, ou efface tout depuis ton profil. Les données de ton compte serveur sont supprimées sur simple demande.</p>
-    <p><b>Textes bibliques :</b> Louis Segond 1910, domaine public (édition numérique de l'Alliance biblique universelle, via eBible.org).</p>
   </main>`;
 };

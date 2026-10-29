@@ -20,6 +20,6 @@ routes.trophees = () => {
     <div class="grid2">${TROPHIES.map(t => `<div class="card" style="text-align:center;${gotIds.has(t.id) ? "" : "opacity:.45"}"><div style="font-size:30px">${gotIds.has(t.id) ? t.icon : "🔒"}</div><b class="small">${esc(t.name)}</b><div class="xs muted">${esc(t.desc)}</div></div>`).join("")}</div>
     <h2 class="sec">Récompenses</h2>
     <div class="list">${REWARDS.map(r => `<div class="li" style="${rwIds.has(r.id) ? "" : "opacity:.5"}"><span class="em">${rwIds.has(r.id) ? r.icon : "🔒"}</span><span class="grow"><b>${esc(r.name)}</b><br><span class="xs muted">${rwIds.has(r.id) ? "Débloquée · à réclamer dans la conversation avec Thomas" : `Niveau ${r.lvl} requis`}</span></span></div>`).join("")}</div>
-    <p class="xs muted mt16">Les points récompensent la régularité : séances, protéines, Parole, routine et honnêteté après un écart. Rien ne dépend de ton poids ni de ton corps.</p>
+    <p class="xs muted mt16">Les points récompensent la régularité : séances, protéines, routine et honnêteté après un écart. Rien ne dépend de ton poids ni de ton corps.</p>
   </main>${tabbar("")}`;
 };

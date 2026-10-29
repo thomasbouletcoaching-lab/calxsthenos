@@ -14,7 +14,7 @@ export const STAGES = [
   { from: 1, name: "Le Commençant", icon: "🌱", line: "Chaque début compte. Le premier pas est déjà une décision." },
   { from: 3, name: "L'Homme de la reprise", icon: "🔥", line: "Tu reviens après les écarts. C'est ça, la force." },
   { from: 5, name: "L'Homme de discipline", icon: "🛡️", line: "Ta régularité se voit : elle devient ton caractère." },
-  { from: 8, name: "L'Homme de fer", icon: "🏛️", line: "Corps, âme et esprit tiennent ensemble. Continue." },
+  { from: 8, name: "L'Homme de fer", icon: "🏛️", line: "Corps, régularité et méthode tiennent ensemble. Continue." },
 ];
 export const stageOf = (level) => [...STAGES].reverse().find(s => level >= s.from);
 

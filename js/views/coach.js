@@ -28,7 +28,7 @@ function followUp() {
   return `<div class="card"><div class="h3">📝 ${weekly ? "Bilan de la semaine" : "Bilan du mois"}</div><p class="small muted mt4">Envoie-le chaque ${weekly ? "dimanche" : "fin de mois"} : je te réponds avec tes ajustements.</p><button class="btn btn-red btn-sm mt8" data-a="checkin">Remplir mon bilan</button></div>
     ${r >= 4 ? `<div class="card"><div class="h3">📞 Mes appels avec Thomas</div><p class="small muted mt4">${r >= 5 ? "Un appel toutes les deux semaines." : "Un appel par mois."}</p><a class="btn btn-line btn-sm mt8" href="${CONFIG.calendly}" target="_blank" rel="noopener">Réserver un appel</a></div>
       <div class="card"><div class="h3">🎥 Analyse de ta technique</div><p class="small muted mt4">Filme une série de profil et envoie-moi le lien de la vidéo dans les messages : je te réponds avec mes corrections.</p></div>` : ""}
-    ${r >= 5 ? `<div class="card hl"><div class="h3">✝ Corps, âme et esprit</div><p class="small muted mt4">Ton accompagnement inclut aussi tes objectifs de vie, ta discipline et, si tu le souhaites, ta foi. On en parle à chaque appel.</p></div>` : ""}`;
+    ${false ? `<div class="card hl"><div class="h3">✝ Corps, âme et esprit</div><p class="small muted mt4">Ton accompagnement inclut aussi tes objectifs de vie, ta discipline et, si tu le souhaites, ta foi. On en parle à chaque appel.</p></div>` : ""}`;
 }
 
 // ---------- Offres et démo ----------
@@ -37,7 +37,6 @@ routes.offers = () => {
   $app.innerHTML = header("Les offres", "Essaie chaque formule en démo", { back: "coach" }) + `<main class="page">
     <p class="muted">Touche « Voir la démo » : l'app passe dans cette formule pour te montrer tout ce qu'elle débloque. Rien n'est payé.</p>
     ${trialLeft() > 0 ? `<div class="card grad"><b>🎁 Ton essai : encore ${trialLeft()} jour${trialLeft() > 1 ? "s" : ""}</b><p class="small mt4" style="margin:0">Pendant 7 jours, tout Bâtisseur est ouvert. Ensuite tu gardes le Gratuit, ou tu continues avec Bâtisseur.</p></div>` : `<div class="card grad"><b>🎁 7 jours d'essai de l'app complète</b><p class="small mt4" style="margin:0">Chaque nouveau compte essaie Bâtisseur gratuitement pendant 7 jours.</p></div>`}
-    <div class="card soft mt12"><b>✝ La Parole reste gratuite, pour toujours.</b><p class="small muted mt4" style="margin:0">Le journal du bâtisseur, les défis, Le Rocher et la Bible ne sont dans aucune offre payante.</p></div>
     <h2 class="sec">Comparer</h2>
     <div class="card" style="padding:6px"><table class="cmp"><thead><tr><th></th><th>Gratuit</th><th>Bâtis&shy;seur</th><th>Coa&shy;ching</th></tr></thead><tbody>${COMPARE.map(r => `<tr><td>${esc(r[0])}</td>${r.filter((_, i) => i !== 3).slice(1).map(c => `<td class="${c === "–" ? "muted" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${PUBLIC_OFFERS.map(o => `<div class="offer ${o.id === cur ? "cur" : ""} mt16">${o.id === cur ? `<span class="ribbon">Ta formule</span>` : o.ribbon ? `<span class="ribbon">${esc(o.ribbon)}</span>` : ""}

@@ -23,7 +23,6 @@ const STEPS = [
   { id: "activity", q: () => `🔥 Ta journée, <span class="k">en dehors du sport</span> ?`, sub: "Ça sert à calculer ta dépense calorique. Pense à une journée de travail ou d'études habituelle.", opts: [["low", "Presque toujours assis", "Bureau, télétravail, voiture"], ["light", "Assis, mais je bouge un peu", "Études, bureau avec trajets à pied, tâches à la maison"], ["mid", "Debout une bonne partie du temps", "Vente, enseignement, coiffure, accueil, parent au foyer"], ["high", "Métier physique", "Serveur, livreur, infirmier, aide-soignant, artisan"], ["vhigh", "Métier très physique", "BTP, déménagement, travail agricole, manutention"]] },
   { id: "steps", q: () => `👣 Combien de <span class="k">pas par jour</span> en moyenne ?`, sub: "Regarde l'app Santé de ton téléphone si tu ne sais pas. Ça affine ta dépense.", opts: [[3000, "Moins de 4 000"], [5500, "4 000 à 7 000"], [8500, "7 000 à 10 000"], [11500, "10 000 à 13 000"], [15000, "Plus de 13 000"]] },
   { id: "diet", q: () => `🍽️ Ton <span class="k">alimentation</span> ?`, opts: [["all", "Je mange de tout"], ["vegetarian", "Végétarien"], ["vegan", "Vegan"]] },
-  { id: "word", q: () => `Dernière chose. Veux-tu une <span class="k">parole pour la route</span> chaque jour ?`, sub: "CalXsthenos veut prendre soin de ton corps, de ton âme et de ton esprit. Tu peux changer ce choix à tout moment.", opts: [["daily", "Oui, chaque jour"], ["discreet", "Seulement sur l'accueil"], ["off", "Pas maintenant"]] },
 ];
 const LIFTS_ALL = [["squat", "Squat barre"], ["bench", "Développé couché barre"], ["deadlift", "Soulevé de terre"], ["ohp", "Développé militaire barre"], ["row", "Rowing barre"],
   ["dbbench", "Développé couché haltères", "halt"], ["dbohp", "Développé militaire haltères", "halt"], ["pullup", "Tractions (poids du corps ou lestées)", "lest"], ["dip", "Dips (poids du corps ou lestés)", "lest"], ["muscleup", "Muscle-up (poids du corps ou lesté)", "lest"], ["pulldown", "Tirage vertical poulie"]];
@@ -53,7 +52,7 @@ routes.onboarding = () => {
 function welcome() {
   $app.innerHTML = `<section class="convo" style="justify-content:space-between">
     <div class="mt24" style="display:flex;flex-direction:column;gap:14px;align-items:flex-start">${markImg(150)}${logo(30)}</div>
-    <div><p class="kicker">Corps · âme · esprit</p><h1 class="hello mt8" style="font-size:46px">Ton corps, ton âme, ton esprit. Un seul plan.</h1>
+    <div><p class="kicker">Corps · régularité · méthode</p><h1 class="hello mt8" style="font-size:46px">Un seul plan pour ton corps.</h1>
       <p class="mt16 muted" style="font-size:17px">Entraînement, nutrition et progression calculés pour toi par un coach diplômé STAPS. Des charges qui suivent ce que tu fais vraiment.</p></div>
     <div class="stack"><button class="btn btn-red" data-a="ob-start">Créer mon plan gratuit</button>
       <label class="btn btn-line" style="cursor:pointer">Restaurer une sauvegarde<input type="file" accept="application/json" data-c="import" hidden></label></div></section>`;

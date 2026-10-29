@@ -6,7 +6,8 @@ import * as EN from "../energy.js";
 import { $app, esc, num, fr, toast, buzz, routes, R, actions, changes, go, I, header, tabbar, seg, ring, gradDef, lineChart, barChart, greet, wordOn, fmtDate, addDays, isCoach, rank, premium, badges, msgQuotaText, weekOpen, rerender } from "../core.js";
 import { pushStats } from "../sync.js";
 import { agendaWeekView, agendaMonthView, agendaYearView } from "./agenda.js";
-import { sabbatOn, sabbatCard } from "./parole.js";
+const restDayOn = (d = today()) => { const sb = S().settings?.sabbat; if (sb && sb.on === false) return false; return new Date(d + "T12:00:00").getDay() === (sb?.dow ?? 6); };
+const restDayCard = () => `<div class="card"><div class="lbl">Jour de repos</div><p class="mt8" style="margin:0">Aujourd'hui, pas de performance à battre. Marche, dors, mange en famille. Le repos fait partie du plan.</p></div>`;
 import { durationSheet } from "./train.js";
 import { seasonTimeline, goalsMini } from "./season.js";
 import { FREE_WEEKS } from "../config.js";
@@ -75,6 +76,7 @@ changes["rit-focus"] = (el) => { ritSet("focus", el.value.trim() || null); buzz(
 actions["rit-reset"] = () => { ritSet("focus", null); rerender(); };
 // Bilan du soir (Journal du Bâtisseur) : 30 secondes, après 18 h
 function eveningCard() {
+  return ""; // bilan « Parole » retiré
   if (new Date().getHours() < 18 || S().journal?.[today()]?.heart || S().settings.word === "off") return "";
   return `<button class="card tap" data-a="go" data-r="word" data-p="journal" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">🌙</span><span class="grow"><b>Bilan du soir · 30 s</b><br><span class="small muted">As-tu honoré ton corps aujourd'hui ? Où en est ton cœur face à Dieu ?</span></span>${I.chev}</button>`;
 }
@@ -143,11 +145,11 @@ routes.home = async () => {
   else body = `${weekStrip(d)}
     ${d !== today() ? `<p class="small muted center">${fmtDate(d)} · <a href="#" data-a="home-day" data-v="${today()}" class="link">revenir à aujourd'hui</a></p>` : ""}
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
-    ${d === today() && sabbatOn() ? sabbatCard() : ""}
+    ${d === today() && restDayOn() ? restDayCard() : ""}
     ${d === today() ? triadeCard() + gamCard() + quickActions() : ""}
     ${d === today() ? eveningCard() : ""}
     ${trainingCard(d)}
-    ${d === today() && !sabbatOn() ? stallCard() + goalsMini() : ""}
+    ${d === today() && !restDayOn() ? stallCard() + goalsMini() : ""}
     ${routineCard(d)}
     <h2 class="sec">🔥 Calories du jour <small><a href="#/food" class="link">Nutrition</a></small></h2>
     <button class="card tap" data-a="go" data-r="food">${caloriesCard(d)}</button>

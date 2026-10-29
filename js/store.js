@@ -1,5 +1,8 @@
 // Données locales : tout reste sur le téléphone de l'utilisateur.
-const KEY = "cxs.v1";
+// Deux applis distinctes sur le même serveur : coach.html (espace coach) et index.html (client).
+// Chacune garde ses données sur le téléphone, dans sa propre clé de stockage.
+export const APP_MODE = document.documentElement.dataset.app === "coach" ? "coach" : "client";
+const KEY = APP_MODE === "coach" ? "cxs.coach.v1" : "cxs.v1";
 
 const blank = () => ({
   profile: null,          // réponses de l'onboarding

@@ -19,7 +19,7 @@ export const tier = () => S().demoTier || (S().me?.tier && S().me.tier !== "free
 export const rank = () => offer(tier()).rank;
 export const premium = () => (ALL_FREE && !S().demoTier) || rank() >= 1;
 export const expert = () => (ALL_FREE && !S().demoTier) || rank() >= 2; // contenus « suivi » (connaissances expertes)
-export const isCoach = () => !!S().me?.isCoach && !S().demoTier;
+export const isCoach = () => APP_MODE === "coach" && !!S().me?.isCoach && !S().demoTier;
 export const programOpen = (id) => premium() || FREE_PROGRAMS.includes(id) || id === S().profile?.startProgram || (S().customPrograms || []).some(p => p.id === id);
 export const weekOpen = (w) => premium() || w <= FREE_WEEKS;
 export function msgQuotaText() {
@@ -118,7 +118,7 @@ document.addEventListener("focusin", (e) => {
 });
 document.addEventListener("focusout", () => setTimeout(() => { viewportVars(); if (!document.activeElement?.matches?.("input,textarea,select")) document.documentElement.classList.remove("kb"); }, 120));
 viewportVars();
-export const wordOn = (place) => { const w = S().settings.word; return w === "daily" || (w === "discreet" && place === "home"); };
+export const wordOn = () => false; // dimension spirituelle retirée de l'application
 export const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; };
 
 // ---------- En-tête et barre d'onglets ----------
@@ -131,6 +131,7 @@ export function header(title, sub = "", { back = null, actions = "" } = {}) {
     ${isCoach() ? "" : `<button class="pill" data-a="go" data-r="offers">🚀 ${rank() >= 2 ? "Coaching" : "Offres"}</button>`}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</header>`;
 }
 export function tabbar(active) {
+  if (APP_MODE === "coach") return adminTabbar("admin");
   // L'entraînement vit dans le Carnet : le même onglet reste allumé sur ces écrans
   const act = active === "train" ? "carnet" : active;
   const t = [["home", "Temple", I.home], ["carnet", "Carnet", I.bar], ["food", "Nutrition", I.fork], ["coach", isCoach() ? "Membres" : "Coaching", I.coach]];
@@ -194,6 +195,7 @@ export const onLeave = (fn) => stops.add(fn);
 export function render() {
   const h = location.hash.replace(/^#\/?/, "").split("/");
   R.route = h[0] || "home"; R.param = h[1] ? decodeURIComponent(h[1]) : null; R.param2 = h[2] ? decodeURIComponent(h[2]) : null;
+  if (APP_MODE === "coach" && R.route === "home") R.route = "admin"; // l'app coach s'ouvre sur l'espace coach
   if (!S().profile && !["onboarding", "x", "privacy"].includes(R.route)) R.route = "onboarding";
   if (S().current && !["workout", "x", "fiche", "simu"].includes(R.route) && sessionStorage.getItem("cxs.min") !== "1") R.route = "workout";
   stops.forEach(f => f()); stops.clear(); closeSheet(); document.getElementById("hlb")?.remove();
