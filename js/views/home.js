@@ -107,8 +107,9 @@ export function triade(d = today()) {
   const t = N.targets(), p = N.dayTotals(d).p || 0;
   const nutriFrac = t?.prot ? Math.min(1, p / t.prot) : 0;
   const nutri = nutriFrac >= .9;
-  const foi = !!S().daily[d]?.ritual?.verse;
-  return { corps, nutri, nutriFrac, foi, score: [corps, nutri, foi].filter(Boolean).length };
+  const D = S().daily[d] || {};
+  const routine = [D.weight, D.steps, D.sleep, D.water, N.dayLog(d).length].filter(Boolean).length >= 3;
+  return { corps, nutri, nutriFrac, routine, score: [corps, nutri, routine].filter(Boolean).length };
 }
 function triadeStreak() {
   let n = 0, k = today();
@@ -119,8 +120,8 @@ function triadeStreak() {
 function triadeCard() {
   const x = triade(today()), s = triadeStreak();
   const item = (ico, label, on, frac, col) => `<div><div class="mini"><svg viewBox="0 0 66 66">${ring(frac, 66, 7, col)}</svg><b>${on ? "✓" : Math.round(frac * 100) + "%"}</b></div><div class="v">${ico} ${label}</div></div>`;
-  return `<div class="card"><div class="row between"><div class="lbl">✝ Triade de discipline</div><span class="xs muted">${s ? `🔥 Série : ${s} jour${s > 1 ? "s" : ""}` : "Série à démarrer"}</span></div>
-    <div class="minis mt8">${item("🏋️", "Corps", x.corps, x.corps ? 1 : 0, "#B3263A")}${item("🍽️", "Nutrition", x.nutri, x.nutriFrac, "#E0A93B")}${item("🙏", "Foi", x.foi, x.foi ? 1 : 0, "#4F5D2A")}</div>
+  return `<div class="card"><div class="row between"><div class="lbl">Triade de discipline</div><span class="xs muted">${s ? `🔥 Série : ${s} jour${s > 1 ? "s" : ""}` : "Série à démarrer"}</span></div>
+    <div class="minis mt8">${item("🏋️", "Corps", x.corps, x.corps ? 1 : 0, "#B3263A")}${item("🍽️", "Nutrition", x.nutri, x.nutriFrac, "#E0A93B")}${item("📋", "Routine", x.routine, x.routine ? 1 : 0, "#4F5D2A")}</div>
     <p class="xs muted mt8" style="margin:8px 0 0">2 piliers sur 3 suffisent pour compter le jour. Un écart n'efface rien : tu reprends le lendemain.</p></div>`;
 }
 function quickActions() {
@@ -144,7 +145,6 @@ routes.home = async () => {
     ${alerts.length ? `<div class="card" style="box-shadow:0 0 0 2px var(--warn) inset"><div class="lbl">⚠️ Alerte blessure</div><p class="mt8" style="margin-bottom:6px"><b>${esc(alerts[0].name)}</b> : ${esc(alerts[0].last.note)}</p><p class="small muted">Baisse la charge ou remplace l'exercice. Si la douleur persiste, parles-en à un professionnel de santé.</p><button class="btn btn-line btn-sm" data-a="go" data-r="chat">Prévenir Thomas</button></div>` : ""}
     ${d === today() && sabbatOn() ? sabbatCard() : ""}
     ${d === today() ? triadeCard() + gamCard() + quickActions() : ""}
-    ${d === today() ? ritualCard() : ""}
     ${d === today() ? eveningCard() : ""}
     ${trainingCard(d)}
     ${d === today() && !sabbatOn() ? stallCard() + goalsMini() : ""}
@@ -152,7 +152,7 @@ routes.home = async () => {
     <h2 class="sec">🔥 Calories du jour <small><a href="#/food" class="link">Nutrition</a></small></h2>
     <button class="card tap" data-a="go" data-r="food">${caloriesCard(d)}</button>
     ${fs ? `<button class="card tap mt12" data-a="go" data-r="food" data-p="jeune"><div class="row"><span style="font-size:30px">${fs.stage[1]}</span><div class="grow"><div class="lbl">⏳ Jeûne en cours</div><b class="h3">${Math.floor(fs.hours)} h ${String(Math.floor(fs.hours % 1 * 60)).padStart(2, "0")} · ${esc(fs.stage[2])}</b></div>${I.chev}</div></button>` : ""}
-    ${wordOn("home") ? `<button class="daycard mt16" data-a="go" data-r="word" style="display:block;width:100%;text-align:left"><div class="deco">✝</div><p class="affirm">${esc(af.t)}</p><div class="aref">${esc(af.ref)}</div></button>` : ""}
+    ${false ? `<button class="daycard mt16" data-a="go" data-r="word" style="display:block;width:100%;text-align:left"><div class="deco">✝</div><p class="affirm">${esc(af.t)}</p><div class="aref">${esc(af.ref)}</div></button>` : ""}
     ${progressCard()}
     <button class="card tap mt12" data-a="go" data-r="kb" style="display:flex;align-items:center;gap:12px"><span style="font-size:28px">📚</span><span class="grow"><b>Apprendre</b><br><span class="small muted">Surcharge progressive, protéines, compléments, récupération : comprendre pour progresser</span></span>${I.chev}</button>
     <h2 class="sec">💬 Ton coach</h2>

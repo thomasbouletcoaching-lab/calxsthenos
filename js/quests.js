@@ -27,7 +27,6 @@ export const TROPHIES = [
   { id: "reprise", icon: "🔁", name: "Le relevé", desc: "3 reprises après un écart", ok: c => c.comebacks >= 3 },
   { id: "craque", icon: "🕊️", name: "Honnête avec soi", desc: "Un « Je craque » traité sans jugement", ok: c => c.crises >= 1 },
   { id: "bouclier", icon: "🛡️", name: "Bouclier de maîtrise", desc: "14 jours avec protéines atteintes", ok: c => c.proteinDays >= 14 },
-  { id: "parchemin", icon: "📜", name: "Parchemin de fidélité", desc: "30 jours de Parole lue", ok: c => c.verseDays >= 30 },
   { id: "niveau5", icon: "⭐", name: "Niveau 5", desc: "Atteindre le niveau 5", ok: c => c.level >= 5 },
 ];
 
@@ -46,19 +45,18 @@ export function dayScore(d, ag) {
   const t = N.targets();
   const p = t?.prot ? (N.dayTotals(d).p || 0) : 0;
   const nutri = !!t?.prot && p / t.prot >= 0.9;
-  const foi = !!S().daily[d]?.ritual?.verse;
   const D = S().daily[d] || {};
   const routine = [D.weight, D.steps, D.sleep, D.water, N.dayLog(d).length].filter(Boolean).length >= 3;
   const crise = (S().crises || []).some(c => c.d === d);
-  const score = [corps, nutri, foi].filter(Boolean).length;
-  const points = (done ? 40 : 0) + (corps ? 10 : 0) + (nutri ? 10 : 0) + (foi ? 10 : 0) + (routine ? 10 : 0) + (score === 3 ? 20 : 0) + (crise ? 10 : 0);
-  return { d, done, corps, nutri, foi, routine, crise, score, points };
+  const score = [corps, nutri, routine].filter(Boolean).length;
+  const points = (done ? 40 : 0) + (corps ? 10 : 0) + (nutri ? 10 : 0) + (routine ? 10 : 0) + (score === 3 ? 20 : 0) + (crise ? 10 : 0);
+  return { d, done, corps, nutri, routine, crise, score, points };
 }
 
 // Chiffres de la personne : points, niveau, série, reprises, trophées
 export function gather(today_ = today()) {
   const keys = new Set([...Object.keys(S().daily), ...Object.keys(S().food || {}), ...(S().crises || []).map(c => c.d)]);
-  const empty = { points: 0, level: 1, nextAt: 40, levelPct: 0, sessions: 0, weekSessions: 0, streak: 0, comebacks: 0, crises: 0, proteinDays: 0, verseDays: 0, today: null, byDay: {} };
+  const empty = { points: 0, level: 1, nextAt: 40, levelPct: 0, sessions: 0, weekSessions: 0, streak: 0, comebacks: 0, crises: 0, proteinDays: 0, today: null, byDay: {} };
   if (!keys.size) return empty;
   const start = [...keys].sort()[0];
   const ag = E.agenda(start, today_);
@@ -80,7 +78,7 @@ export function gather(today_ = today()) {
   return {
     points, level, nextAt, levelPct: Math.round((points - floorAt) / (nextAt - floorAt) * 100), sessions, weekSessions, streak, comebacks,
     crises: days.filter(x => byDay[x].crise).length, proteinDays: days.filter(x => byDay[x].nutri).length,
-    verseDays: days.filter(x => byDay[x].foi).length, today: byDay[today_] || null, byDay,
+    today: byDay[today_] || null, byDay,
   };
 }
 
@@ -89,11 +87,10 @@ export const unlockedRewards = (c) => REWARDS.filter(r => c.level >= r.lvl);
 
 // Quêtes du jour : les gestes qui comptent, avec leur valeur en points
 export function dailyQuests(c) {
-  const t = c.today || { corps: false, nutri: false, foi: false, routine: false };
+  const t = c.today || { corps: false, nutri: false, routine: false };
   return [
     { n: "Séance faite, ou plan minimum de 10 min", ok: t.corps, p: 10 },
     { n: "Protéines à 90 % de ta cible", ok: t.nutri, p: 10 },
-    { n: "Verset du jour lu", ok: t.foi, p: 10 },
     { n: "Trois cases de ta routine remplies", ok: t.routine, p: 10 },
   ];
 }
