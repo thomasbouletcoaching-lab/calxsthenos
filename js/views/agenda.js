@@ -1,6 +1,7 @@
 // Agenda : mois et semaine, séances faites / loupées / prévues, déplacer une séance, vue du cycle.
 import { S, update, today } from "../store.js";
 import * as E from "../engine.js";
+import * as N from "../nutrition.js";
 import { $app, esc, fr, routes, actions, forms, changes, go, I, header, tabbar, seg, sheet, closeSheet, toast, fmtDate, addDays, rerender } from "../core.js";
 
 let mode = "month", cursor = null; // cursor = 1er du mois affiché (YYYY-MM-01) ou lundi de la semaine
@@ -16,7 +17,7 @@ function monthGrid(first) {
   for (let i = 0; i < lead; i++) cells.push(`<button class="empty" tabindex="-1" aria-hidden="true"></button>`);
   for (let n = 1; n <= last; n++) {
     const k = first.slice(0, 8) + String(n).padStart(2, "0"), a = ag[k];
-    cells.push(`<button class="${a ? CLS[a.st] + " has" : ""} ${k === t ? "today" : ""}" data-a="ag-day" data-v="${k}" aria-label="${fmtDate(k)}${a ? " : " + esc(a.title) : ""}"><span>${n}</span><span class="mk">${a ? MK[a.st] : ""}</span></button>`);
+    cells.push(`<button class="${a ? CLS[a.st] + " has" : ""} ${k === t ? "today" : ""}" data-a="ag-day" data-v="${k}" aria-label="${fmtDate(k)}${a ? " : " + esc(a.title) : ""}"><span>${n}</span><span class="mk">${a ? MK[a.st] : ""}${N.cheatOn(k).length ? "🍕" : ""}</span></button>`);
   }
   const stats = Object.values(ag).reduce((o, a) => (o[a.st] = (o[a.st] || 0) + 1, o), {});
   return { html: `<div class="cal">${E.DAY_SHORT.map(d => `<div class="dh">${d}</div>`).join("")}${cells.join("")}</div>`, stats };
@@ -27,7 +28,7 @@ function weekList(mon) {
     const a = ag[k];
     const em = a ? { done: "✅", missed: "❌", planned: "🏋️", rest: "😌", away: "↪️" }[a.st] : "·";
     const sub = !a ? "Repos" : a.st === "done" ? "Faite" : a.st === "missed" ? "Loupée" : a.st === "planned" ? (a.moved ? "Prévue (déplacée)" : "Prévue") : a.st === "away" ? `Déplacée au ${fmtDate(a.to, { weekday: "long", day: "numeric" })}` : "Repos choisi";
-    return `<button class="li" data-a="ag-day" data-v="${k}" style="${k === t ? "box-shadow:0 0 0 2px var(--red) inset;border-radius:14px" : ""}"><span class="em" style="font-size:22px">${em}</span><span class="grow"><b>${E.DAY_NAMES[i]} ${Number(k.slice(8))}</b><br><span class="small muted">${a && a.st !== "rest" && a.st !== "away" ? esc(a.title) + " · " : ""}${sub}</span>${a && (a.st === "planned" || a.st === "missed") && slotTxt(a) ? `<br><span class="xs muted">🕐 ${esc(slotTxt(a))}</span>` : ""}</span>${a?.st === "planned" && a.time ? `<b class="small" style="color:var(--red)">${a.time}</b>` : ""}${I.chev}</button>`;
+    return `<button class="li" data-a="ag-day" data-v="${k}" style="${k === t ? "box-shadow:0 0 0 2px var(--red) inset;border-radius:14px" : ""}"><span class="em" style="font-size:22px">${em}</span><span class="grow"><b>${E.DAY_NAMES[i]} ${Number(k.slice(8))}</b><br><span class="small muted">${a && a.st !== "rest" && a.st !== "away" ? esc(a.title) + " · " : ""}${sub}${N.cheatOn(k).length ? " · 🍕 Cheat meal" : ""}</span>${a && (a.st === "planned" || a.st === "missed") && slotTxt(a) ? `<br><span class="xs muted">🕐 ${esc(slotTxt(a))}</span>` : ""}</span>${a?.st === "planned" && a.time ? `<b class="small" style="color:var(--red)">${a.time}</b>` : ""}${I.chev}</button>`;
   }).join("")}</div>
   <button class="btn btn-line btn-sm mt8" data-a="week-plan" style="width:100%">🔁 Ma semaine type : jours, heures, durée, lieu</button>
   <p class="xs muted center mt8">Touche un jour pour décaler une séance, changer son heure ou prendre un repos.</p>`;

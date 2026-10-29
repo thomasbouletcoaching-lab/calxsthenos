@@ -147,6 +147,8 @@ export function tabbar(active) {
   const cur = S().current ? `<button data-a="resume" class="card tap" style="position:fixed;left:12px;right:12px;bottom:calc(80px + var(--safe-b));z-index:29;width:auto;max-width:616px;margin:0 auto;box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:12px;text-align:left;box-shadow:0 0 0 2px var(--red) inset,var(--shadow)"><span style="font-size:26px">🏋️</span><span class="grow"><b>Séance en cours</b><br><span class="small muted">${esc(S().current.title)}</span></span><span class="red" style="font-weight:700">Reprendre</span></button>` : "";
   return cur + `<nav class="tabbar" aria-label="Navigation">${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === act ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }
+// Sélecteur de mode en haut d'un onglet (Carnet / Explorer / Connaissances), comme Hevy
+export const modeBar = (items, cur, act) => `<div class="modes" role="tablist">${items.map(([v, l]) => `<button role="tab" class="${v === cur ? "on" : ""}" data-a="${act}" data-v="${v}" aria-selected="${v === cur}">${l}</button>`).join("")}</div>`;
 // Barre d'onglets de l'espace coach
 export const adminBadges = { msgs: 0, subs: 0 };
 export function adminTabbar(active) {

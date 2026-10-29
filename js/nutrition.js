@@ -238,7 +238,8 @@ const poolOf = (slot) => { const pr = planPrefs(), all = DISHES.filter(d => d.sl
   return all; };
 export const planPool = poolOf;
 export function dayPlan(t, date = today()) {
-  if (S().myPlan?.meals?.length) return S().myPlan.meals.map(m => ({ meal: m.name, time: m.time, n: m.title || m.items.map(i => i.label.split(",")[0]).slice(0, 3).join(", ") || m.name, items: m.items.map(i => ({ n: i.label, g: i.g, kcal: i.kcal, p: i.p, c: i.c, f: i.f })), lines: m.items.map(i => `${i.g ? i.g + " g " : ""}${i.label}`), m: m.items.reduce((a, i) => ({ kcal: a.kcal + i.kcal, p: a.p + i.p, c: a.c + i.c, f: a.f + i.f }), { kcal: 0, p: 0, c: 0, f: 0 }), poolSize: 1, mine: true }));
+  const MP = planFor(date);
+  if (MP) return MP.map(m => ({ meal: m.name, time: m.time, n: m.title || m.items.map(i => i.label.split(",")[0]).slice(0, 3).join(", ") || m.name, items: m.items.map(i => ({ n: i.label, g: i.g, kcal: i.kcal, p: i.p, c: i.c, f: i.f })), lines: m.items.map(i => `${i.g ? i.g + " g " : ""}${i.label}`), m: m.items.reduce((a, i) => ({ kcal: a.kcal + i.kcal, p: a.p + i.p, c: a.c + i.c, f: a.f + i.f }), { kcal: 0, p: 0, c: 0, f: 0 }), poolSize: 1, mine: true }));
   const seed = Math.floor(new Date(date).getTime() / 864e5);
   const choice = S().planChoice?.[date] || {};
   return splitOf().map(([meal, slot, share], i) => {
@@ -256,6 +257,79 @@ export function planOptions(t, date, meal) {
 export function chooseDish(meal, i, date = today()) { update(st => { st.planChoice = st.planChoice || {}; (st.planChoice[date] = st.planChoice[date] || {})[meal] = i; }); }
 export function swapDish(meal, date = today()) {
   update(st => { st.planChoice = st.planChoice || {}; const c = st.planChoice[date] = st.planChoice[date] || {}; c[meal] = (c[meal] ?? Math.floor(Math.random() * 5)) + 1; });
+}
+
+// ---------- Semaine type, jours d'entraînement et de repos, cheat meal ----------
+// Le type de jour (entraînement ou repos) vient de l'agenda : fourni par l'app au démarrage.
+let dayKindFn = null;
+export const setDayKind = (f) => { dayKindFn = f; };
+export const dayKind = (date = today()) => dayKindFn ? dayKindFn(date) : "rest";
+const dowOf = (d) => (new Date(d + "T12:00:00").getDay() + 6) % 7;
+const shiftD = (d, n) => { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+export const mondayOf = (d) => shiftD(d, -dowOf(d));
+export const weekType = () => S().weekType || { mode: "same", train: "main", rest: "main", pct: 10, days: Array(7).fill("main") };
+export const variants = () => S().planVariants || [];
+// Plan en cours d'écriture : le plan principal ou une variante (jour de repos, samedi…)
+export const edPlan = (st = S()) => st.editVar ? (st.planVariants || []).find(v => v.id === st.editVar) || st.myPlan : st.myPlan;
+export function setEdPlan(st, val) {
+  const v = st.editVar && (st.planVariants || []).find(x => x.id === st.editVar);
+  if (v) v.meals = val?.meals || []; else st.myPlan = val;
+}
+// Les repas prévus pour une date : variante du jour si la semaine type le demande, sinon le plan principal
+export function planFor(date = today()) {
+  const W = weekType(), byId = (id) => id && id !== "main" ? variants().find(v => v.id === id)?.meals : null;
+  let m = null;
+  if (W.mode === "trainrest") m = byId(dayKind(date) === "train" ? W.train : W.rest);
+  else if (W.mode === "days") m = byId(W.days?.[dowOf(date)]);
+  return m?.length ? m : S().myPlan?.meals?.length ? S().myPlan.meals : null;
+}
+const cheatExtra = (c, t) => Math.max(0, (c.kcal || 1200) - Math.round(t.kcal * .3));
+export const cheats = () => (S().cheats || []).slice().sort((a, b) => a.d.localeCompare(b.d));
+export const nextCheat = () => cheats().find(c => c.d >= today()) || null;
+export const cheatOn = (d) => (S().cheats || []).filter(c => c.d === d);
+// Cible du jour : jours d'entraînement un peu plus hauts, jours de repos un peu plus bas (moyenne de la semaine inchangée),
+// et un cheat meal prévu est compensé sur les autres jours de la semaine pour garder le déficit hebdomadaire.
+export function dayTarget(date = today()) {
+  const t = targets(); if (!t) return null;
+  let kcal = t.kcal; const notes = [];
+  const W = weekType();
+  if (W.mode === "trainrest" && W.pct) {
+    const n = Math.max(1, Math.min(6, S().profile?.days || 3)), up = Math.round(t.kcal * W.pct / 100);
+    if (dayKind(date) === "train") { kcal += up; notes.push(`+${up} kcal : jour d'entraînement`); }
+    else { const dn = Math.round(up * n / (7 - n)); kcal -= dn; notes.push(`−${dn} kcal : jour de repos`); }
+  }
+  const mon = mondayOf(date), sun = shiftD(mon, 6);
+  const cs = (S().cheats || []).filter(c => c.d >= mon && c.d <= sun);
+  if (cs.length) {
+    const mine = cs.filter(c => c.d === date);
+    if (mine.length) { const e = mine.reduce((a, c) => a + cheatExtra(c, t), 0); kcal += e; notes.push(`+${e} kcal : cheat meal`); }
+    else {
+      let cut = 0;
+      cs.forEach(c => {
+        const from = (c.at || mon) > mon ? c.at : mon;
+        if (date < from) return;
+        const cheatDays = new Set(cs.map(x => x.d));
+        let others = 0; for (let k = from; k <= sun; k = shiftD(k, 1)) if (!cheatDays.has(k)) others++;
+        cut += cheatExtra(c, t) / Math.max(1, others);
+      });
+      cut = Math.min(Math.round(t.kcal * .15), Math.round(cut));
+      if (cut > 0) { kcal -= cut; notes.push(`−${cut} kcal : cheat meal prévu cette semaine`); }
+    }
+  }
+  const diff = kcal - t.kcal;
+  return { ...t, kcal: Math.round(kcal / 10) * 10, carbs: Math.max(50, Math.round(t.carbs + diff * .7 / 4)), fat: Math.max(30, Math.round(t.fat + diff * .3 / 9)), base: t.kcal, notes };
+}
+// Sucres et sel du jour (à partir des micronutriments des aliments notés)
+export function sugarSalt(date = today()) {
+  let sug = 0, na = 0, n = 0;
+  dayLog(date).forEach(e => { if (e.mic) { n++; sug += e.mic.sug || 0; na += e.mic.na || 0; } });
+  return { sug: Math.round(sug), salt: Math.round(na * 2.5 / 100) / 10, known: n, total: dayLog(date).length };
+}
+// Changer la quantité d'un aliment déjà noté : tout est recalculé à la même proportion
+export function rescaleEntry(id, date, g) {
+  update(st => { const e = (st.food[date] || []).find(x => x.id === id); if (!e?.g || !(g > 0)) return; const k = g / e.g;
+    e.kcal = Math.round(e.kcal * k); ["p", "c", "f", "fib"].forEach(x => { if (e[x] != null) e[x] = +(e[x] * k).toFixed(1); });
+    if (e.mic) Object.keys(e.mic).forEach(x => { e.mic[x] = +(e.mic[x] * k).toFixed(3); }); e.g = g; });
 }
 
 // ---------- Journal ----------

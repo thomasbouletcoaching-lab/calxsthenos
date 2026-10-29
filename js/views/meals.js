@@ -40,7 +40,7 @@ export function mealCards(t, d) {
       <div class="mt8"><b>${esc(x.n)}</b> <span class="small muted">· ${fr(m.kcal)} kcal</span></div><p class="xs muted" style="margin:2px 0 6px">Ce repas : P ${fr(m.p)} g · G ${fr(m.c)} g · L ${fr(m.f)} g</p>
       ${items.map(it => `<div class="row between" style="padding:7px 0;border-bottom:1px dashed var(--line);gap:8px"><span class="small grow">${esc(it.n)}<br><span class="xs muted"><b style="color:var(--ink)">P ${fr(it.p, 1)}</b> · G ${fr(it.c, 1)} · L ${fr(it.f, 1)} g · ${Math.round(it.kcal)} kcal</span></span><span class="small">${it.g ? fr(it.g) + " g" : ""}</span></div>`).join("")}
       <div class="row mt12" style="gap:8px"><button class="btn btn-red btn-sm grow" data-a="meal-eat" data-m="${key}" data-d="${d}">✅ Mangé</button><button class="btn btn-line btn-sm grow" data-a="meal-mod" data-m="${key}" data-d="${d}">${open ? "× Fermer" : "✏️ Modifier"}</button></div>
-      ${open ? `<div class="list mt8">${[["mine", "📒", "Un de mes repas ou de ma journée type"], ["say", "✍️", "Le décrire (texte ou voix) 🎙️"], ["photo", "📷", "Le prendre en photo"], ["scan", "🔎", "Scanner un code-barres"], ...(x.poolSize > 1 && !x.mine ? [["other", "🔄", "J'ai pris l'autre option"]] : []), ["qty", "✏️", "Mêmes aliments, autres quantités"], ["equiv", "🔁", "Un plat équivalent"], ["search", "🔍", "Chercher un aliment"]].map(([k, e, l]) => `<button class="li" data-a="meal-opt" data-k="${k}" data-m="${key}" data-d="${d}"><span class="em">${e}</span><span class="grow small"><b>${l}</b></span>${I.chev}</button>`).join("")}</div>` : ""}
+      ${open ? `<div class="list mt8">${[["mine", "📒", "Un de mes repas ou de ma journée type"], ["say", "✍️", "Le décrire (texte ou voix) 🎙️"], ["photo", "📷", "Le prendre en photo"], ["scan", "🔎", "Scanner un code-barres"], ...(x.poolSize > 1 && !x.mine ? [["other", "🔄", "J'ai pris l'autre option"]] : []), ["qty", "✏️", "Modifier ce repas : quantités, ajouter, retirer"], ["equiv", "🔁", "Un plat équivalent"], ["search", "🔍", "Chercher un aliment"]].map(([k, e, l]) => `<button class="li" data-a="meal-opt" data-k="${k}" data-m="${key}" data-d="${d}"><span class="em">${e}</span><span class="grow small"><b>${l}</b></span>${I.chev}</button>`).join("")}</div>` : ""}
       <div class="center mt8"><button class="link small muted" data-a="meal-skip" data-m="${key}" data-d="${d}" style="text-decoration:underline">Repas sauté</button></div></div>`;
   }).join("");
 }
@@ -83,12 +83,12 @@ const OPT = {
     const t = N.targets(), l = N.planOptions(t, d, meal), cur = planOf(meal, d);
     sheet(`<h2 class="h2">🔄 L'autre option</h2><p class="xs muted">Mêmes calories que prévu. Touche celle que tu as prise.</p><div class="list mt12">${l.filter(x => x.n !== cur?.n).map(x => `<button class="li" data-a="mo-other" data-i="${x.i}" data-m="${esc(meal)}" data-d="${d}"><span class="grow small"><b>${esc(x.n)}</b><br><span class="xs muted">${x.lines.join(" · ")}<br>${fr(x.m.kcal)} kcal · ${fr(x.m.p)} g P</span></span>${I.plus.replace("<svg", '<svg width="18"')}</button>`).join("")}</div>`);
   },
-  // Mêmes aliments, d'autres quantités
+  // Modifier le repas prévu : il est noté tel quel, puis on change les grammes, on retire ou on ajoute dans la même fenêtre
   qty(meal, d) {
-    const x = planOf(meal, d), items = x?.items || [];
-    sheet(`<h2 class="h2">✏️ Autres quantités</h2><p class="xs muted">${esc(x?.n || meal)}</p><form data-f="mo-qty" data-m="${esc(meal)}" data-d="${d}" class="mt12">
-      ${items.map((it, i) => `<div class="row between" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--line)"><span class="small grow">${esc(it.n)}</span><input class="inp" name="g${i}" inputmode="decimal" value="${it.g || ""}" style="width:96px"><span class="xs muted">g</span></div>`).join("")}
-      <button class="btn btn-red mt12">Noter ces quantités</button></form>`);
+    const x = planOf(meal, d), items = x?.items?.length ? x.items : x ? [{ n: x.n, g: null, ...x.m }] : [];
+    const tm = N.dayLog(d).find(e => e.meal === meal)?.time || (d === today() ? hhmm() : x?.time || N.MEAL_TIMES[meal] || "12:00");
+    items.forEach(it => N.addEntry({ meal, label: it.n, g: it.g || null, kcal: Math.round(it.kcal), p: +(+it.p).toFixed(1), c: +(+it.c).toFixed(1), f: +(+it.f).toFixed(1), ...(it.fib != null ? { fib: it.fib } : {}), time: tm }, d));
+    delete openMod[d + meal]; rerender(); addFoodSheet(meal);
   },
   // Un plat équivalent : recettes à ± 25 % des calories prévues, dose ajustée
   equiv(meal, d) {
@@ -147,17 +147,18 @@ forms["say-add"] = (v, f) => {
 const per100 = (it) => it.g ? { k: it.kcal / it.g * 100, p: it.p / it.g * 100, c: it.c / it.g * 100, f: it.f / it.g * 100 } : null;
 export function planBody(t) {
   if (!t) return "";
-  const P = S().myPlan;
+  const P = N.edPlan(), vName = S().editVar ? N.variants().find(v => v.id === S().editVar)?.name : null;
+  const vBar = vName ? `<div class="card soft mt12 row between"><span class="small">✏️ Tu modifies : <b>${esc(vName)}</b></span><button class="link xs" data-a="var-done">Revenir au plan principal</button></div>` : "";
   if (!P?.meals?.length) {
     const plan = N.dayPlan(t), tot = sumM(plan.map(x => x.m));
-    return prefsCard() + `<div class="card grad mt12"><div class="lbl">📋 Plan proposé pour toi</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
+    return vBar + prefsCard() + `<div class="card grad mt12"><div class="lbl">📋 Plan proposé pour toi</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g de protéines</h2><p class="small mt4">Objectif : ${fr(t.kcal)} kcal · ${t.prot} g P · ${t.carbs} g G · ${t.fat} g L</p></div>
       <p class="small muted mt12">Ce plan change chaque jour pour varier les plats. Pour avoir ta propre journée type, que tu modifies aliment par aliment :</p>
       ${premium() ? `<button class="btn btn-red mt8" data-a="plan-make">✏️ Écrire mon plan à partir de celui-ci</button>` : `<button class="btn btn-line mt8" data-a="go" data-r="offers">🔒 Écrire mon plan (Bâtisseur)</button>`}
       ${plan.map(x => `<div class="card mt12"><div class="lbl">🕐 ${esc(x.time)} · ${esc(x.meal)}</div><b class="small">${esc(x.n)}</b><p class="xs muted" style="margin:4px 0 0">${x.lines.join(" · ")} · ${fr(x.m.kcal)} kcal</p></div>`).join("")}
       <p class="xs muted mt12">Le plan du jour s'affiche dans le Journal : tu notes « Mangé » ou ce que tu as pris à la place.</p>`;
   }
   const tot = sumM(P.meals.flatMap(m => m.items)), diff = Math.round(tot.kcal - t.kcal);
-  return `<div class="card grad mt12"><div class="lbl">📋 Mon plan</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g P · ${fr(tot.c)} g G · ${fr(tot.f)} g L</h2>
+  return vBar + `<div class="card grad mt12"><div class="lbl">📋 ${vName ? esc(vName) : "Mon plan"}</div><h2 class="h2 mt4">${fr(tot.kcal)} kcal · ${fr(tot.p)} g P · ${fr(tot.c)} g G · ${fr(tot.f)} g L</h2>
       <p class="small mt4" style="margin-bottom:0">Objectif ${fr(t.kcal)} kcal · ${t.prot} g P : ${Math.abs(diff) <= 50 ? "dans la cible ✅" : diff > 0 ? `${fr(diff)} kcal au-dessus` : `${fr(-diff)} kcal en dessous`}</p></div>
     ${P.meals.map((m, mi) => { const mm = sumM(m.items); return `<div class="card mt12"><div class="row" style="gap:8px"><input class="inp grow" style="text-align:left;font-weight:800" value="${esc(m.name)}" data-c="pl-name" data-m="${mi}" aria-label="Nom du repas"><input class="inp" type="time" style="width:128px" value="${m.time}" data-c="pl-time" data-m="${mi}" aria-label="Heure"></div>
       <input class="inp mt8" style="text-align:left;font-size:15px" value="${esc(m.title || "")}" data-c="pl-title" data-m="${mi}" placeholder="Nom du plat (facultatif), ex. Riz poulet brocoli">
@@ -171,11 +172,11 @@ export function planBody(t) {
 }
 actions["plan-make"] = () => {
   const auto = N.dayPlan(N.targets());
-  update(st => st.myPlan = { meals: auto.map(x => ({ name: x.meal, time: x.time, title: x.n, items: (x.items || []).map(i => ({ label: i.n, g: i.g, kcal: i.kcal, p: i.p, c: i.c, f: i.f })) })) });
+  update(st => N.setEdPlan(st, { meals: auto.map(x => ({ name: x.meal, time: x.time, title: x.n, items: (x.items || []).map(i => ({ label: i.n, g: i.g, kcal: i.kcal, p: i.p, c: i.c, f: i.f })) })) }));
   toast("Ton plan est prêt : modifie-le aliment par aliment"); rerender();
 };
-changes["pl-g"] = (el) => { const g = num(el.value); if (!(g > 0)) return; update(st => { const it = st.myPlan.meals[+el.dataset.m].items[+el.dataset.i], b = per100(it); if (!b) return; it.g = Math.round(g); it.kcal = Math.round(b.k * g / 100); it.p = +(b.p * g / 100).toFixed(1); it.c = +(b.c * g / 100).toFixed(1); it.f = +(b.f * g / 100).toFixed(1); }); rerender(); };
-changes["pl-title"] = (el) => update(st => st.myPlan.meals[+el.dataset.m].title = el.value.trim());
+changes["pl-g"] = (el) => { const g = num(el.value); if (!(g > 0)) return; update(st => { const it = N.edPlan(st).meals[+el.dataset.m].items[+el.dataset.i], b = per100(it); if (!b) return; it.g = Math.round(g); it.kcal = Math.round(b.k * g / 100); it.p = +(b.p * g / 100).toFixed(1); it.c = +(b.c * g / 100).toFixed(1); it.f = +(b.f * g / 100).toFixed(1); }); rerender(); };
+changes["pl-title"] = (el) => update(st => N.edPlan(st).meals[+el.dataset.m].title = el.value.trim());
 
 // Modèle de plan : programmes alimentaires par profil, nombre de repas, régime, exclusions
 function prefsCard() {

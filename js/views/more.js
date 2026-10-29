@@ -142,12 +142,19 @@ routes.kb = async () => {
     ${groups.map(([g, list]) => `<h2 class="sec">${g}</h2><div class="list">${list.map(c => `<button class="li" data-a="go" data-r="kb" data-p="${c.id}"><span class="em">${c.ic || "📘"}</span><span class="grow"><b class="small">${esc(c.t)}</b>${S().kbRead?.[c.id] ? ` <span class="tag g">lu</span>` : ""}</span>${open(c) ? I.chev : `<span class="lock">🔒</span>`}</button>`).join("")}</div>`).join("")}
   </main>${tabbar("kb")}`;
 };
+// Connaissances intégrées aux onglets Entraînement et Nutrition
+export async function kbSection(which) {
+  if (!KB) KB = [...(await (await fetch("data/kb.json")).json()), ...EXTRA];
+  const groups = which === "nutri" ? [["Nutrition, compléments, énergie", EXTRA]] : [["Entraînement", KB.filter(c => !c.g && !EXTRA.includes(c))], ["Maillons faibles et dos", KB.filter(c => c.g)]];
+  return groups.map(([g, list]) => `<h2 class="sec">${g}</h2><div class="list">${list.map(c => `<button class="li" data-a="go" data-r="kb" data-p="${c.id}"><span class="em">${c.ic || "📘"}</span><span class="grow"><b class="small">${esc(c.t)}</b>${S().kbRead?.[c.id] ? ` <span class="xs muted">· lu</span>` : ""}</span>${c.g && !expert() ? I.lock : I.chev}</button>`).join("")}</div>`).join("");
+}
+
 function kbChapter(id) {
   const c = KB.find(x => x.id === id); if (!c) return go("kb");
   const open = c.g ? expert() : true, isExp = expert() && c.co;
   if (open) update(st => { st.kbRead = st.kbRead || {}; st.kbRead[id] = true; });
   const html = open ? (kbMode === "co" && isExp ? c.co : (c.cli || c.co)) : "";
-  $app.innerHTML = header(`${c.ic || "📘"} ${esc(c.t)}`, "", { back: "kb" }) + `<main class="page full">
+  $app.innerHTML = header(`${c.ic || "📘"} ${esc(c.t)}`, "", { back: "__hist" }) + `<main class="page full">
     ${c.co ? `<div class="mt8">${expert() ? seg([["cli", "Version simple"], ["co", "Version experte"]], kbMode, "kb-mode") : `<p class="xs muted">🔒 Version experte avec les formules de suivi.</p>`}</div>` : ""}
     ${open ? `<article class="card mt12 prose kb">${html}</article>` : `<div class="card mt12 locked" style="position:relative;min-height:260px"><p class="small muted">${esc((c.cli || "").replace(/<[^>]+>/g, " ").slice(0, 160))}…</p>${lockVeil(c.g ? "Suivi" : "Premium")}</div>`}
   </main>`;
