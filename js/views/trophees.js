@@ -9,7 +9,7 @@ routes.trophees = () => {
   const rw = unlockedRewards(c), rwIds = new Set(rw.map(r => r.id));
   const q = dailyQuests(c);
   $app.innerHTML = header("Trophées", "Régularité, niveaux et récompenses", { back: "home" }) + `<main class="page">
-    <div class="card grad"><div class="row" style="gap:14px"><span style="font-size:52px;line-height:1">${st.icon}</span><div class="grow"><div class="lbl">Ton personnage</div><b class="h2">${esc(st.name)}</b><div class="small muted mt4">Niveau ${c.level} · ${c.points} points</div>
+    <div class="card" style="background:linear-gradient(135deg,#1A0C06 0%,#3D1E0E 100%);color:#F7E6D4;border:0"><div class="row" style="gap:14px"><span style="font-size:52px;line-height:1">${st.icon}</span><div class="grow"><div class="lbl">Ton personnage</div><b class="h2">${esc(st.name)}</b><div class="small muted mt4">Niveau ${c.level} · ${c.points} points</div>
       <div class="gauge mt8"><i style="width:${c.levelPct}%"></i></div><div class="xs muted mt4">Prochain niveau à ${c.nextAt} pts</div></div></div>
       <p class="small mt8" style="margin:8px 0 0">${esc(st.line)}</p>
       <div class="minis mt8"><div><b>${c.streak}</b><div class="v">jours de série</div></div><div><b>${c.weekSessions}</b><div class="v">séances cette semaine</div></div><div><b>${c.comebacks}</b><div class="v">reprises</div></div></div></div>

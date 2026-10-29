@@ -68,7 +68,7 @@ actions["express-go"] = async (b, d) => {
   const s = E.expressSession(s0, min); s.target = min; s.start = new Date().toISOString();
   update(st => { st.current = s; st.settings.sessionMin = min; }); toast(`⚡ ${min} min : ${s.expressNote}`); go("workout");
 };
-actions["carnet-main"] = (b, d) => { carnetMain = d.v; rerender(false); window.scrollTo(0, 0); };
+actions["carnet-main"] = (b, d) => { carnetMain = d.v; rerender(true); };
 actions["carnet-tab"] = (b, d) => { carnetTab = d.v; rerender(false); };
 actions["train-tab"] = (b, d) => { if (d.v === "learn") return go("kb"); tab = d.v; R.param = d.v; history.replaceState(null, "", "#/train/" + d.v); rerender(false); window.scrollTo(0, 0); };
 
@@ -339,7 +339,7 @@ routes.workout = async () => {
   await Promise.all([E.loadPrograms(), E.loadFiches(), E.loadLib()]);
   sessionStorage.removeItem("cxs.min");
   const doneSets = cur.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0), all = cur.exercises.reduce((a, e) => a + e.sets.length, 0);
-  $app.innerHTML = `<header class="top"><div class="row1"><button class="icon-btn" data-a="minimize" aria-label="Réduire">${I.back}</button><h1 style="font-size:20px">${esc(cur.title)}</h1><button class="btn btn-red btn-sm" data-a="finish" style="width:auto">Terminer</button></div>
+  $app.innerHTML = `<header class="top"><div class="row1"><button class="icon-btn" data-a="minimize" aria-label="Réduire">${I.back}</button><h1 style="font-size:20px">${esc(cur.title)}</h1><button class="icon-btn" data-a="abort" aria-label="Annuler la séance" style="width:40px;height:40px">🗑️</button><button class="btn btn-red btn-sm" data-a="finish" style="width:auto">Terminer</button></div>
       <div class="sub">${cur.target ? `<button class="link" data-a="dur-change" style="color:inherit">⏳ <span id="clock">0:00</span></button>` : `⏱️ <span id="clock">0:00</span>`} · ${doneSets}/${all} séries${cur.free ? "" : ` · semaine ${cur.week} · ${esc(cur.phase)}`}</div>
       ${cur.target ? `<div class="tbar"><i id="tbar"></i></div><div class="xs" id="tpace" style="margin-top:4px"></div>` : ""}</header>
     <main class="page" style="padding-bottom:200px">
@@ -387,7 +387,7 @@ function exerciseBlock(ex, xi) {
     ${ex.sets.map((s, si) => {
       const lab = s.type === "W" ? "É" : String(++n);
       const pv = s.type === "W" ? prevWu[wu++] : prevW[wi++];
-      const meta = [s.type !== "N" ? `<span class="tag ${s.type === "W" ? "" : "r"}">${E.SET_TYPES[s.type]}</span>` : "", ...(s.tech || []).map(t => `<span class="tag">${(E.TECHS.find(x => x[1] === t) || ["⚡"])[0]} ${esc(t)}</span>`), `<span>${s.lo !== s.hi ? `${s.lo}-${s.hi}` : s.lo} ${unit.toLowerCase()} · RPE ${String(s.trpe).replace(".", ",")}${adv() && s.pct ? ` · ${s.pct} %` : ""}</span>`, s.pain ? `<span class="tag" style="background:var(--warn);color:#fff">Douleur</span>` : "", s.note ? `<span>📝 ${esc(s.note)}</span>` : "", pv ? `<span class="prev">↺ ${esc(prevTxt(pv))}</span>` : ""].filter(Boolean).join("");
+      const meta = [s.type !== "N" ? `<span class="tag ${s.type === "W" ? "" : "r"}">${E.SET_TYPES[s.type]}</span>` : "", ...(s.tech || []).map(t => `<span class="tag">${(E.TECHS.find(x => x[1] === t) || ["⚡"])[0]} ${esc(t)}</span>`), `<span>${s.lo !== s.hi ? `${s.lo}-${s.hi}` : s.lo} ${unit.toLowerCase()} · RPE ${String(s.trpe).replace(".", ",")}${adv() && s.pct ? ` · ${s.pct} %` : ""}</span>`, s.pain ? `<span class="tag" style="background:var(--warn);color:#fff">Douleur</span>` : "", s.note ? `<span>📝 ${esc(s.note)}</span>` : "", pv ? `<span class="prev">↺ ${esc(prevTxt(pv))}</span>` : "", s.pkg != null && !ex.bw ? `<span>Prévu ${kgTxt(s.pkg)} kg</span>` : "", `<span class="e1" data-e1="${xi}-${si}">${e1Html(s)}</span>`].filter(Boolean).join("");
       return `<div class="set ${s.done ? "done" : ""} ${s.type === "W" ? "w" : ""}"><button class="n" data-a="set-menu" data-x="${xi}" data-s="${si}" aria-label="Options de la série">${lab}${s.type !== "N" ? `<small>${s.type === "W" ? "échauf." : E.SET_TYPES[s.type].split(" ")[0].toLowerCase()}</small>` : ""}</button>
         <input inputmode="decimal" data-i="set" data-k="kg" data-x="${xi}" data-s="${si}" value="${ex.bw ? kgTxt(s.kg || "") : kgTxt(s.kg)}" placeholder="${ex.bw ? "PDC" : "kg"}" aria-label="Charge">
         <input inputmode="numeric" data-i="set" data-k="reps" data-x="${xi}" data-s="${si}" value="${s.reps ?? ""}" placeholder="${s.lo}" aria-label="${unit}">
@@ -405,8 +405,12 @@ changes["i:set"] = (el) => {
   if (k === "kg") { s.kg = isNaN(v) ? null : v; ex.sets.forEach((o, i) => { if (i > si && !o.done && o.g === s.g && o.type === s.type) o.kg = s.kg; }); if (ex.e1 && s.kg) s.pct = Math.round(s.kg / ex.e1 * 100); }
   else if (k === "reps") s.reps = isNaN(v) ? null : Math.round(v);
   else s.rpe = isNaN(v) ? null : Math.min(10, Math.max(5, v));
+  const e = document.querySelector(`[data-e1="${el.dataset.x}-${el.dataset.s}"]`); if (e) e.textContent = e1Html(s);
   save();
 };
+// Estimation du 1RM : Epley sur les répétitions + répétitions en réserve déduites du RPE
+const e1Of = (kg, reps, rpe) => { if (!kg || !reps) return null; const rir = Math.max(0, 10 - (rpe ?? 8)); return Math.round(kg * (1 + (reps + rir) / 30) * 10) / 10; };
+const e1Html = (s) => { const v = e1Of(s.kg, s.reps, s.rpe ?? s.trpe); return v ? `1RM ≈ ${fr(v, 1)} kg` : ""; };
 changes["i:exnote"] = (el) => { S().current.exercises[+el.dataset.x].myNote = el.value; save(); };
 changes["i:setnote"] = (el) => { S().current.exercises[+el.dataset.x].sets[+el.dataset.s].note = el.value; save(); };
 // Effort de la série : on choisit, on n'écrit pas
@@ -630,6 +634,7 @@ actions["rest-big"] = () => { const big = sessionStorage.getItem("cxs.restBig") 
 actions["rest-skip"] = () => { restEnd = 0; clearInterval(restT); document.querySelector(".rest")?.remove(); };
 onLeave(() => { });
 
+actions.abort = () => { if (!confirm("Annuler cette séance ? Rien ne sera enregistré.")) return; actions["rest-skip"](); clearInterval(clockT); update(st => st.current = null); go("carnet"); };
 actions.finish = () => {
   const cur = S().current, n = cur.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
   if (!n) { if (confirm("Aucune série validée. Abandonner cette séance ?")) { update(st => st.current = null); actions["rest-skip"](); go("home"); } return; }
@@ -838,3 +843,29 @@ actions["bd-use"] = () => {
   toast(keepWeek > 1 ? `C'est parti, tu restes en semaine ${keepWeek}` : "C'est parti avec ton programme"); draft = null; tab = "programme"; pushStats(); go("train", "programme");
 };
 actions["bd-del"] = () => { if (!confirm("Supprimer ce programme ?")) return; const id = draft.id; update(st => { st.customPrograms = st.customPrograms.filter(p => p.id !== id); if (st.plan?.programId === id) st.plan = { programId: st.profile.startProgram || "tb-rep3", startedAt: today(), week: 1, idx: 0, cycle: 1 }; }); draft = null; go("train", "banque"); };
+
+// Réordonner les séries : maintenir le numéro de la série, puis la glisser
+let setDrag = null, swallowSet = false;
+document.addEventListener("pointerdown", (e) => {
+  const n = e.target.closest?.(".set > .n"); if (!n) return;
+  const row = n.parentElement;
+  setDrag = { row, y0: e.clientY, on: false, dy: 0, t: setTimeout(() => { if (!setDrag) return; setDrag.on = true; row.classList.add("lifting"); buzz(12); }, 300) };
+});
+document.addEventListener("pointermove", (e) => {
+  if (!setDrag) return;
+  if (!setDrag.on) { if (Math.abs(e.clientY - setDrag.y0) > 8) { clearTimeout(setDrag.t); setDrag = null; } return; }
+  e.preventDefault();
+  setDrag.dy = e.clientY - setDrag.y0; setDrag.row.style.transform = `translateY(${setDrag.dy}px)`;
+}, { passive: false });
+const endSetDrag = () => {
+  if (!setDrag) return; const d = setDrag; setDrag = null; clearTimeout(d.t);
+  if (!d.on) return;
+  swallowSet = true; setTimeout(() => { swallowSet = false; }, 400);
+  const row = d.row, rows = [...row.parentElement.querySelectorAll(":scope > .set")];
+  const from = rows.indexOf(row), to = Math.min(rows.length - 1, Math.max(0, from + Math.round(d.dy / Math.max(1, row.offsetHeight))));
+  row.style.transform = ""; row.classList.remove("lifting");
+  if (to !== from && S().current) { const a = S().current.exercises[+row.querySelector(".n").dataset.x].sets; const [m] = a.splice(from, 1); a.splice(to, 0, m); save(); rerender(); }
+};
+document.addEventListener("pointerup", endSetDrag);
+document.addEventListener("pointercancel", endSetDrag);
+document.addEventListener("click", (e) => { if (swallowSet && e.target.closest?.(".set")) { e.preventDefault(); e.stopPropagation(); swallowSet = false; } }, true);

@@ -113,9 +113,13 @@ p{margin:0 0 10px}
 .tab .badge{top:-2px;right:calc(50% - 22px)}
 
 /* Segments (Aujourd'hui / Semaine / Mois) */
-.seg{display:flex;gap:4px;padding:4px;border-radius:18px;background:color-mix(in srgb,var(--glass) 72%,transparent);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid var(--glass-b);margin:4px 0 14px}
+.seg{display:flex;gap:0;position:relative;padding:4px;border-radius:18px;background:color-mix(in srgb,var(--glass) 72%,transparent);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid var(--glass-b);margin:4px 0 14px}
 .seg button{flex:1;min-height:44px;padding:0 4px;border-radius:14px;color:var(--soft);font-size:15px;font-weight:600}
-.seg button.on{background:var(--paper);color:var(--ink);font-weight:700;box-shadow:0 1px 3px rgba(20,16,18,.12)}
+.seg button{position:relative;z-index:1}
+.seg button.on{background:none;color:var(--ink);font-weight:700;box-shadow:none}
+.seg .lens,.modes .lens{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px) / var(--n,2));border-radius:14px;background:linear-gradient(180deg,color-mix(in srgb,var(--paper) 96%,#fff 4%),color-mix(in srgb,var(--paper) 55%,transparent));box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 3px 10px rgba(60,20,0,.12);transform:translateX(calc(var(--i,0) * 100%));transition:transform .45s cubic-bezier(.34,1.4,.5,1);pointer-events:none;z-index:0}
+.modes .lens{top:4px;bottom:4px;border-radius:10px}
+.dragging .lens{transition:none!important;background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.06))!important;transform:translateX(calc(var(--i,0) * 100%)) scale(1.06)!important}
 .chips{position:relative;display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chips.wrap{flex-wrap:wrap;overflow:visible}
@@ -238,6 +242,10 @@ p{margin:0 0 10px}
 .tick{width:46px;height:46px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;background:var(--btn2)}
 .tick svg{width:22px;height:22px;opacity:.5}
 .set.done .tick{background:var(--good);border-color:var(--good);color:#fff}
+.set.done{background:color-mix(in srgb,var(--good) 16%,transparent);border-radius:14px;padding-left:6px;padding-right:6px}
+.set.lifting{background:var(--paper);box-shadow:0 12px 26px rgba(0,0,0,.2);border-radius:14px;position:relative;z-index:5}
+.set .n{touch-action:none}
+.set .e1{color:var(--soft);font-size:12px;font-weight:600}
 .set.done .tick svg{opacity:1}
 .set.done input{color:var(--good)}
 .set.w .n{border-color:color-mix(in srgb,var(--gold) 60%,transparent)}
@@ -466,9 +474,10 @@ input,select,textarea{max-width:100%;min-width:0}
 .tile-ic svg{width:21px;height:21px}
 .mode-sel{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:inherit;font:inherit;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:6px 0;cursor:pointer}
 .mode-sel .chev{width:16px;height:16px;transform:rotate(90deg)}
-.modes{display:flex;gap:6px;margin-top:8px;padding:4px;border-radius:14px;background:var(--btn2);border:1px solid var(--line)}
+.modes{display:flex;gap:0;position:relative;margin-top:8px;padding:4px;border-radius:14px;background:var(--btn2);border:1px solid var(--line)}
 .modes button{flex:1;border:0;background:none;color:var(--soft);font:inherit;font-size:14px;font-weight:600;padding:8px 4px;border-radius:10px;cursor:pointer}
-.modes button.on{background:var(--paper);color:var(--ink);box-shadow:0 2px 8px rgba(60,26,10,.08)}
+.modes button{position:relative;z-index:1}
+.modes button.on{background:none;color:var(--ink);box-shadow:none}
 .slider-row{display:flex;align-items:center;gap:10px;padding:8px 0}
 .slider-row input[type=range]{flex:1;accent-color:var(--red)}
 .slider-row b{width:28px;text-align:right}

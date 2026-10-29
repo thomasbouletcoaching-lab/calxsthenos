@@ -287,6 +287,21 @@ const cheatExtra = (c, t) => Math.max(0, (c.kcal || 1200) - Math.round(t.kcal * 
 export const cheats = () => (S().cheats || []).slice().sort((a, b) => a.d.localeCompare(b.d));
 export const nextCheat = () => cheats().find(c => c.d >= today()) || null;
 export const cheatOn = (d) => (S().cheats || []).filter(c => c.d === d);
+// Chaque plaisir est chiffré à partir de la base alimentaire : « Pizza 300 g » ou « Tiramisu » (100 g par défaut)
+export function cheatMacros(items) {
+  const lines = [];
+  for (const raw of items || []) {
+    const m = String(raw).match(/(\d+(?:[.,]\d+)?)\s*g\b/i);
+    const g = m ? +m[1].replace(",", ".") : 100;
+    const q = String(raw).replace(/(\d+(?:[.,]\d+)?)\s*g\b/i, " ").replace(/\s+/g, " ").trim();
+    const f = q ? searchFoods(q, 1)[0] : null;
+    if (!f) { lines.push({ label: raw, g, found: false, kcal: 0, p: 0, c: 0, f: 0 }); continue; }
+    const k = g / 100;
+    lines.push({ label: raw, name: f.n, g, found: true, kcal: Math.round(f.kcal * k), p: Math.round(f.p * k * 10) / 10, c: Math.round(f.c * k * 10) / 10, f: Math.round(f.f * k * 10) / 10 });
+  }
+  const sum = (key) => lines.reduce((a, l) => a + l[key], 0);
+  return { lines, kcal: Math.round(sum("kcal")), p: Math.round(sum("p") * 10) / 10, c: Math.round(sum("c") * 10) / 10, f: Math.round(sum("f") * 10) / 10, found: lines.some(l => l.found) };
+}
 // Cible du jour : jours d'entraînement un peu plus hauts, jours de repos un peu plus bas (moyenne de la semaine inchangée),
 // et un cheat meal prévu est compensé sur les autres jours de la semaine pour garder le déficit hebdomadaire.
 export function dayTarget(date = today()) {

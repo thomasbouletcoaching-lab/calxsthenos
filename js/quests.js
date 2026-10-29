@@ -34,7 +34,6 @@ export const TROPHIES = [
 export const REWARDS = [
   { id: "r3", lvl: 3, icon: "🎟️", name: "−5 % sur ta candidature coaching" },
   { id: "r5", lvl: 5, icon: "🎟️", name: "−10 % sur ta candidature coaching" },
-  { id: "r8", lvl: 8, icon: "🎁", name: "Une séance de 15 min offerte avec Thomas" },
 ];
 
 // Score d'une journée : 1 point par geste juste, plus un bonus quand les trois piliers tiennent

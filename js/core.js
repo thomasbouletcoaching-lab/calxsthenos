@@ -150,7 +150,7 @@ export function tabbar(active) {
   return cur + `<nav class="tabbar" aria-label="Navigation" style="--n:${t.length};--i:${ix}"><span class="lens" aria-hidden="true"></span>${t.map(([r, l, ic]) => `<a href="#/${r}" class="tab" ${r === act ? 'aria-current="page"' : ""}>${ic}<span>${l}</span>${r === "coach" && badges.msgs ? `<span class="badge">${badges.msgs}</span>` : ""}</a>`).join("")}</nav>`;
 }
 // Sélecteur de mode en haut d'un onglet (Carnet / Explorer / Connaissances), comme Hevy
-export const modeBar = (items, cur, act) => `<div class="modes" role="tablist">${items.map(([v, l]) => `<button role="tab" class="${v === cur ? "on" : ""}" data-a="${act}" data-v="${v}" aria-selected="${v === cur}">${l}</button>`).join("")}</div>`;
+export const modeBar = (items, cur, act) => `<div class="modes" role="tablist" style="--n:${items.length};--i:${Math.max(0, items.findIndex(([v]) => v === cur))}"><span class="lens" aria-hidden="true"></span>${items.map(([v, l]) => `<button role="tab" class="${v === cur ? "on" : ""}" data-a="${act}" data-v="${v}" aria-selected="${v === cur}">${l}</button>`).join("")}</div>`;
 // Barre d'onglets de l'espace coach
 export const adminBadges = { msgs: 0, subs: 0 };
 export function adminTabbar(active) {
@@ -164,7 +164,7 @@ export function adminTabbar(active) {
 }
 export const lockVeil = (label = "Bâtisseur", why = "") => `<div class="veil"><span class="lock">🔒 ${esc(label)}</span>${why ? `<p class="small muted" style="max-width:280px;margin:0">${esc(why)}</p>` : ""}<button class="btn btn-red btn-sm" data-a="go" data-r="offers">Voir les offres</button></div>`;
 export const lockBtn = (label = "Bâtisseur") => `<button class="lock" data-a="go" data-r="offers">🔒 ${esc(label)}</button>`;
-export const seg = (opts, cur, action) => `<div class="seg">${opts.map(([v, l]) => `<button data-a="${action}" data-v="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("")}</div>`;
+export const seg = (opts, cur, action) => `<div class="seg" style="--n:${opts.length};--i:${Math.max(0, opts.findIndex(([v]) => v === cur))}"><span class="lens" aria-hidden="true"></span>${opts.map(([v, l]) => `<button data-a="${action}" data-v="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("")}</div>`;
 export const chips = (opts, cur, action, extra = "") => `<div class="chips ${extra}">${opts.map(([v, l]) => `<button class="chip ${cur === v ? "on" : ""}" data-a="${action}" data-v="${esc(v)}">${l}</button>`).join("")}</div>`;
 
 // ---------- Graphiques ----------
@@ -250,11 +250,14 @@ export function installEvents() {
 actions.go = (b, d) => { closeSheet(); go(d.r, d.p ?? null); };
 actions.close = () => closeSheet();
 
-// ---------- Barre « liquid glass » : la bulle glisse sous le doigt, le relâchement ouvre l'onglet ----------
+// ---------- Glissement « liquid glass » : barre du bas, segments et modes ----------
+// La bulle suit le doigt ; au relâchement, l'élément le plus proche est activé
+const GLASS = ".tabbar, .seg, .modes";
 let drag = null, swallow = false;
 document.addEventListener("pointerdown", (e) => {
-  const nav = e.target.closest?.(".tabbar"); if (!nav) return;
-  drag = { nav, x0: e.clientX, y0: e.clientY, on: false, i: Number(nav.style.getPropertyValue("--i")) || 0, n: nav.querySelectorAll(".tab").length, f: null };
+  const nav = e.target.closest?.(GLASS); if (!nav) return;
+  const items = nav.classList.contains("tabbar") ? nav.querySelectorAll(".tab") : nav.querySelectorAll(":scope > button");
+  drag = { nav, items, x0: e.clientX, y0: e.clientY, on: false, i: Number(nav.style.getPropertyValue("--i")) || 0, n: items.length, f: null, pad: parseFloat(getComputedStyle(nav).paddingLeft) || 0 };
 });
 document.addEventListener("pointermove", (e) => {
   if (!drag) return;
@@ -263,22 +266,27 @@ document.addEventListener("pointermove", (e) => {
     if (dx < 10 || dx < dy) return;
     drag.on = true; drag.nav.classList.add("dragging");
   }
-  const r = drag.nav.getBoundingClientRect(), w = (r.width - 12) / drag.n;
-  drag.f = Math.min(drag.n - 1, Math.max(0, (e.clientX - r.left - 6 - w / 2) / w));
+  const r = drag.nav.getBoundingClientRect(), w = (r.width - 2 * drag.pad) / drag.n;
+  drag.f = Math.min(drag.n - 1, Math.max(0, (e.clientX - r.left - drag.pad - w / 2) / w));
   drag.nav.style.setProperty("--i", drag.f.toFixed(3));
 });
 const endDrag = () => {
   if (!drag) return; const d = drag; drag = null;
   if (!d.on) return;
   d.nav.classList.remove("dragging");
-  const tab = d.nav.querySelectorAll(".tab")[Math.round(d.f ?? d.i)];
-  swallow = true; setTimeout(() => { swallow = false; }, 350);
-  if (tab && tab.getAttribute("aria-current") !== "page") location.hash = tab.getAttribute("href");
-  else d.nav.style.setProperty("--i", d.i);
+  const it = d.items[Math.round(d.f ?? d.i)];
+  if (d.nav.classList.contains("tabbar")) {
+    swallow = true; setTimeout(() => { swallow = false; }, 350);
+    if (it && it.getAttribute("aria-current") !== "page") location.hash = it.getAttribute("href");
+    else d.nav.style.setProperty("--i", d.i);
+  } else {
+    if (it && !it.classList.contains("on")) it.click();
+    else d.nav.style.setProperty("--i", d.i);
+  }
 };
-document.addEventListener("dragstart", (e) => { if (e.target.closest?.(".tabbar")) e.preventDefault(); }); // pas de glisser natif de lien
 document.addEventListener("pointerup", endDrag);
 document.addEventListener("pointercancel", (e) => { if (drag && e.pointerType === "touch") endDrag(); });
+document.addEventListener("dragstart", (e) => { if (e.target.closest?.(GLASS)) e.preventDefault(); }); // pas de glisser natif de lien
 document.addEventListener("click", (e) => { if (swallow && e.target.closest?.(".tabbar")) { e.preventDefault(); e.stopPropagation(); swallow = false; } }, true);
 // En-tête qui s'estompe et floute le contenu défilé derrière lui (variable --sp de 0 à 1)
 const onScroll = () => document.documentElement.style.setProperty("--sp", Math.min(1, scrollY / 160).toFixed(3));

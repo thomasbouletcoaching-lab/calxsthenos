@@ -275,7 +275,7 @@ export function buildSession(at = null) {
         if (kg && sp.t === "D") kg *= sp.kg ? 1 : .8;
         if (kg) kg = roundTo(kg, step);
       }
-      sets.push({ g: sp.t === "W" ? -1 : 0, type: sp.t || "N", kg, reps: sp.lo, lo: sp.lo, hi: sp.hi || sp.lo, rpe: null, trpe: sp.rpe || (sp.t === "W" ? 5 : 8), pct: sp.pct || (e && kg ? Math.round(kg / e * 100) : null), tech: [...(sp.tech || [])], note: sp.note || "", done: false });
+      sets.push({ g: sp.t === "W" ? -1 : 0, type: sp.t || "N", kg, pkg: kg, reps: sp.lo, lo: sp.lo, hi: sp.hi || sp.lo, rpe: null, trpe: sp.rpe || (sp.t === "W" ? 5 : 8), pct: sp.pct || (e && kg ? Math.round(kg / e * 100) : null), tech: [...(sp.tech || [])], note: sp.note || "", done: false });
     });
     else groups.forEach((g, gi) => {
       for (let k = 0; k < g.sets; k++) {
@@ -288,7 +288,7 @@ export function buildSession(at = null) {
           if (kg) kg = roundTo(kg, step);
         }
         const type = g.ds && k === g.sets - 1 ? "D" : groups.length > 1 ? (gi === 0 ? "T" : "B") : "N";
-        sets.push({ g: gi, type, kg, reps: g.lo, lo: g.lo, hi: g.hi, rpe: null, trpe: g.rpe || 8, pct: g.pct || (e && kg ? Math.round(kg / e * 100) : null), tech: g.ds && k === g.sets - 1 ? ["Dropset"] : [...plannedTech], note: "", done: false });
+        sets.push({ g: gi, type, kg, pkg: kg, reps: g.lo, lo: g.lo, hi: g.hi, rpe: null, trpe: g.rpe || 8, pct: g.pct || (e && kg ? Math.round(kg / e * 100) : null), tech: g.ds && k === g.sets - 1 ? ["Dropset"] : [...plannedTech], note: "", done: false });
       }
     });
     // Échauffement proposé sur les mouvements de force
